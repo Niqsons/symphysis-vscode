@@ -1,0 +1,27 @@
+{
+  "name": "symphysis-spike",
+  "displayName": "Symphysis: пробный запуск",
+  "description": "Одноразовый пробный запуск части 1: Python, производительность интерфейса, mermaid, отличимость сохранений",
+  "publisher": "symphysis",
+  "version": "0.0.1",
+  "private": true,
+  "engines": { "vscode": "^1.100.0" },
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "symphysisSpike.open", "title": "Symphysis (проба): открыть просмотрщик и схему" }
+    ]
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "spike": "node build.mjs && node run.mjs"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.144.0",
+    "@vscode/test-electron": "3.1.0",
+    "esbuild": "0.28.2",
+    "mermaid": "12.2.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}

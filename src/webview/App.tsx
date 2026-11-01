@@ -1,0 +1,301 @@
+// Страница просмотрщика: один журнал, режим «решения». Хост присылает журнал и черновик; черновик человек правит здесь,
+// хост его только сохраняет. Пока Python работает, на экране остаётся прежний журнал.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildPrompt, chosen, cleanupIngested, effectiveDeps, emptyDraft, antipodesOf } from "../shared/logic";
+import { addNewFork, localDate, removeNewFork, setNotes, stats } from "../shared/ops";
+import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState } from "../shared/protocol";
+import type { Draft, JournalRecord, ViewPayload } from "../shared/types";
+import { Card, Text, type CardContext } from "./Card";
+import { ReturnPanel } from "./ReturnPanel";
+
+declare const acquireVsCodeApi: () => { postMessage(m: PageMessage): void };
+const vscode = acquireVsCodeApi();
+const post = (m: PageMessage) => vscode.postMessage(m);
+
+const SAVE_DELAY_MS = 200;
+
+function applyColors(c: Colors) {
+  const s = document.documentElement.style;
+  s.setProperty("--sym-signal", c.signal);
+  s.setProperty("--sym-accent", c.accent);
+  s.setProperty("--sym-muted", c.muted);
+}
+
+function FailureText({ failure }: { failure: CoreFailure }) {
+  switch (failure.kind) {
+    case "no-journal":
+      return <>У этого изменения ещё нет <code>decisions.json</code>.</>;
+    case "no-tools":
+      return <>В проекте нет <code>.symphysis/tools/journal.py</code>. Поставь инструменты: <code>symphysis install --project .</code></>;
+    case "no-python":
+      return (
+        <>
+          Python не найден: {failure.reason}.{failure.tried.length > 0 && <> Пробовал: <code>{failure.tried.join(", ")}</code>.</>}{" "}
+          <button type="button" className="small" onClick={() => post({ type: "openPythonSetting" })}>Указать путь</button>
+        </>
+      );
+    case "old-core":
+      return <>В <code>{failure.tools}</code> старая версия инструментов symphysis: нет команды <code>view-json</code>. Обнови: <code>symphysis install --project . --force</code></>;
+    case "invalid-journal":
+      return <>Журнал негоден. Ядро сообщает:<pre className="report-lines">{failure.text}</pre></>;
+    case "timeout":
+      return <>Python не ответил за отведённое время.</>;
+    case "crash":
+      return <>Ядро не отработало:<pre className="report-lines">{failure.text}</pre></>;
+  }
+}
+
+/** Записи, чей выбор меняет вид этой карточки: зависимости и антиподы. Дальше строка выбора — признак перерисовки для memo. */
+function relatedIds(p: ViewPayload, rec: JournalRecord): string[] {
+  const ids = new Set(rec.depends_on);
+  for (const o of rec.options) for (const k of antipodesOf(p.records, rec.id, o.letter)) ids.add(k.split(".")[0]);
+  return [...ids];
+}
+
+function NewForks({ draft, update }: { draft: Draft; update(fn: (d: Draft) => Draft): void }) {
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState("");
+  const [word, setWord] = useState("");
+  const add = () => {
+    if (!question.trim()) return;
+    update((d) => addNewFork(d, question, options, word));
+    setQuestion(""); setOptions(""); setWord("");
+  };
+  return (
+    <section className="newforks">
+      <details>
+        <summary>Развилка, которой нет в журнале{draft.newForks.length > 0 ? ` (${draft.newForks.length})` : ""}</summary>
+        <div className="row"><input type="text" placeholder="вопрос" value={question} onChange={(e) => setQuestion(e.target.value)} /></div>
+        <div className="row"><textarea rows={2} placeholder="варианты — по одному на строку" value={options} onChange={(e) => setOptions(e.target.value)} /></div>
+        <div className="row"><textarea rows={2} placeholder="слово: почему это развилка и что рекомендуешь" value={word} onChange={(e) => setWord(e.target.value)} /></div>
+        <div className="row"><button type="button" className="small" onClick={add}>добавить развилку</button></div>
+      </details>
+      {draft.newForks.map((f) => (
+        <div className="card" key={f.id}>
+          <header className="card-head">
+            <span className="rid">{f.id}</span>
+            <span className="badge plain">добавлена человеком</span>
+            <span className="spacer" />
+            <button type="button" className="small" onClick={() => update((d) => removeNewFork(d, f.id))}>убрать</button>
+          </header>
+          <h3 className="q"><Text s={f.question} /></h3>
+          <div className="meta">варианты: <Text s={f.options.replace(/\n+/g, " · ")} /></div>
+          {f.word && <div className="cons"><Text s={f.word} /></div>}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+export function App() {
+  const [view, setView] = useState<JournalView | null>(null);
+  const [draft, setDraftState] = useState<Draft>(emptyDraft);
+  const [ui, setUi] = useState<UiState>(DEFAULT_UI);
+  const [damaged, setDamaged] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [result, setResult] = useState<ApplyReport | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const draftRef = useRef(draft);
+  const keyRef = useRef<string | null>(null);
+  const payloadRef = useRef<ViewPayload | null>(null);
+  const applyingRef = useRef(false);
+  const ownShas = useRef(new Set<string>());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
+
+  const flush = useCallback(() => {
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    if (keyRef.current) post({ type: "draft", key: keyRef.current, draft: draftRef.current });
+  }, []);
+
+  const putDraft = useCallback((next: Draft) => {
+    draftRef.current = next;
+    setDraftState(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { saveTimer.current = null; if (keyRef.current) post({ type: "draft", key: keyRef.current, draft: draftRef.current }); }, SAVE_DELAY_MS);
+  }, []);
+
+  const update = useCallback((fn: (d: Draft) => Draft) => {
+    const next = fn(draftRef.current);
+    if (next !== draftRef.current) putDraft(next);
+  }, [putDraft]);
+
+  const reveal = useCallback((id: string) => {
+    // Запись скрыта фильтром — фильтр снимается и это запоминается, как снятие руками.
+    if (!document.getElementById(id)) {
+      setUi((u) => {
+        const next = { ...u, openOnly: false };
+        post({ type: "ui", ui: next });
+        return next;
+      });
+    }
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ block: "start" });
+      el.classList.add("flash");
+      setTimeout(() => el.classList.remove("flash"), 1200);
+    });
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (ev: MessageEvent<HostMessage>) => {
+      const m = ev.data;
+      if (m.type === "show") {
+        flush();
+        keyRef.current = m.view.key;
+        payloadRef.current = m.view.payload;
+        ownShas.current.clear();
+        applyColors(m.colors);
+        setUi(m.ui);
+        setView(m.view);
+        setDamaged(m.damagedDraft);
+        setNotice(null);
+        setResult(null);
+        applyingRef.current = false;
+        setApplying(false);
+        const clean = m.view.payload ? cleanupIngested(m.view.payload, m.draft) : m.draft;
+        draftRef.current = clean;
+        setDraftState(clean);
+        if (clean !== m.draft) post({ type: "draft", key: m.view.key, draft: clean });
+        mainRef.current?.scrollTo(0, 0);
+      } else if (m.type === "journal") {
+        if (m.view.key !== keyRef.current) return;
+        const before = payloadRef.current;
+        if (m.view.payload) {
+          const sha = m.view.payload.sha256;
+          const foreign = before && sha !== before.sha256 && !applyingRef.current && !(sha && ownShas.current.has(sha));
+          if (foreign) {
+            const known = new Set(before.records.map((r) => r.id));
+            const added = m.view.payload.records.filter((r) => !known.has(r.id)).map((r) => r.id);
+            setNotice(added.length ? `Журнал обновлён снаружи, новые записи: ${added.join(", ")}` : "Журнал обновлён снаружи");
+          }
+          payloadRef.current = m.view.payload;
+          const clean = cleanupIngested(m.view.payload, draftRef.current);
+          if (clean !== draftRef.current) putDraft(clean);
+        }
+        setView((v) => ({ ...m.view, payload: m.view.payload ?? v?.payload ?? null }));
+      } else if (m.type === "colors") {
+        applyColors(m.colors);
+      } else if (m.type === "reveal") {
+        reveal(m.id);
+      } else if (m.type === "applied") {
+        if (m.key !== keyRef.current) return;
+        if (m.result.stage === "applied") ownShas.current.add(m.result.sha256After);
+        applyingRef.current = false;
+        setApplying(false);
+        setResult(m.result);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    post({ type: "ready" });
+    return () => window.removeEventListener("message", onMessage);
+  }, [flush, putDraft, reveal]);
+
+  const payload = view?.payload ?? null;
+  const ctx: CardContext | null = useMemo(() => (payload ? { payload, getDraft: () => draftRef.current, update } : null), [payload, update]);
+  const related = useMemo(() => new Map(payload?.records.map((r) => [r.id, relatedIds(payload, r)]) ?? []), [payload]);
+  const prompt = useMemo(() => (payload ? buildPrompt(payload, draft, localDate()) : null), [payload, draft]);
+  const counts = useMemo(() => (payload ? stats(payload, draft) : null), [payload, draft]);
+
+  const setUiAndSave = (next: UiState) => {
+    setUi(next);
+    post({ type: "ui", ui: next });
+  };
+
+  const onApply = () => {
+    if (!prompt || !payload || !keyRef.current) return;
+    flush();
+    applyingRef.current = true;
+    setApplying(true);
+    setResult(null);
+    post({ type: "apply", key: keyRef.current, text: prompt.text, shownSha: payload.sha256, date: localDate() });
+  };
+
+  const onCopy = () => {
+    if (!prompt) return;
+    post({ type: "copy", text: prompt.text });
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  if (!view) return <div className="empty">Выбери изменение в боковой панели Symphysis.</div>;
+
+  // Перечитывание «Внести» не закрывает: от устаревшего показа защищает сверка хеша, а кнопка не мигает при каждой записи агента.
+  const blockedReason = view.failure ? "Журнал сейчас негоден — вносить не во что" : prompt?.conflictKeys.length ? "Два разных ответа к одному решению — оставь один" : null;
+  const shown = payload?.records.filter((r) => !ui.openOnly || (r.kind !== "факт" && !chosen(payload, draft, r.id))) ?? [];
+  const links = (rec: JournalRecord) => {
+    if (!payload) return "";
+    const ids = new Set([...(related.get(rec.id) ?? []), ...effectiveDeps(rec, draft).map((x) => x.id)]);
+    return [...ids].map((id) => `${id}:${chosen(payload, draft, id) ?? ""}`).join();
+  };
+
+  return (
+    <div className="page">
+      <header className="top">
+        <div className="top-row">
+          <h1 title={payload?.title}>{view.name}</h1>
+          <nav className="modes">
+            <button type="button" className="mode active">решения</button>
+            <button type="button" className="mode" disabled title="следующий шаг, после показа">проверка</button>
+            <button type="button" className="mode" disabled title="следующий шаг, после показа">атака</button>
+          </nav>
+          <span className="spacer" />
+          <label className="toggle"><input type="checkbox" checked={ui.openOnly} onChange={(e) => setUiAndSave({ ...ui, openOnly: e.target.checked })} /> только открытые</label>
+          <button type="button" className="small" onClick={() => post({ type: "reset", key: view.key })} title="убрать весь черновик этого журнала">Сбросить</button>
+        </div>
+        {counts && payload && (
+          <div className="stats">
+            развилок <b>{counts.forks}</b> · решено <b>{counts.decided}</b>{counts.changed > 0 && <> · изменено здесь <b className="accent">{counts.changed}</b></>}
+            {" "}· открыто <b className={counts.open ? "accent" : ""}>{counts.open}</b> · с парковкой <b>{counts.parked}</b> · фактов <b>{counts.facts}</b>
+            {counts.disputed > 0 && <> · оспорено <b>{counts.disputed}</b></>}
+            {counts.newForks > 0 && <> · новых развилок <b>{counts.newForks}</b></>}
+            {" "}· <span className="muted">улик сверено {payload.stats.evidence_found} из {payload.stats.evidence_total}</span>
+            {counts.quoteMissing > 0 && <> · <b className="signal">цитат не найдено: {counts.quoteMissing}</b></>}
+            {view.loading && <span className="muted"> · перечитывается…</span>}
+          </div>
+        )}
+      </header>
+      <main ref={mainRef} onClick={(e) => {
+        const link = (e.target as HTMLElement).closest("a[href^='#']");
+        if (!link) return;
+        e.preventDefault();
+        reveal(link.getAttribute("href")!.slice(1));
+      }}>
+        {view.failure && <div className={`note ${view.failure.kind === "no-journal" ? "" : "signal"} block`}><FailureText failure={view.failure} />{payload && <div className="muted">Ниже — журнал, каким он был до этого.</div>}</div>}
+        {damaged && <div className="note signal block">Файл черновика был испорчен и отложен: <code>{damaged}</code>. Начат пустой черновик.</div>}
+        {notice && <div className="note accent block">{notice} <button type="button" className="small" onClick={() => setNotice(null)}>×</button></div>}
+        {ctx && (
+          <>
+            <NewForks draft={draft} update={update} />
+            {shown.map((rec) => (
+              <Card key={rec.id} rec={rec} ctx={ctx} entry={draft.decisions[rec.id]} added={draft.added[rec.id]} deps={draft.deps[rec.id]} dispute={draft.disputes[rec.id]} links={links(rec)} />
+            ))}
+            {ui.openOnly && shown.length === 0 && <div className="empty">Открытых развилок нет.</div>}
+            <section className="notes">
+              <h2>Замечания к схеме и плану</h2>
+              <textarea rows={3} placeholder="что не так в схеме работы, в поставках, в этапах" value={draft.notes} onChange={(e) => update((d) => setNotes(d, e.target.value))} />
+              {payload && payload.notes.length > 0 && (
+                <details>
+                  <summary>заметки в журнале ({payload.notes.length})</summary>
+                  {payload.notes.map((n, i) => <div className="cons" key={i}>{n.date}: <Text s={n.text} /></div>)}
+                </details>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+      {prompt && (
+        <ReturnPanel
+          prompt={prompt} open={ui.promptOpen} applying={applying} blockedReason={blockedReason} result={result} copied={copied}
+          height={ui.promptHeight} onHeight={(promptHeight) => setUiAndSave({ ...ui, promptHeight })}
+          onToggle={() => setUiAndSave({ ...ui, promptOpen: !ui.promptOpen })} onApply={onApply} onCopy={onCopy} onDismiss={() => setResult(null)}
+        />
+      )}
+    </div>
+  );
+}

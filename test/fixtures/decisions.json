@@ -1,0 +1,54 @@
+{
+ "title": "Журнал решений: образец для тестов",
+ "source": "decisions.json",
+ "notes": [{"date": "2026-11-01", "text": "круг 1 закончен"}],
+ "records": [
+  {
+   "id": "F-01", "question": "Что должно получиться по постановке?", "kind": "факт", "status": "решён", "addressee": "постановка",
+   "depends_on": [], "delivery": "", "options": [], "antipodes": [], "recommendation": null, "decision": null,
+   "reversibility": null, "outcome": null, "parking": [], "dispute": "", "consequences": "Журнал показывается человеку.",
+   "evidence": [{"path": "intent.md", "quote": "показать журнал человеку"}], "comments": []
+  },
+  {
+   "id": "F-02", "question": "Где хранить `черновики`?", "kind": "развилка", "status": "открыт", "addressee": "",
+   "depends_on": ["F-01"], "delivery": "",
+   "options": [
+    {"letter": "A", "text": "В каталоге проекта", "added": false, "unlikely": null,
+     "evidence": [{"path": "intent.md", "quote": "показать журнал человеку"}]},
+    {"letter": "B", "text": "В состоянии браузера", "added": false, "unlikely": "браузера в VS Code нет",
+     "evidence": [{"path": "intent.md", "quote": "этой цитаты в файле нет"}]},
+    {"letter": "C", "text": "Не хранить вовсе", "added": false, "unlikely": null, "evidence": [], "deviation": "F-01"}
+   ],
+   "antipodes": [{"option": "A", "other": "F-03.B"}],
+   "recommendation": {"option": "A", "why": "файлы проекта рядом с работой"},
+   "decision": null,
+   "reversibility": {"level": "в одну сторону", "why": "формат файла станет контрактом"},
+   "outcome": null, "parking": [], "dispute": "", "consequences": "Следствие для каталога.", "evidence": [], "comments": []
+  },
+  {
+   "id": "F-03", "question": "Кто пишет журнал?", "kind": "развилка", "status": "решён", "addressee": "",
+   "depends_on": [], "delivery": "",
+   "options": [
+    {"letter": "A", "text": "Только apply", "added": false, "unlikely": null, "evidence": []},
+    {"letter": "B", "text": "Расширение само", "added": false, "unlikely": null, "evidence": []}
+   ],
+   "antipodes": [],
+   "recommendation": {"option": "A", "why": "одна дверь в журнал"},
+   "decision": {"option": "A", "word": "только apply", "date": "2026-11-01"},
+   "reversibility": null, "outcome": null,
+   "parking": [{"addressee": "ИБ", "text": "Проверить запись вне каталога"}],
+   "dispute": "", "consequences": "", "evidence": [], "comments": []
+  },
+  {
+   "id": "F-04", "question": "Что показывать при пустом журнале?", "kind": "развилка", "status": "открыт", "addressee": "",
+   "depends_on": ["F-02"], "delivery": "",
+   "options": [
+    {"letter": "A", "text": "Подсказку", "added": false, "unlikely": null, "evidence": []},
+    {"letter": "B", "text": "Ничего", "added": false, "unlikely": null, "evidence": []}
+   ],
+   "antipodes": [], "recommendation": null, "decision": null, "reversibility": null,
+   "outcome": {"kind": "проба", "value": "Defer", "reason": "ждёт показа"},
+   "parking": [], "dispute": "", "consequences": "", "evidence": [], "comments": []
+  }
+ ]
+}

@@ -1,0 +1,105 @@
+// Файлы проекта: где ядро, какие изменения, ответы человека, черновики. Расширение пишет только в `.symphysis/viewer/` (Р4)
+// и в `answers/` изменения (Р8).
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { emptyDraft, normalizeDraft } from "../shared/logic";
+import type { Draft } from "../shared/types";
+
+export interface ChangeRef {
+  root: string;
+  name: string;
+  dir: string;
+  journal: string;
+  hasJournal: boolean;
+  attacks: string[];
+}
+
+const CHANGES = path.join("openspec", "changes");
+const VIEWER = path.join(".symphysis", "viewer");
+
+/** Установленное ядро важнее `tools/`: у репозитория symphysis есть оба, и работает он как установленный проект. */
+export function findTools(root: string): string | null {
+  for (const dir of [path.join(root, ".symphysis", "tools"), path.join(root, "tools")]) {
+    if (fs.existsSync(path.join(dir, "journal.py"))) return dir;
+  }
+  return null;
+}
+
+export function changeRef(root: string, name: string): ChangeRef {
+  const dir = path.join(root, CHANGES, name);
+  const journal = path.join(dir, "decisions.json");
+  let attacks: string[] = [];
+  try {
+    attacks = fs.readdirSync(path.join(dir, "attack")).filter((f) => f.endsWith(".md")).sort().map((f) => path.join(dir, "attack", f));
+  } catch { /* каталога атак нет — атак нет */ }
+  return { root, name, dir, journal, hasJournal: fs.existsSync(journal), attacks };
+}
+
+export function listChanges(root: string): ChangeRef[] {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(path.join(root, CHANGES), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries.filter((e) => e.isDirectory() && e.name !== "archive").map((e) => e.name).sort().map((name) => changeRef(root, name));
+}
+
+/** Промпт как есть в `answers/<дата>.md`; занято — `<дата>-2.md`, `-3`… Создание исключительное: чужой файл не затирается. */
+export function saveAnswers(dir: string, date: string, text: string): string {
+  const answers = path.join(dir, "answers");
+  fs.mkdirSync(answers, { recursive: true });
+  for (let n = 1; ; n++) {
+    const file = path.join(answers, n === 1 ? `${date}.md` : `${date}-${n}.md`);
+    try {
+      fs.writeFileSync(file, text, { encoding: "utf8", flag: "wx" });
+      return file;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+    }
+  }
+}
+
+export const sha256File = (file: string): string => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+
+const draftFile = (root: string, name: string) => path.join(root, VIEWER, `${name}.json`);
+
+/** Битый файл — работа человека: он откладывается рядом и называется, а не затирается. */
+export function readDraft(root: string, name: string): { draft: Draft; damaged: string | null } {
+  const file = draftFile(root, name);
+  let text: string;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return { draft: emptyDraft(), damaged: null };
+  }
+  try {
+    return { draft: normalizeDraft(JSON.parse(text)), damaged: null };
+  } catch {
+    const damaged = path.join(path.dirname(file), `${name}.damaged-${Date.now()}.json`);
+    fs.renameSync(file, damaged);
+    return { draft: emptyDraft(), damaged };
+  }
+}
+
+/** Запись через временный файл и переименование: обрыв не оставит половину черновика. Каталог сам себя исключает из git. */
+export function writeDraft(root: string, name: string, draft: Draft): void {
+  const dir = path.join(root, VIEWER);
+  fs.mkdirSync(dir, { recursive: true });
+  const ignore = path.join(dir, ".gitignore");
+  if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, "*\n", "utf8");
+  const file = draftFile(root, name);
+  const temp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(draft, null, 1), "utf8");
+  fs.renameSync(temp, file);
+}
+
+/** `unlinkSync`, не `rmSync`: `rmSync` в Node 24 на Windows молча не удаляет файл, если в пути кириллица. */
+export function deleteDraft(root: string, name: string): void {
+  try {
+    fs.unlinkSync(draftFile(root, name));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+}

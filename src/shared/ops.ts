@@ -1,6 +1,7 @@
 // Правки черновика человеком и счётчики: чистые функции, прежний объект не меняется — React сравнивает записи по ссылке.
-import { chosen, nextLetter } from "./logic";
-import type { DecisionDraft, Draft, Evidence, JournalRecord, ViewPayload } from "./types";
+import { ADDED_MARK, chosen, nextLetter } from "./logic";
+import type { RecordFilter } from "./protocol";
+import type { DecisionDraft, Draft, Evidence, JournalOption, JournalRecord, ViewPayload } from "./types";
 
 const decision = (d: Draft, id: string): DecisionDraft => d.decisions[id] ?? { choice: null, word: "", parked: [] };
 const withDecision = (d: Draft, id: string, patch: Partial<DecisionDraft>): Draft =>
@@ -69,6 +70,8 @@ export function addNewFork(d: Draft, question: string, options: string, word: st
 
 export const removeNewFork = (d: Draft, id: string): Draft => ({ ...d, newForks: d.newForks.filter((f) => f.id !== id) });
 
+export const isHumanOption = (o: JournalOption): boolean => o.added || o.text.includes(ADDED_MARK);
+
 /** Уровень цвета улики (Р21). «Корня нет» — особенность запуска, не находка; «не проверить» — файл не текст. */
 export function evidenceLevel(ev: Evidence): "muted" | "signal" {
   if (ev.found !== false) return "muted";
@@ -114,6 +117,16 @@ export function recordMark(p: ViewPayload, d: Draft, rec: JournalRecord): Record
   if (local && rec.decision && local !== rec.decision.option) return "changed";
   if (chosen(p, d, rec.id)) return "decided";
   return rec.parking.length || d.decisions[rec.id]?.parked.length ? "parked" : "open";
+}
+
+/** Фильтр режима «решения»: развилка без выбора открыта и с учётом черновика, как в карточке. */
+export function matchesRecordFilter(p: ViewPayload, d: Draft, rec: JournalRecord, f: RecordFilter): boolean {
+  switch (f) {
+    case "all": return true;
+    case "facts": return rec.kind === "факт";
+    case "forks": return rec.kind !== "факт";
+    case "open": return rec.kind !== "факт" && !chosen(p, d, rec.id);
+  }
 }
 
 const PROMPT_MIN_HEIGHT = 48;

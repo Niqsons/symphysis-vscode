@@ -17,15 +17,18 @@
     "commands": [
       { "command": "symphysis.refresh", "title": "Обновить", "category": "Symphysis", "icon": "$(refresh)" },
       { "command": "symphysis.openChange", "title": "Открыть журнал", "category": "Symphysis" },
-      { "command": "symphysis.revealRecord", "title": "Показать запись", "category": "Symphysis" }
+      { "command": "symphysis.revealRecord", "title": "Показать запись", "category": "Symphysis" },
+      { "command": "symphysis.revealAttack", "title": "Показать в атаке", "category": "Symphysis" }
     ],
     "viewsContainers": {
       "activitybar": [{ "id": "symphysis", "title": "Symphysis", "icon": "media/icon.svg" }]
     },
     "views": {
       "symphysis": [
-        { "id": "symphysis.changes", "name": "Изменения" },
-        { "id": "symphysis.toc", "name": "Оглавление журнала" }
+        { "id": "symphysis.changes", "name": "Изменения", "initialSize": 1 },
+        { "id": "symphysis.search", "name": "Поиск", "type": "webview", "initialSize": 2 },
+        { "id": "symphysis.toc", "name": "Оглавление журнала", "initialSize": 2 },
+        { "id": "symphysis.attackToc", "name": "Оглавление атаки", "visibility": "collapsed", "initialSize": 2 }
       ]
     },
     "viewsWelcome": [
@@ -35,7 +38,8 @@
       "view/title": [{ "command": "symphysis.refresh", "when": "view == symphysis.changes", "group": "navigation" }],
       "commandPalette": [
         { "command": "symphysis.openChange", "when": "false" },
-        { "command": "symphysis.revealRecord", "when": "false" }
+        { "command": "symphysis.revealRecord", "when": "false" },
+        { "command": "symphysis.revealAttack", "when": "false" }
       ]
     },
     "configuration": {

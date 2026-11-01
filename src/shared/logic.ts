@@ -2,7 +2,7 @@
 // Строки промпта пишутся по грамматике `journal_apply.parse_answers`; контракт держит test/unit/contract.test.ts.
 import type { DecisionDraft, Draft, JournalOption, JournalRecord, ViewPayload } from "./types";
 
-const ADDED_MARK = "(добавлен человеком";
+export const ADDED_MARK = "(добавлен человеком";
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const EMPTY_LINE = "(нового нет — решения из журнала остаются как есть, молчание по открытой развилке оставляет её открытой)";
 
@@ -96,7 +96,8 @@ function wordIngested(journalWord: unknown, word: unknown): boolean {
   return w !== "" && norm(journalWord).includes(w);
 }
 
-const disputeKey = (path: string, r: { section: string; claim: string }) => `${path}|${r.section}|${r.claim}`;
+/** Ключ спора — файл, раздел и утверждение: при повторной атаке спор остаётся у той же строки, а не у того же номера. */
+export const disputeKey = (path: string, r: { section: string; claim: string }) => `${path}|${r.section}|${r.claim}`;
 
 /** Вычищает из черновика то, что уже стоит в журнале. Ничего не изменилось — возвращает тот же объект. */
 export function cleanupIngested(p: ViewPayload, d: Draft): Draft {
@@ -125,13 +126,24 @@ export function cleanupIngested(p: ViewPayload, d: Draft): Draft {
   const noteTexts = p.notes.map((n) => norm(n.text));
   const own = norm(d.notes);
   if (own && noteTexts.some((t) => t.includes(own))) out.notes = "";
+  const byId = new Map(p.records.map((r) => [r.id, r]));
   for (const att of p.attacks) {
     for (const r of att.rows ?? []) {
       const k = disputeKey(att.path, r), sp = norm(out.attackDisputes[k]);
-      if (sp && noteTexts.some((t) => t.includes(sp))) delete out.attackDisputes[k];
+      if (!sp) continue;
+      const rec = askedRecord(r, byId);
+      const answered = rec?.decision && (out.decisions[rec.id]?.choice ?? rec.decision.option) === rec.decision.option && wordIngested(rec.decision.word, sp);
+      if (answered || noteTexts.some((t) => t.includes(sp))) delete out.attackDisputes[k];
     }
   }
   return JSON.stringify(out) === JSON.stringify(d) ? d : out;
+}
+
+/** Строка атаки, закрываемая вопросом человеку к решению записи: ответ на неё — слово к решению, а не замечание. */
+function askedRecord(r: { section: string; fix: string }, byId: Map<string, JournalRecord>): JournalRecord | undefined {
+  const m = /^(F-\d+),\s*decision\b/.exec(norm(r.section));
+  const rec = m ? byId.get(m[1]) : undefined;
+  return rec?.kind === "развилка" && norm(r.fix).toLowerCase() === "вопрос человеку" ? rec : undefined;
 }
 
 function cleanDecision(rec: JournalRecord, cur: DecisionDraft): DecisionDraft {
@@ -167,12 +179,10 @@ export function buildPrompt(p: ViewPayload, d: Draft, date: string): Prompt {
     for (const r of att.rows ?? []) {
       const key = disputeKey(att.path, r), sp = norm(d.attackDisputes[key]);
       if (!sp) continue;
-      const m = /^(F-\d+),\s*decision\b/.exec(norm(r.section));
-      const rec = m ? byId.get(m[1]) : undefined;
-      const askHuman = rec?.kind === "развилка" && norm(r.fix).toLowerCase() === "вопрос человеку";
-      if (askHuman && letterOf(rec)) {
+      const rec = askedRecord(r, byId);
+      if (rec && letterOf(rec)) {
         answers.set(rec.id, [...(answers.get(rec.id) ?? []), { key, text: sp }]);
-      } else if (askHuman) {
+      } else if (rec) {
         undecidedKeys.push(key);
         otherDisputes.push(`${rec.id}: ${sp}`);
       } else {

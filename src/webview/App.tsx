@@ -1,25 +1,38 @@
-// Страница просмотрщика: один журнал, режим «решения». Хост присылает журнал и черновик; черновик человек правит здесь,
+// Страница просмотрщика: один журнал, три режима. Хост присылает журнал и черновик; черновик человек правит здесь,
 // хост его только сохраняет. Пока Python работает, на экране остаётся прежний журнал.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { ALL_LENSES, lensFilters } from "../shared/attack";
 import { buildPrompt, chosen, cleanupIngested, effectiveDeps, emptyDraft, antipodesOf } from "../shared/logic";
-import { addNewFork, localDate, removeNewFork, setNotes, stats } from "../shared/ops";
-import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState } from "../shared/protocol";
+import { addNewFork, localDate, matchesRecordFilter, removeNewFork, setNotes, stats } from "../shared/ops";
+import { DEFAULT_UI, type ApplyReport, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type RecordFilter, type UiState, type ViewMode } from "../shared/protocol";
+import { NOTES_ANCHOR } from "../shared/search";
 import type { Draft, JournalRecord, ViewPayload } from "../shared/types";
+import { AttackView, LensFilter } from "./AttackView";
 import { Card, Text, type CardContext } from "./Card";
+import { CheckView } from "./CheckView";
+import { applyColors } from "./colors";
 import { ReturnPanel } from "./ReturnPanel";
+import { Segmented } from "./Segmented";
+
+const MODES: { mode: ViewMode; label: string; title: string }[] = [
+  { mode: "decisions", label: "решения", title: "круг просмотрщика: варианты, слово, парковка, промпт возврата" },
+  { mode: "check", label: "проверка", title: "снимок решений перед proposal, только чтение" },
+  { mode: "attack", label: "атака", title: "строки attack/*.md по линзам" },
+];
+
+const NOTHING_SHOWN: Record<RecordFilter, string> = {
+  all: "В журнале нет записей.",
+  forks: "Развилок нет.",
+  open: "Открытых развилок нет.",
+  facts: "Фактов нет.",
+};
 
 declare const acquireVsCodeApi: () => { postMessage(m: PageMessage): void };
 const vscode = acquireVsCodeApi();
 const post = (m: PageMessage) => vscode.postMessage(m);
 
 const SAVE_DELAY_MS = 200;
-
-function applyColors(c: Colors) {
-  const s = document.documentElement.style;
-  s.setProperty("--sym-signal", c.signal);
-  s.setProperty("--sym-accent", c.accent);
-  s.setProperty("--sym-muted", c.muted);
-}
 
 function FailureText({ failure }: { failure: CoreFailure }) {
   switch (failure.kind) {
@@ -71,7 +84,7 @@ function NewForks({ draft, update }: { draft: Draft; update(fn: (d: Draft) => Dr
         <div className="row"><button type="button" className="small" onClick={add}>добавить развилку</button></div>
       </details>
       {draft.newForks.map((f) => (
-        <div className="card" key={f.id}>
+        <div className="card" id={f.id} key={f.id}>
           <header className="card-head">
             <span className="rid">{f.id}</span>
             <span className="badge plain">добавлена человеком</span>
@@ -98,6 +111,8 @@ export function App() {
   const [copied, setCopied] = useState(false);
 
   const draftRef = useRef(draft);
+  const uiRef = useRef(ui);
+  const scrollByMode = useRef<Partial<Record<ViewMode, number>>>({});
   const keyRef = useRef<string | null>(null);
   const payloadRef = useRef<ViewPayload | null>(null);
   const applyingRef = useRef(false);
@@ -124,23 +139,39 @@ export function App() {
     if (next !== draftRef.current) putDraft(next);
   }, [putDraft]);
 
-  const reveal = useCallback((id: string) => {
-    // Запись скрыта фильтром — фильтр снимается и это запоминается, как снятие руками.
-    if (!document.getElementById(id)) {
-      setUi((u) => {
-        const next = { ...u, openOnly: false };
-        post({ type: "ui", ui: next });
-        return next;
-      });
-    }
-    requestAnimationFrame(() => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.scrollIntoView({ block: "start" });
-      el.classList.add("flash");
-      setTimeout(() => el.classList.remove("flash"), 1200);
-    });
+  const putUi = useCallback((next: UiState, sync = false) => {
+    uiRef.current = next;
+    if (sync) flushSync(() => setUi(next));
+    else setUi(next);
+    post({ type: "ui", ui: next });
   }, []);
+
+  const setMode = useCallback((mode: ViewMode, sync = false) => {
+    scrollByMode.current[uiRef.current.mode] = mainRef.current?.scrollTop ?? 0;
+    putUi({ ...uiRef.current, mode }, sync);
+  }, [putUi]);
+
+  const reveal = useCallback((id: string, mode?: ViewMode) => {
+    const show = (next: Partial<UiState>) => {
+      scrollByMode.current[uiRef.current.mode] = mainRef.current?.scrollTop ?? 0;
+      putUi({ ...uiRef.current, ...next }, true);
+    };
+    // Сначала режим, и только если цель всё ещё скрыта — снятие фильтра: снятие запоминается, как снятие руками, зря его не делаем.
+    if (mode && uiRef.current.mode !== mode) show({ mode });
+    if (!mode && !document.getElementById(id) && uiRef.current.mode !== "decisions") show({ mode: "decisions" });
+    if (!document.getElementById(id)) show(uiRef.current.mode === "attack" ? { attackLens: ALL_LENSES } : { recordFilter: "all" });
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.closest("details")?.setAttribute("open", "");
+    el.scrollIntoView({ block: "start" });
+    el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 1200);
+  }, [putUi]);
+
+  // У каждого режима своя прокрутка: вернулся из «атаки» — карточки там же, где были.
+  useLayoutEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = scrollByMode.current[ui.mode] ?? 0;
+  }, [ui.mode]);
 
   useEffect(() => {
     const onMessage = (ev: MessageEvent<HostMessage>) => {
@@ -150,7 +181,9 @@ export function App() {
         keyRef.current = m.view.key;
         payloadRef.current = m.view.payload;
         ownShas.current.clear();
+        scrollByMode.current = {};
         applyColors(m.colors);
+        uiRef.current = m.ui;
         setUi(m.ui);
         setView(m.view);
         setDamaged(m.damagedDraft);
@@ -182,7 +215,7 @@ export function App() {
       } else if (m.type === "colors") {
         applyColors(m.colors);
       } else if (m.type === "reveal") {
-        reveal(m.id);
+        reveal(m.id, m.mode);
       } else if (m.type === "applied") {
         if (m.key !== keyRef.current) return;
         if (m.result.stage === "applied") ownShas.current.add(m.result.sha256After);
@@ -201,11 +234,7 @@ export function App() {
   const related = useMemo(() => new Map(payload?.records.map((r) => [r.id, relatedIds(payload, r)]) ?? []), [payload]);
   const prompt = useMemo(() => (payload ? buildPrompt(payload, draft, localDate()) : null), [payload, draft]);
   const counts = useMemo(() => (payload ? stats(payload, draft) : null), [payload, draft]);
-
-  const setUiAndSave = (next: UiState) => {
-    setUi(next);
-    post({ type: "ui", ui: next });
-  };
+  const attackRows = useMemo(() => (payload ? lensFilters(payload.attacks).total : 0), [payload]);
 
   const onApply = () => {
     if (!prompt || !payload || !keyRef.current) return;
@@ -227,7 +256,7 @@ export function App() {
 
   // Перечитывание «Внести» не закрывает: от устаревшего показа защищает сверка хеша, а кнопка не мигает при каждой записи агента.
   const blockedReason = view.failure ? "Журнал сейчас негоден — вносить не во что" : prompt?.conflictKeys.length ? "Два разных ответа к одному решению — оставь один" : null;
-  const shown = payload?.records.filter((r) => !ui.openOnly || (r.kind !== "факт" && !chosen(payload, draft, r.id))) ?? [];
+  const shown = payload?.records.filter((r) => matchesRecordFilter(payload, draft, r, ui.recordFilter)) ?? [];
   const links = (rec: JournalRecord) => {
     if (!payload) return "";
     const ids = new Set([...(related.get(rec.id) ?? []), ...effectiveDeps(rec, draft).map((x) => x.id)]);
@@ -239,16 +268,30 @@ export function App() {
       <header className="top">
         <div className="top-row">
           <h1 title={payload?.title}>{view.name}</h1>
-          <nav className="modes">
-            <button type="button" className="mode active">решения</button>
-            <button type="button" className="mode" disabled title="следующий шаг, после показа">проверка</button>
-            <button type="button" className="mode" disabled title="следующий шаг, после показа">атака</button>
-          </nav>
+          <Segmented
+            className="modes" value={ui.mode} onChange={(mode) => setMode(mode)}
+            items={MODES.map(({ mode, label, title }) => ({ value: mode, title, label: `${label}${mode === "attack" && attackRows > 0 ? ` · ${attackRows}` : ""}` }))}
+          />
           <span className="spacer" />
-          <label className="toggle"><input type="checkbox" checked={ui.openOnly} onChange={(e) => setUiAndSave({ ...ui, openOnly: e.target.checked })} /> только открытые</label>
-          <button type="button" className="small" onClick={() => post({ type: "reset", key: view.key })} title="убрать весь черновик этого журнала">Сбросить</button>
+          {view.loading && ui.mode !== "decisions" && <span className="muted">перечитывается…</span>}
+          {ui.mode !== "check" && <button type="button" className="small" onClick={() => post({ type: "reset", key: view.key })} title="убрать весь черновик этого журнала">Сбросить</button>}
         </div>
-        {counts && payload && (
+        {/* Фильтры в шапке: выбранный на виду при любой прокрутке. */}
+        {counts && payload && ui.mode === "decisions" && (
+          <Segmented
+            label="показать:" className="recordfilter" value={ui.recordFilter} onChange={(recordFilter) => putUi({ ...uiRef.current, recordFilter })}
+            items={[
+              { value: "all", label: `все · ${payload.records.length}` },
+              { value: "forks", label: `развилки · ${counts.forks}` },
+              { value: "open", label: `открытые · ${counts.open}` },
+              { value: "facts", label: `факты · ${counts.facts}` },
+            ]}
+          />
+        )}
+        {payload && ui.mode === "attack" && payload.attacks.length > 0 && (
+          <LensFilter attacks={payload.attacks} lens={ui.attackLens} onLens={(attackLens) => putUi({ ...uiRef.current, attackLens })} />
+        )}
+        {counts && payload && ui.mode === "decisions" && (
           <div className="stats">
             развилок <b>{counts.forks}</b> · решено <b>{counts.decided}</b>{counts.changed > 0 && <> · изменено здесь <b className="accent">{counts.changed}</b></>}
             {" "}· открыто <b className={counts.open ? "accent" : ""}>{counts.open}</b> · с парковкой <b>{counts.parked}</b> · фактов <b>{counts.facts}</b>
@@ -269,18 +312,23 @@ export function App() {
         {view.failure && <div className={`note ${view.failure.kind === "no-journal" ? "" : "signal"} block`}><FailureText failure={view.failure} />{payload && <div className="muted">Ниже — журнал, каким он был до этого.</div>}</div>}
         {damaged && <div className="note signal block">Файл черновика был испорчен и отложен: <code>{damaged}</code>. Начат пустой черновик.</div>}
         {notice && <div className="note accent block">{notice} <button type="button" className="small" onClick={() => setNotice(null)}>×</button></div>}
-        {ctx && (
+        {payload && ui.mode === "check" && <CheckView payload={payload} />}
+        {payload && prompt && ui.mode === "attack" && (
+          <AttackView payload={payload} draft={draft} flags={prompt} lens={ui.attackLens} update={update} />
+        )}
+        {ctx && ui.mode === "decisions" && (
           <>
             <NewForks draft={draft} update={update} />
             {shown.map((rec) => (
               <Card key={rec.id} rec={rec} ctx={ctx} entry={draft.decisions[rec.id]} added={draft.added[rec.id]} deps={draft.deps[rec.id]} dispute={draft.disputes[rec.id]} links={links(rec)} />
             ))}
-            {ui.openOnly && shown.length === 0 && <div className="empty">Открытых развилок нет.</div>}
-            <section className="notes">
+            {payload && shown.length === 0 && <div className="empty">{NOTHING_SHOWN[ui.recordFilter]}</div>}
+            {/* Якорь на свёрнутом блоке: переход из поиска его раскрывает. Заметок журнала нет — ведёт к полю. */}
+            <section className="notes" id={payload?.notes.length ? undefined : NOTES_ANCHOR}>
               <h2>Замечания к схеме и плану</h2>
               <textarea rows={3} placeholder="что не так в схеме работы, в поставках, в этапах" value={draft.notes} onChange={(e) => update((d) => setNotes(d, e.target.value))} />
               {payload && payload.notes.length > 0 && (
-                <details>
+                <details id={NOTES_ANCHOR}>
                   <summary>заметки в журнале ({payload.notes.length})</summary>
                   {payload.notes.map((n, i) => <div className="cons" key={i}>{n.date}: <Text s={n.text} /></div>)}
                 </details>
@@ -289,11 +337,12 @@ export function App() {
           </>
         )}
       </main>
-      {prompt && (
+      {/* «Проверка» ничего не возвращает: панели возврата в ней нет. */}
+      {prompt && ui.mode !== "check" && (
         <ReturnPanel
           prompt={prompt} open={ui.promptOpen} applying={applying} blockedReason={blockedReason} result={result} copied={copied}
-          height={ui.promptHeight} onHeight={(promptHeight) => setUiAndSave({ ...ui, promptHeight })}
-          onToggle={() => setUiAndSave({ ...ui, promptOpen: !ui.promptOpen })} onApply={onApply} onCopy={onCopy} onDismiss={() => setResult(null)}
+          height={ui.promptHeight} onHeight={(promptHeight) => putUi({ ...ui, promptHeight })}
+          onToggle={() => putUi({ ...ui, promptOpen: !ui.promptOpen })} onApply={onApply} onCopy={onCopy} onDismiss={() => setResult(null)}
         />
       )}
     </div>

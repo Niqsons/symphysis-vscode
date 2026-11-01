@@ -28,7 +28,10 @@ export async function viewJson(env: CoreEnv, ref: ChangeRef): Promise<ViewResult
   if (r.code === 1) return { ok: false, failure: { kind: "invalid-journal", text: r.stderr.trim() } };
   if (r.code !== 0) return { ok: false, failure: { kind: "crash", text: r.stderr.trim() || `код ${r.code}` } };
   try {
-    return { ok: true, payload: JSON.parse(r.stdout) as ViewPayload };
+    const payload = JSON.parse(r.stdout) as ViewPayload;
+    // Путь «как подан» входит в ключ спора и в текст промпта: разделитель системы в них не нужен.
+    payload.attacks = payload.attacks.map((a) => ({ ...a, path: a.path.replaceAll("\\", "/") }));
+    return { ok: true, payload };
   } catch (e) {
     return { ok: false, failure: { kind: "crash", text: `вывод view-json не разобран: ${e}` } };
   }

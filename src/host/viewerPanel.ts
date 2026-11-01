@@ -1,12 +1,12 @@
 // Вкладка просмотрщика: одна на окно, показывает выбранное изменение. «Внести» приходит только сообщением страницы —
 // команды палитры и обработчика vscode:// к нему не ведут, иначе агент внесёт слово сам.
-import * as crypto from "node:crypto";
 import * as vscode from "vscode";
 import { applyFlow } from "./apply";
 import type { CoreEnv } from "./core";
+import { pageHtml } from "./page";
 import { deleteDraft, readDraft, writeDraft, type ChangeRef } from "./project";
 import type { ChangeState, JournalStore } from "./store";
-import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState } from "../shared/protocol";
+import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState, type ViewMode } from "../shared/protocol";
 import type { Draft } from "../shared/types";
 
 const UI_KEY = "symphysis.ui";
@@ -40,13 +40,14 @@ export class ViewerPanel {
 
   open(key: string): void {
     this.key = key;
+    // Боковая панель узнаёт о журнале раньше страницы: показ передаёт ей черновик, и он должен лечь к новому журналу, а не к прежнему.
+    this.deps.onShown(key);
     if (this.panel) {
       this.panel.reveal(undefined, true);
       if (this.ready) this.show();
     } else {
       this.create();
     }
-    this.deps.onShown(key);
     this.deps.store.refresh(key);
   }
 
@@ -60,10 +61,10 @@ export class ViewerPanel {
     if (this.panel && this.ready) void this.post({ type: "colors", colors: this.deps.colors() });
   }
 
-  reveal(id: string): void {
+  reveal(id: string, mode?: ViewMode): void {
     if (this.panel && this.ready) {
       this.panel.reveal(undefined, true);
-      void this.post({ type: "reveal", id });
+      void this.post({ type: "reveal", id, mode });
     }
   }
 
@@ -72,6 +73,10 @@ export class ViewerPanel {
   /** Для тестов: страница как есть. */
   get webview(): vscode.Webview | null {
     return this.panel?.webview ?? null;
+  }
+  /** Для тестов: Ctrl+F на странице работает только с этой опцией. */
+  get findWidget(): boolean {
+    return !!this.panel?.options.enableFindWidget;
   }
 
   private post(m: HostMessage): Thenable<boolean> {
@@ -82,13 +87,14 @@ export class ViewerPanel {
     const root = this.deps.context.extensionUri;
     const panel = vscode.window.createWebviewPanel("symphysis.viewer", "Журнал решений", { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, {
       enableScripts: true,
+      enableFindWidget: true,
       retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(root, "media")],
     });
     this.panel = panel;
     this.ready = false;
     panel.iconPath = vscode.Uri.joinPath(root, "media", "icon.svg");
-    panel.webview.html = this.html(panel.webview);
+    panel.webview.html = pageHtml(panel.webview, this.deps.context, "viewer.js");
     panel.webview.onDidReceiveMessage((m: PageMessage) => {
       this.messages.fire(m);
       void this.onMessage(m);
@@ -99,17 +105,6 @@ export class ViewerPanel {
       this.key = null;
       this.deps.onShown(null);
     });
-  }
-
-  private html(webview: vscode.Webview): string {
-    const media = vscode.Uri.joinPath(this.deps.context.extensionUri, "media");
-    const uri = (f: string) => webview.asWebviewUri(vscode.Uri.joinPath(media, f));
-    const nonce = crypto.randomBytes(16).toString("base64");
-    const csp = [`default-src 'none'`, `img-src ${webview.cspSource} data:`, `font-src ${webview.cspSource}`, `style-src ${webview.cspSource}`, `script-src 'nonce-${nonce}'`].join("; ");
-    const scripts = ["viewer.js"];
-    if (this.deps.context.extensionMode === vscode.ExtensionMode.Test) scripts.unshift("test-driver.js");
-    const tags = scripts.map((s) => `<script nonce="${nonce}" src="${uri(s)}"></script>`).join("");
-    return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><link rel="stylesheet" href="${uri("viewer.css")}"></head><body><div id="root"></div>${tags}</body></html>`;
   }
 
   private show(): void {

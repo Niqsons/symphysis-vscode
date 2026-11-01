@@ -44,6 +44,8 @@ test("view-json: атака разобрана; битый файл атаки �
   assert.equal(good.rows?.length, 1);
   assert.equal(good.rows?.[0].section, "F-02, decision");
   assert.ok(bad.error);
+  // Путь входит в ключ спора и в текст промпта: он не должен зависеть от разделителя системы.
+  assert.equal(good.path, `openspec/changes/${path.basename(change)}/attack/decisions.md`);
 });
 
 test("негодный журнал: отказ с текстом ядра", opts, async () => {

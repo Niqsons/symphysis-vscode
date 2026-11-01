@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDep, addNewFork, addOption, choose, clampPromptHeight, clearChoice, evidenceLevel, park, recordMark, removeDep, removeNewFork, restoreDep, setWord, stats, unpark } from "../../src/shared/ops";
+import { addDep, addNewFork, addOption, choose, clampPromptHeight, clearChoice, evidenceLevel, matchesRecordFilter, park, recordMark, removeDep, removeNewFork, restoreDep, setWord, stats, unpark } from "../../src/shared/ops";
 import { emptyDraft } from "../../src/shared/logic";
+import type { RecordFilter } from "../../src/shared/protocol";
 import { fact, fork, option, payload } from "./helpers";
 
 const DATE = "2026-11-01";
@@ -110,4 +111,14 @@ test("счётчик пропавших цитат смотрит и улики 
   const miss = { path: "x", quote: "y", found: false, verdict: "цитаты нет дословно" };
   const p = payload([fact("F-01", { evidence: [miss] }), fork("F-02", { options: [option("A", { evidence: [miss] })] })]);
   assert.equal(stats(p, emptyDraft()).quoteMissing, 2);
+});
+
+test("фильтр записей: развилки, открытые, факты; черновик учитывается", () => {
+  const p = payload([fact("F-01"), fork("F-02"), fork("F-03", { decision: { option: "A", word: "", date: "" } })]);
+  const shown = (f: RecordFilter, d = emptyDraft()) => p.records.filter((r) => matchesRecordFilter(p, d, r, f)).map((r) => r.id);
+  assert.deepEqual(shown("all"), ["F-01", "F-02", "F-03"]);
+  assert.deepEqual(shown("forks"), ["F-02", "F-03"]);
+  assert.deepEqual(shown("open"), ["F-02"]);
+  assert.deepEqual(shown("facts"), ["F-01"]);
+  assert.deepEqual(shown("open", { ...emptyDraft(), decisions: { "F-02": { choice: "B", word: "", parked: [] } } }), []);
 });

@@ -180,6 +180,21 @@ test("очистка: спор по строке атаки, вошедший в
   assert.deepEqual(cleanupIngested(p, draft({ attackDisputes: { [key(r)]: "опора есть" } })).attackDisputes, {});
 });
 
+test("очистка: ответ на вопрос атаки, вошедший в слово решения, уходит; при смене буквы остаётся", () => {
+  const r = row({});
+  const p = payload([fork("F-01", { decision: { option: "A", word: "прежнее ответ человека", date: DATE } })], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  const answered = { [key(r)]: "ответ человека" };
+  assert.deepEqual(cleanupIngested(p, draft({ attackDisputes: answered })).attackDisputes, {});
+  const changing = draft({ attackDisputes: answered, decisions: { "F-01": decision("B") } });
+  assert.deepEqual(cleanupIngested(p, changing).attackDisputes, answered);
+});
+
+test("очистка: прочий спор, похожий на слово решения, не трогается — он уходит замечанием", () => {
+  const r = row({ fix: "правка" });
+  const p = payload([fork("F-01", { decision: { option: "A", word: "совпало", date: DATE } })], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  assert.deepEqual(cleanupIngested(p, draft({ attackDisputes: { [key(r)]: "совпало" } })).attackDisputes, { [key(r)]: "совпало" });
+});
+
 test("очистка без изменений возвращает тот же объект", () => {
   const d = draft({ decisions: { "F-01": decision("B", "слово") } });
   assert.equal(cleanupIngested(payload([fork("F-01")]), d), d);

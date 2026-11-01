@@ -2,10 +2,9 @@
 // антиподы, зависимости, парковки, улики — убрать вариант значило бы решить за человека.
 import { memo, useState } from "react";
 import { allOptions, antipodesOf, blockedBy, chosen, effectiveDeps } from "../shared/logic";
-import { addDep, addOption, choose, clearChoice, evidenceLevel, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
+import { addDep, addOption, choose, clearChoice, evidenceLevel, isHumanOption, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
 import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type JournalRecord, type ViewPayload } from "../shared/types";
 
-const ADDED_MARK = "(добавлен человеком";
 const ONE_WAY = "в одну сторону";
 const PARK_HINT = "Парковка — дополнительный вопрос, который нельзя закрыть сейчас: он уходит адресату. «материалы» — ответ ищется в файлах (исследование), «человек» — нужно решение человека, «ИБ» — проверка по чек-листу безопасности. Решение по самой развилке парковка не снимает.";
 
@@ -18,7 +17,7 @@ function verdictText(ev: Evidence): string {
   return /^не проверить/.test(ev.verdict ?? "") ? ev.verdict! : `не проверить: ${ev.verdict ?? "файл не текст"}`;
 }
 
-const EvidenceLine = ({ ev }: { ev: Evidence }) => (
+export const EvidenceLine = ({ ev }: { ev: Evidence }) => (
   <span className="ev">
     улика: <code>{ev.line ? `${ev.path}:${ev.line}` : ev.path}</code> «{ev.quote}» <b className={evidenceLevel(ev)}>{verdictText(ev)}</b>
   </span>
@@ -153,7 +152,6 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
       {allOptions(rec, draft).map((o) => {
         const blocked = blockedBy(ctx.payload, draft, rec.id, o.letter);
         const anti = antipodesOf(ctx.payload.records, rec.id, o.letter);
-        const isHumans = o.added || o.text.includes(ADDED_MARK);
         return (
           <label className={`opt${cur === o.letter ? " chosen" : ""}${blocked.length ? " blocked" : ""}`} key={o.letter}>
             <input type="radio" name={rec.id} value={o.letter} checked={cur === o.letter} onChange={() => pick(o.letter)} />
@@ -162,7 +160,7 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
               {rec.recommendation?.option === o.letter && <span className="tag plain">рекомендация</span>}
               {journal === o.letter && <span className="tag muted">в журнале</span>}
               {o.unlikely && <span className="tag muted">маловероятно</span>}
-              {isHumans && <span className="tag plain">добавлен человеком</span>}
+              {isHumanOption(o) && <span className="tag plain">добавлен человеком</span>}
               {o.deviation && <span className="tag accent">отступление от {o.deviation}</span>}
               {anti.length > 0 && <span className="tag accent" title={`нельзя вместе с: ${anti.join(", ")}`}>антипод {anti.join(", ")}</span>}
               {o.local && <button type="button" className="small tag-button" onClick={(e) => { e.preventDefault(); ctx.update((d) => removeAddedOption(d, rec.id, o.letter)); }}>убрать</button>}

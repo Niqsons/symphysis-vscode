@@ -3,10 +3,16 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { emptyDraft } from "../../src/shared/logic";
+import { search } from "../../src/shared/search";
 
 interface Api {
   store: { list(): any[]; get(key: string): any };
-  viewer: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; currentKey: string | null };
+  viewer: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; currentKey: string | null; findWidget: boolean };
+  changes: { getTreeItem(state: any): vscode.TreeItem };
+  toc: { getTreeItem(rec: any): vscode.TreeItem };
+  attackToc: { getChildren(node?: any): any[]; getTreeItem(node: any): vscode.TreeItem; message(): string | undefined };
+  search: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null };
 }
 
 const results: { name: string; ok: boolean; ms?: number; error?: string }[] = [];
@@ -50,26 +56,35 @@ export async function run(): Promise<void> {
   const one = key("изменение-один");
   const journal = path.join(one, "decisions.json");
 
-  let seq = 0;
-  const pending = new Map<number, (m: any) => void>();
-  api.viewer.messages.event((m: any) => {
-    if (m.type === "driven") {
-      pending.get(m.seq)?.(m);
-      pending.delete(m.seq);
-    }
-  });
-  const drive = async (action: string, args: Record<string, unknown> = {}): Promise<any> => {
-    const id = ++seq;
-    const reply = new Promise<any>((resolve, reject) => {
-      pending.set(id, resolve);
-      setTimeout(() => reject(new Error(`водитель молчит: ${action}`)), 10000);
+  const driver = (webview: () => vscode.Webview | null, messages: vscode.EventEmitter<any>) => {
+    let seq = 0;
+    const pending = new Map<number, (m: any) => void>();
+    messages.event((m: any) => {
+      if (m.type === "driven") {
+        pending.get(m.seq)?.(m);
+        pending.delete(m.seq);
+      }
     });
-    await api.viewer.webview!.postMessage({ type: "drive", seq: id, action, ...args });
-    const m = await reply;
-    if (m.error) throw new Error(m.error);
-    return m.result;
+    return async (action: string, args: Record<string, unknown> = {}): Promise<any> => {
+      const id = ++seq;
+      const reply = new Promise<any>((resolve, reject) => {
+        pending.set(id, resolve);
+        setTimeout(() => reject(new Error(`водитель молчит: ${action}`)), 10000);
+      });
+      await webview()!.postMessage({ type: "drive", seq: id, action, ...args });
+      const m = await reply;
+      if (m.error) throw new Error(m.error);
+      return m.result;
+    };
   };
+  const drive = driver(() => api.viewer.webview, api.viewer.messages);
+  const searchDrive = driver(() => api.search.webview, api.search.messages);
   const snap = () => drive("snapshot");
+  const treeItem = (node: any) => api.attackToc.getTreeItem(node);
+  const clickTree = (node: any) => {
+    const c = treeItem(node).command!;
+    return vscode.commands.executeCommand(c.command, ...(c.arguments ?? []));
+  };
 
   await step("перечень изменений: без archive, с кириллицей, журнал без файла назван", async () => {
     const names = await until<string[] | null>("перечень", () => {
@@ -224,8 +239,7 @@ export async function run(): Promise<void> {
   });
 
   await step("оглавление: переход к записи прокручивает к ней и снимает фильтр", async () => {
-    await drive("openOnly");
-    const filtered = await snap();
+    const filtered = await drive("filter", { name: "открытые" });
     assert.ok(!filtered.cards.includes("F-01"));
     await vscode.commands.executeCommand("symphysis.revealRecord", "F-01");
     await until("карточка видна", async () => (await drive("cardVisible", { id: "F-01" })).inView);
@@ -351,6 +365,313 @@ export async function run(): Promise<void> {
     assert.match(s.notes.join(" "), /ещё нет decisions\.json/);
   });
 
+  const attacked = key("с-атакой");
+  const attackedJournal = path.join(attacked, "decisions.json");
+
+  await step("проверка: только чтение, панели возврата нет, разделы и «куда уйдёт» на месте, вердикт устарел — сигнал", async () => {
+    await vscode.commands.executeCommand("symphysis.openChange", attacked);
+    await until("журнал с атакой", async () => {
+      const r = await snap();
+      return /с-атакой/.test(r.title) && r.cards.length === 4;
+    });
+    const s = await drive("mode", { name: "проверка" });
+    assert.equal(s.mode, "проверка");
+    assert.equal(s.returnPanel, false);
+    assert.equal(s.inputsInMain, 0);
+    const text = await drive("text");
+    for (const part of ["Решено — по дате решения · 1", "Открытые развилки — с рекомендацией · 2", "Пробы — с исходом · 1", "Факты — улики и спор · 1",
+      "→ design.md › Decisions", "→ design.md › Open Questions", "→ design.md › Context", "вердикт устарел: журнал изменён после атаки", "атака: gaps_found", "круг 1 закончен"]) {
+      assert.ok(text.includes(part), `нет «${part}»`);
+    }
+    assert.deepEqual(s.violations, []);
+  });
+
+  await step("оглавление в «проверке» ведёт к записи этого режима, режим не меняется", async () => {
+    await vscode.commands.executeCommand("symphysis.revealRecord", "F-03");
+    await until("запись видна", async () => (await drive("cardVisible", { id: "F-03" })).inView);
+    assert.equal((await snap()).mode, "проверка");
+  });
+
+  await step("атака: счётчики, группы, вне списка, понижения, битый файл назван; журнал виден", async () => {
+    const s = await drive("mode", { name: "атака" });
+    assert.match(s.mode, /атака · 5/);
+    assert.equal(s.returnPanel, true);
+    const text = await drive("text");
+    for (const part of ["блокеров 3 · предупреждений 1 · справок 1", "вне списка — слуг не из закрытого списка", "понижение без причины", "понижено: решено человеком в F-03",
+      "линза «выдуманная» вне списка", "Файл атаки не разобран", "status: gaps_found", "вердикт устарел"]) {
+      assert.ok(text.includes(part), `нет «${part}»`);
+    }
+    assert.equal((await drive("attackRows")).length, 5);
+    const html = await drive("attackRowHtml", { claim: "Мелочь с" });
+    assert.ok(html.includes("<code>кодом</code>"));
+  });
+
+  await step("фильтр по линзе прячет строки, но не счётчики тяжести, и запоминается", async () => {
+    await drive("lens", { name: "coverage" });
+    assert.deepEqual(await drive("attackRows"), ["Хранение решено без улики"]);
+    assert.ok((await drive("text")).includes("блокеров 3 · предупреждений 1 · справок 1"));
+    await vscode.commands.executeCommand("symphysis.openChange", one);
+    await until("другой журнал", async () => /изменение-один/.test((await snap()).title));
+    await vscode.commands.executeCommand("symphysis.openChange", attacked);
+    await until("обратно", async () => /с-атакой/.test((await snap()).title));
+    const after = await snap();
+    assert.match(after.mode, /атака/);
+    assert.deepEqual(await drive("attackRows"), ["Хранение решено без улики"]);
+    await drive("lens", { name: "все" });
+    assert.equal((await drive("attackRows")).length, 5);
+  });
+
+  await step("ответ к открытой записи — замечание; ссылка ведёт в «решения»; после выбора — слово к решению", async () => {
+    const s = await drive("attackDispute", { claim: "Хранение решено", text: "хранить в проекте" });
+    assert.match(s.prompt, /Замечания к схеме: F-02: хранить в проекте/);
+    assert.ok((await drive("attackRowHtml", { claim: "Хранение решено" })).includes("запись не решена"));
+    await drive("followRow", { claim: "Хранение решено" });
+    await until("режим решений", async () => /решения/.test((await snap()).mode));
+    await until("карточка видна", async () => (await drive("cardVisible", { id: "F-02" })).inView);
+    const chose = await drive("choose", { id: "F-02", letter: "A" });
+    assert.match(chose.prompt, /- F-02: A — «хранить в проекте»/);
+    assert.ok(!/Замечания к схеме/.test(chose.prompt));
+  });
+
+  await step("два разных ответа к одному решению — конфликт: слова нет, «Внести» закрыто; один убран — снова можно", async () => {
+    await drive("mode", { name: "атака" });
+    const s = await drive("attackDispute", { claim: "Вторая претензия", text: "другой ответ" });
+    assert.match(s.prompt, /конфликт ответов к F-02/);
+    assert.ok(!/- F-02: A — «хранить/.test(s.prompt));
+    assert.equal(s.applyDisabled, true);
+    assert.ok((await drive("attackRowHtml", { claim: "Вторая претензия" })).includes("конфликт ответов к одному решению"));
+    const fixed = await drive("attackDispute", { claim: "Вторая претензия", text: "" });
+    assert.match(fixed.prompt, /- F-02: A — «хранить в проекте»/);
+    assert.equal(fixed.applyDisabled, false);
+  });
+
+  await step("«Внести» из «атаки»: слово и спор в журнале, строки атаки не тронуты, очистка забирает внесённое", async () => {
+    const before = fs.readFileSync(path.join(attacked, "attack", "decisions.md"));
+    await drive("attackDispute", { claim: "Мелочь без причины", text: "опора есть, вот она" });
+    await drive("click", { text: "Внести" });
+    const r = await until("отчёт", async () => {
+      const x = await snap();
+      return x.report && !/Вношу/.test(x.report) ? x : null;
+    }, 20000);
+    assert.match(r.report, /\[ok\] F-02: решено A/);
+    const journalData = JSON.parse(fs.readFileSync(attackedJournal, "utf8"));
+    assert.equal(journalData.records[1].decision.word, "хранить в проекте");
+    assert.ok(journalData.notes.some((n: any) => n.text.includes("опора есть, вот она")));
+    assert.ok(before.equals(fs.readFileSync(path.join(attacked, "attack", "decisions.md"))));
+    // Битый файл атаки: журнал внесён, decisions.md собран, страницы нет — и отчёт это называет, а не молчит.
+    assert.ok(fs.existsSync(path.join(attacked, "decisions.md")));
+    assert.equal(fs.existsSync(path.join(attacked, "decisions.html")), false);
+    assert.match(r.report, /производные файлы собраны не все/);
+    const clean = await until("очистка", async () => {
+      const x = await snap();
+      return /нового нет/.test(x.prompt) ? x : null;
+    });
+    assert.equal(clean.applyDisabled, true);
+    assert.ok(!(await drive("attackRowHtml", { claim: "Хранение решено" })).includes("хранить в проекте</textarea>"));
+    assert.equal((await drive("attackRows")).length, 5);
+  });
+
+  await step("боковая панель называет статус атаки, устаревший вердикт и битый файл", async () => {
+    const state = api.store.get(attacked);
+    const description = String(api.changes.getTreeItem(state).description);
+    assert.match(description, /decisions: gaps_found, устарел/);
+    assert.match(description, /artifacts: битый файл/);
+  });
+
+  await step("новая строка атаки на диске появляется без кнопки", async () => {
+    const file = path.join(attacked, "attack", "decisions.md");
+    fs.appendFileSync(file, "| Новая строка от агента | F-04, question | coverage | инвариант | справка | есть | правка цели |\n", "utf8");
+    await until("новая строка", async () => (await drive("attackRows")).some((c: string) => c.includes("Новая строка от агента")));
+    assert.match((await snap()).mode, /атака · 6/);
+  });
+
+  await step("прокрутка у каждого режима своя: вернулся — карточки там же", async () => {
+    await drive("mode", { name: "решения" });
+    await vscode.commands.executeCommand("symphysis.revealRecord", "F-04");
+    await until("F-04 видна", async () => (await drive("cardVisible", { id: "F-04" })).inView);
+    const before = (await snap()).scrollTop;
+    assert.ok(before > 0);
+    await drive("mode", { name: "атака" });
+    await drive("mode", { name: "решения" });
+    assert.equal((await snap()).scrollTop, before);
+  });
+
+  await step("Ctrl+F: вкладка открыта с окном поиска VS Code", async () => {
+    assert.equal(api.viewer.findWidget, true);
+  });
+
+  await step("выбранный режим и линза залиты цветом; фильтр в шапке и не уезжает с прокруткой", async () => {
+    await drive("mode", { name: "атака" });
+    for (const selector of [".modes", ".lensfilter"]) {
+      const look = await drive("segLook", { selector });
+      assert.equal(look.pressed, "true", selector);
+      assert.notEqual(look.activeBg, look.otherBg, selector);
+      assert.equal(look.inMain, false, selector);
+    }
+    assert.match((await drive("segLook", { selector: ".modes" })).active, /атака/);
+    await drive("lens", { name: "coverage" });
+    assert.match((await drive("segLook", { selector: ".lensfilter" })).active, /^coverage/);
+    await drive("lens", { name: "все" });
+    const before = (await drive("segLook", { selector: ".lensfilter" })).top;
+    const scrolled = await drive("scrollMain", { top: 100000 });
+    assert.ok(scrolled.scrollTop > 0, "страница должна прокручиваться");
+    assert.equal((await drive("segLook", { selector: ".lensfilter" })).top, before);
+  });
+
+  await step("фильтр «решения»: развилки, открытые, факты; выбранный заметен; переход к скрытой записи снимает фильтр", async () => {
+    await vscode.commands.executeCommand("symphysis.openChange", key("изменение-два"));
+    await until("другой журнал", async () => /изменение-два/.test((await snap()).title));
+    await drive("mode", { name: "решения" });
+    assert.deepEqual((await drive("filter", { name: "развилки" })).cards, ["F-02", "F-03", "F-04"]);
+    assert.deepEqual((await drive("filter", { name: "открытые" })).cards, ["F-02", "F-04"]);
+    assert.deepEqual((await drive("filter", { name: "факты" })).cards, ["F-01"]);
+    const look = await drive("segLook", { selector: ".recordfilter" });
+    assert.match(look.active, /^факты · 1/);
+    assert.notEqual(look.activeBg, look.otherBg);
+    assert.equal(look.inMain, false);
+    await vscode.commands.executeCommand("symphysis.revealRecord", "F-02");
+    await until("запись видна", async () => (await drive("cardVisible", { id: "F-02" })).inView);
+    assert.match((await drive("segLook", { selector: ".recordfilter" })).active, /^все · 4/);
+  });
+
+  await step("оглавление атаки: файл → линза → строка, тяжесть названа, битый файл виден; без атаки сказано почему", async () => {
+    assert.match(api.attackToc.message() ?? "", /Атаки ещё нет/);
+    assert.deepEqual(api.attackToc.getChildren(), []);
+    await vscode.commands.executeCommand("symphysis.openChange", attacked);
+    await until("журнал с атакой", async () => /с-атакой/.test((await snap()).title));
+    assert.equal(api.attackToc.message(), undefined);
+    const files = api.attackToc.getChildren();
+    const file = files.find((f) => treeItem(f).label === "decisions.md");
+    assert.match(String(treeItem(file).description), /gaps_found · устарел · блокеров 3 · предупреждений 1/);
+    const broken = files.find((f) => treeItem(f).label === "artifacts.md");
+    assert.match(String(treeItem(broken).description), /битый файл/);
+    assert.deepEqual(api.attackToc.getChildren(broken), []);
+    const lenses = api.attackToc.getChildren(file);
+    assert.deepEqual(lenses.map((l) => treeItem(l).label), ["context-compliance", "claim-authority", "coverage", "вне списка"]);
+    const rows = api.attackToc.getChildren(lenses[1]);
+    assert.deepEqual(rows.map((r) => treeItem(r).label), ["F-03, question", "F-03, question"]);
+    assert.match(String(treeItem(rows[1]).description), /Мелочь с кодом/);
+  });
+
+  await step("переход из оглавления атаки: режим становится «атакой», фильтр снимается, только если прятал цель", async () => {
+    const file = api.attackToc.getChildren().find((f) => treeItem(f).label === "decisions.md");
+    const [, authority, coverage] = api.attackToc.getChildren(file);
+    const authorityRow = api.attackToc.getChildren(authority)[0];
+    await drive("mode", { name: "решения" });
+    await clickTree(authorityRow);
+    await until("строка видна", async () => (await drive("cardVisible", { id: authorityRow.anchor })).inView);
+    assert.match((await snap()).mode, /атака/);
+    await drive("lens", { name: "coverage" });
+    await clickTree(api.attackToc.getChildren(coverage)[0]);
+    await until("своя линза", async () => (await drive("cardVisible", { id: api.attackToc.getChildren(coverage)[0].anchor })).inView);
+    assert.match((await drive("segLook", { selector: ".lensfilter" })).active, /^coverage/);
+    await clickTree(authorityRow);
+    await until("чужая линза", async () => (await drive("cardVisible", { id: authorityRow.anchor })).inView);
+    assert.match((await drive("segLook", { selector: ".lensfilter" })).active, /^все/);
+    await clickTree(authority);
+    await until("группа линзы", async () => (await drive("cardVisible", { id: authority.anchor })).inView);
+    await clickTree(file);
+    await until("файл", async () => (await drive("cardVisible", { id: file.anchor })).inView);
+  });
+
+  await step("поиск: фраза находит запись и строку атаки независимо от режима; переход ведёт к цели", async () => {
+    await vscode.commands.executeCommand("symphysis.search.focus");
+    await until("страница поиска", async () => api.search.webview && (await searchDrive("searchSnapshot").catch(() => null))?.scope === "с-атакой");
+    const found = await searchDrive("searchType", { text: "ЧЕРНОВИКИ" });
+    assert.deepEqual(found.hits.map((h: any) => [h.label, h.field, h.mark]), [["F-02", "вопрос", "черновики"]]);
+    assert.deepEqual(found.violations, []);
+    await drive("mode", { name: "атака" });
+    await searchDrive("searchOpen", { label: "F-02" });
+    await until("карточка", async () => /решения/.test((await snap()).mode) && (await drive("cardVisible", { id: "F-02" })).inView);
+    const attackHit = await searchDrive("searchType", { text: "Хранение решено" });
+    assert.deepEqual(attackHit.hits.map((h: any) => h.label), ["decisions.md · F-02, decision"]);
+    assert.ok(attackHit.text.includes("Атака · 1"));
+    await searchDrive("searchOpen", { label: "decisions.md · F-02, decision" });
+    await until("строка атаки", async () => /атака/.test((await snap()).mode));
+    assert.deepEqual((await drive("attackRows")).filter((c: string) => c.includes("Хранение решено")).length, 1);
+    const nothing = await searchDrive("searchType", { text: "такого точно нет" });
+    assert.ok(nothing.text.includes("Ничего не найдено"));
+  });
+
+  await step("поиск по номеру: запись и зависимости; русская раскладка; номера нет — сказано; ссылка ведёт к записи", async () => {
+    const n = await searchDrive("searchType", { text: "а-02" });
+    assert.deepEqual(n.hits[0].label, "F-02");
+    assert.deepEqual(n.deps, ["F-01", "F-04"]);
+    assert.ok(n.text.includes("Зависит от · 1") && n.text.includes("От неё зависят · 1"));
+    const far = await searchDrive("searchType", { text: "4" });
+    assert.deepEqual(far.deps, ["F-02", "F-01"]);
+    assert.ok(far.text.includes("по цепочке ещё · 1"));
+    const missing = await searchDrive("searchType", { text: "F-99" });
+    assert.ok(missing.text.includes("Записи F-99 нет"));
+    await searchDrive("searchType", { text: "2" });
+    await searchDrive("searchOpen", { label: "F-01" });
+    await until("запись по ссылке", async () => /решения/.test((await snap()).mode) && (await drive("cardVisible", { id: "F-01" })).inView);
+  });
+
+  await step("поиск следит за журналом и черновиком сам; заметка раскрывается переходом", async () => {
+    assert.equal((await searchDrive("searchType", { text: "заметка снаружи" })).hits.length, 0);
+    const data = JSON.parse(fs.readFileSync(attackedJournal, "utf8"));
+    data.notes.push({ date: "2026-11-01", text: "заметка снаружи" });
+    fs.writeFileSync(attackedJournal, JSON.stringify(data, null, 1), "utf8");
+    await until("новая заметка", async () => (await searchDrive("searchSnapshot")).hits.some((h: any) => h.label === "заметки"));
+    await searchDrive("searchOpen", { label: "заметки" });
+    await until("заметки раскрыты", async () => /<details[^>]*open/.test((await drive("cardHtml", { id: "journal-notes" })) ?? ""));
+    await drive("word", { id: "F-04", text: "несохранённое слово" });
+    const typed = await searchDrive("searchType", { text: "несохраненное" });
+    await until("черновик найден", async () => (await searchDrive("searchSnapshot")).hits.some((h: any) => h.label === "F-04" && h.field === "в черновике: слово"), 3000)
+      .catch((e) => { throw new Error(`${e.message}; было: ${JSON.stringify(typed.hits)}`); });
+    await drive("word", { id: "F-04", text: "" });
+    await until("слова нет", async () => (await searchDrive("searchSnapshot")).hits.length === 0);
+  });
+
+  await step("черновик у каждого журнала свой: после переключения оглавление и поиск видят черновик открытого журнала, а не прежнего", async () => {
+    const two = key("изменение-два");
+    const iconOf = (state: string) => {
+      const rec = api.store.get(state).payload.records.find((r: any) => r.id === "F-04");
+      return (api.toc.getTreeItem(rec).iconPath as vscode.ThemeIcon).id;
+    };
+    await vscode.commands.executeCommand("symphysis.openChange", two);
+    await until("второй журнал", async () => /изменение-два/.test((await snap()).title));
+    await drive("mode", { name: "решения" });
+    await drive("choose", { id: "F-04", letter: "B" });
+    await drive("word", { id: "F-04", text: "слово второго журнала" });
+    const draftFile = path.join(root, ".symphysis", "viewer", "изменение-два.json");
+    await until("черновик на диске", () => fs.existsSync(draftFile) && fs.readFileSync(draftFile, "utf8").includes("слово второго журнала"));
+    assert.equal(iconOf(two), "pass");
+    await vscode.commands.executeCommand("symphysis.openChange", attacked);
+    await until("журнал с атакой", async () => /с-атакой/.test((await snap()).title));
+    assert.equal(iconOf(attacked), "circle-large-outline", "оглавление рисует метку по чужому черновику");
+    assert.equal((await searchDrive("searchType", { text: "слово второго" })).hits.length, 0);
+    await vscode.commands.executeCommand("symphysis.openChange", two);
+    await until("снова второй", async () => /изменение-два/.test((await snap()).title));
+    await until("поиск видит черновик без правок", async () => (await searchDrive("searchSnapshot")).hits.some((h: any) => h.label === "F-04"), 3000);
+    assert.equal(iconOf(two), "pass", "оглавление потеряло свой черновик");
+    await drive("word", { id: "F-04", text: "" });
+    await drive("click", { id: "F-04", text: "снять выбор B" });
+    await vscode.commands.executeCommand("symphysis.openChange", attacked);
+    await until("обратно", async () => /с-атакой/.test((await snap()).title));
+  });
+
+  await step("вкладка закрыта: поиск и оглавление атаки говорят, что журнал не открыт; открыта снова — запрос на месте", async () => {
+    await searchDrive("searchType", { text: "черновики" });
+    const tab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputWebview && t.label.startsWith("Журнал"));
+    await vscode.window.tabGroups.close(tab!);
+    const closed = await until("журнал не открыт", async () => {
+      const r = await searchDrive("searchSnapshot");
+      return r.scope === null ? r : null;
+    });
+    assert.match(closed.scopeLine, /журнал не открыт/);
+    assert.equal(api.attackToc.message(), "Журнал не открыт.");
+    await vscode.commands.executeCommand("symphysis.openChange", attacked);
+    await until("журнал на месте", async () => /с-атакой/.test((await snap().catch(() => ({ title: "" }))).title));
+    const back = await until("поиск снова", async () => {
+      const r = await searchDrive("searchSnapshot");
+      return r.scope === "с-атакой" && r.hits.length === 1 ? r : null;
+    });
+    assert.equal(back.query, "черновики");
+    assert.deepEqual(back.violations, []);
+  });
+
   if (fs.existsSync(path.join(key("большой-журнал"), "decisions.json"))) {
     await step("большой настоящий журнал: все записи, символ в поле слова быстрый", async () => {
       await vscode.commands.executeCommand("symphysis.openChange", key("большой-журнал"));
@@ -364,6 +685,42 @@ export async function run(): Promise<void> {
       measures.bigKeystroke = await drive("measure", { id: firstFork });
       assert.deepEqual(s.violations, []);
       assert.equal(s.overflowX.px, 0, `вбок вылезает: ${s.overflowX.culprit}`);
+      const check = await drive("measureMode", { name: "проверка" });
+      measures.bigCheckMs = check.ms;
+      assert.equal(check.snapshot.overflowX.px, 0, `«проверка», вбок вылезает: ${check.snapshot.overflowX.culprit}`);
+      assert.deepEqual(check.snapshot.violations, []);
+      assert.equal(check.snapshot.inputsInMain, 0);
+      const attackFiles = api.store.get(key("большой-журнал")).payload.attacks;
+      const realRows = attackFiles.reduce((n: number, a: any) => n + (a.rows?.length ?? 0), 0);
+      assert.ok(realRows > 0, "у настоящего журнала должны быть строки атаки");
+      const att = await drive("measureMode", { name: "атака" });
+      measures.bigAttackMs = att.ms;
+      measures.bigAttackRows = realRows;
+      assert.equal(att.snapshot.overflowX.px, 0, `«атака», вбок вылезает: ${att.snapshot.overflowX.culprit}`);
+      assert.deepEqual(att.snapshot.violations, []);
+      assert.equal((await drive("attackRows")).length, realRows);
+      measures.bigDisputeKeystroke = await drive("measureDispute");
+      const outline = api.attackToc.getChildren().flatMap((f) => api.attackToc.getChildren(f).flatMap((l) => api.attackToc.getChildren(l)));
+      assert.equal(outline.length, realRows, "оглавление атаки показывает все строки");
+      await clickTree(outline[outline.length - 1]);
+      await until("последняя строка", async () => (await drive("cardVisible", { id: outline[outline.length - 1].anchor })).inView);
+      // Поиск на настоящем журнале: счёт на хосте и весь путь от символа в поле до показа, вместе с задержкой ввода.
+      const payload = api.store.get(key("большой-журнал")).payload;
+      const samples = Array.from({ length: 30 }, () => {
+        const t1 = performance.now();
+        search(payload, emptyDraft(), "журнал");
+        return performance.now() - t1;
+      }).sort((a, b) => a - b);
+      measures.bigSearch = { medianMs: samples[15], maxMs: samples[29] };
+      const wide = await searchDrive("searchType", { text: "журнал" });
+      measures.bigSearchHits = wide.hits.length;
+      measures.bigSearchRoundTripMs = wide.ms;
+      assert.ok(wide.hits.length > 10);
+      assert.equal(wide.overflowPx, 0, "поиск не должен вылезать вбок");
+      assert.deepEqual(wide.violations, []);
+      const number = await searchDrive("searchType", { text: "6" });
+      assert.equal(number.overflowPx, 0, "карточка записи не должна вылезать вбок");
+      await drive("mode", { name: "решения" });
     });
   }
 
@@ -378,6 +735,19 @@ export async function run(): Promise<void> {
     const show = process.env.SYMPHYSIS_E2E_SHOW;
     if (show) {
       await vscode.commands.executeCommand("symphysis.openChange", key(show));
+      await sleep(800);
+      if (process.env.SYMPHYSIS_E2E_MODE) await drive("mode", { name: process.env.SYMPHYSIS_E2E_MODE });
+      if (process.env.SYMPHYSIS_E2E_LENS) await drive("lens", { name: process.env.SYMPHYSIS_E2E_LENS });
+      if (process.env.SYMPHYSIS_E2E_FILTER) await drive("filter", { name: process.env.SYMPHYSIS_E2E_FILTER });
+      if (process.env.SYMPHYSIS_E2E_SEARCH) {
+        await vscode.commands.executeCommand("symphysis.search.focus");
+        await until("страница поиска", async () => api.search.webview && (await searchDrive("searchSnapshot").catch(() => null))?.scope === show);
+        await searchDrive("searchType", { text: process.env.SYMPHYSIS_E2E_SEARCH });
+      }
+      if (process.env.SYMPHYSIS_E2E_FIND) {
+        await vscode.commands.executeCommand("symphysis.revealRecord", "F-02");
+        await vscode.commands.executeCommand("editor.action.webvieweditor.showFind");
+      }
     } else {
       await vscode.commands.executeCommand("symphysis.openChange", key("изменение-два"));
       await sleep(600);

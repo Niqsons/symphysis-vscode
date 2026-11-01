@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { applyAnswers, viewJson, type CoreEnv } from "../../src/host/core";
 import { changeRef, saveAnswers, type ChangeRef } from "../../src/host/project";
-import { allOptions, buildPrompt, cleanupIngested, emptyDraft, nextLetter } from "../../src/shared/logic";
+import { allOptions, buildPrompt, cleanupIngested, disputeKey, emptyDraft, nextLetter } from "../../src/shared/logic";
 import { ADDRESSEES, type Draft, type ViewPayload } from "../../src/shared/types";
 import { addAttack, copyCore, makeProject, noCoreReason, SYMPHYSIS } from "./fixture-project";
 
@@ -66,6 +66,24 @@ test("после настоящего внесения: очистка заби�
   assert.equal(after.records.find((r) => r.id === "F-02")?.decision?.option, "D");
 });
 
+test("спор по строке атаки: уходит в notes[] журнала, после внесения очистка его убирает", opts, async () => {
+  const { env, change } = setup();
+  addAttack(change, "decisions.md", [
+    "---", "status: gaps_found", "target: decisions.json", `target_sha256: ${"0".repeat(64)}`, "---", "",
+    "| Утверждение | Раздел | Линза | Инвариант | Тяжесть | Опора | Закрытие |", "| --- | --- | --- | --- | --- | --- | --- |",
+    "| Претензия | F-03, question | coverage | инвариант | блокер | нет | правка цели |", "",
+  ].join("\n"));
+  const ref = changeRef(env.cwd, path.basename(change));
+  const p = await load(env, ref);
+  const att = p.attacks[0];
+  const draft: Draft = { ...emptyDraft(), attackDisputes: { [disputeKey(att.path, att.rows![0])]: "опора есть" } };
+  const applied = await applyAnswers(env, ref, saveAnswers(change, DATE, buildPrompt(p, draft, DATE).text));
+  assert.equal(applied.ok, true, applied.report.join("\n"));
+  const after = await load(env, changeRef(env.cwd, ref.name));
+  assert.ok(after.notes.some((n) => n.text.includes("опора есть")));
+  assert.deepEqual(cleanupIngested(after, draft).attackDisputes, {});
+});
+
 test("ответ на вопрос атаки уходит словом к решению и принимается", opts, async () => {
   const { env, change } = setup();
   addAttack(change);
@@ -99,6 +117,11 @@ function exercise(p: ViewPayload): Draft {
     if (i % 5 === 4 && rec.depends_on.length) d.deps[rec.id] = { add: [], remove: [rec.depends_on[0]] };
   });
   d.notes = "заметка: проверка контракта";
+  for (const att of p.attacks) {
+    (att.rows ?? []).forEach((row, i) => {
+      if (i % 4 === 0) d.attackDisputes[disputeKey(att.path, row)] = `спор к строке ${i}: «цитата» — и тире`;
+    });
+  }
   return d;
 }
 
@@ -111,7 +134,12 @@ const realJournals = (() => {
 for (const name of realJournals) {
   test(`настоящий журнал ${name}: промпт по всем видам строк проходит apply --dry-run`, opts, async () => {
     const { project, change } = makeProject(name);
-    fs.copyFileSync(path.join(SYMPHYSIS, "openspec", "changes", name, "decisions.json"), path.join(change, "decisions.json"));
+    const from = path.join(SYMPHYSIS, "openspec", "changes", name);
+    fs.copyFileSync(path.join(from, "decisions.json"), path.join(change, "decisions.json"));
+    if (fs.existsSync(path.join(from, "attack"))) {
+      fs.mkdirSync(path.join(change, "attack"));
+      for (const f of fs.readdirSync(path.join(from, "attack"))) fs.copyFileSync(path.join(from, "attack", f), path.join(change, "attack", f));
+    }
     const env = { python, tools: copyCore(project), cwd: project };
     const ref = changeRef(project, name);
     const p = await load(env, ref);

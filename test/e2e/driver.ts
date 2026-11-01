@@ -28,10 +28,19 @@ function overflowX() {
   return { px: main.scrollWidth - main.clientWidth, culprit: culprit ? `${culprit.tagName}.${culprit.className}: ${(culprit.textContent ?? "").slice(0, 60)}` : "" };
 }
 
+function attackRow(claim: string): HTMLElement {
+  const row = [...document.querySelectorAll<HTMLElement>(".attackrow")].find((r) => r.querySelector("h3")?.textContent?.includes(claim));
+  if (!row) throw new Error(`нет строки атаки «${claim}»`);
+  return row;
+}
+
 function snapshot() {
   const prompt = document.querySelector<HTMLTextAreaElement>(".prompt-text");
   return {
     title: document.querySelector(".top h1")?.textContent ?? "",
+    mode: document.querySelector(".modes .active")?.textContent ?? "",
+    returnPanel: !!document.querySelector(".return"),
+    inputsInMain: document.querySelectorAll("main textarea, main input, main button, main select").length,
     stats: document.querySelector(".stats")?.textContent ?? "",
     cards: [...document.querySelectorAll<HTMLElement>("article.card")].map((c) => c.id),
     prompt: prompt?.value ?? null,
@@ -42,6 +51,23 @@ function snapshot() {
     violations: [...violations],
     scrollTop: document.querySelector("main")?.scrollTop ?? 0,
     overflowX: overflowX(),
+  };
+}
+
+/** Страница поиска в боковой панели. */
+function searchSnapshot() {
+  const results = document.querySelector<HTMLElement>(".search-results");
+  return {
+    query: document.querySelector<HTMLInputElement>(".search > input")?.value ?? null,
+    scope: document.querySelector(".search-scope b")?.textContent ?? null,
+    scopeLine: document.querySelector(".search-scope")?.textContent ?? "",
+    hits: [...document.querySelectorAll<HTMLElement>(".hit")].map((h) => ({
+      label: h.querySelector(".hit-label")?.textContent ?? "", field: h.querySelector(".hit-field")?.textContent ?? "", mark: h.querySelector("mark")?.textContent ?? "",
+    })),
+    deps: [...document.querySelectorAll<HTMLElement>(".dep .hit-label")].map((l) => l.textContent ?? ""),
+    text: results?.textContent ?? "",
+    violations: [...violations],
+    overflowPx: results ? results.scrollWidth - results.clientWidth : 0,
   };
 }
 
@@ -78,16 +104,99 @@ async function drive(m: any): Promise<unknown> {
       b.click();
       break;
     }
-    case "openOnly": {
-      document.querySelector<HTMLInputElement>(".toggle input")!.click();
+    case "filter": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".recordfilter button")].find((x) => x.textContent?.startsWith(m.name));
+      if (!b) throw new Error(`нет фильтра ${m.name}`);
+      b.click();
       break;
+    }
+    case "segLook": {
+      // Заметно ли выбранное: настоящий вычисленный цвет заливки, а не класс; и где переключатель стоит при прокрутке.
+      const seg = document.querySelector<HTMLElement>(m.selector);
+      if (!seg) throw new Error(`нет переключателя ${m.selector}`);
+      const active = seg.querySelector<HTMLButtonElement>("button.active")!;
+      const other = seg.querySelector<HTMLButtonElement>("button:not(.active)")!;
+      return {
+        active: active.textContent, pressed: active.getAttribute("aria-pressed"),
+        activeBg: getComputedStyle(active).backgroundColor, otherBg: getComputedStyle(other).backgroundColor,
+        inMain: !!seg.closest("main"), top: seg.getBoundingClientRect().top,
+      };
+    }
+    case "scrollMain": {
+      document.querySelector("main")!.scrollTop = m.top;
+      break;
+    }
+    case "searchSnapshot":
+      return searchSnapshot();
+    case "searchType": {
+      const input = document.querySelector<HTMLInputElement>(".search > input")!;
+      const t0 = performance.now();
+      setValue(input, m.text);
+      const results = document.querySelector(".search-results")!;
+      while (results.getAttribute("data-query") !== m.text) {
+        if (performance.now() - t0 > 5000) throw new Error(`нет ответа на запрос «${m.text}»`);
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      await settle();
+      return { ...searchSnapshot(), ms: Math.round(performance.now() - t0) };
+    }
+    case "searchOpen": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".hit, .dep")].find((x) => x.querySelector(".hit-label")?.textContent === m.label);
+      if (!b) throw new Error(`нет попадания ${m.label}`);
+      b.click();
+      return searchSnapshot();
     }
     case "followDependency": {
       card!.querySelector<HTMLAnchorElement>(`.chip a[href="#${m.dep}"]`)!.click();
       break;
     }
     case "text":
-      return document.body.textContent ?? "";
+      return document.querySelector("main")?.textContent ?? "";
+    case "mode": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".modes button")].find((x) => x.textContent?.startsWith(m.name));
+      if (!b) throw new Error(`нет режима ${m.name}`);
+      b.click();
+      break;
+    }
+    case "lens": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".lensfilter button")].find((x) => x.textContent?.startsWith(m.name));
+      if (!b) throw new Error(`нет линзы ${m.name}`);
+      b.click();
+      break;
+    }
+    case "attackRows":
+      return [...document.querySelectorAll(".attackrow h3")].map((h) => h.textContent ?? "");
+    case "measureMode": {
+      // Переключение режима: от клика до готового DOM и отрисовки.
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".modes button")].find((x) => x.textContent?.startsWith(m.name))!;
+      const t0 = performance.now();
+      b.click();
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+      return { ms: Math.round(performance.now() - t0), snapshot: snapshot() };
+    }
+    case "measureDispute": {
+      const area = document.querySelector<HTMLTextAreaElement>(".attackrow textarea")!;
+      const samples: number[] = [];
+      for (let i = 1; i <= 30; i++) {
+        const t0 = performance.now();
+        setValue(area, "слово".repeat(i).slice(0, i));
+        await Promise.resolve();
+        samples.push(performance.now() - t0);
+      }
+      setValue(area, "");
+      samples.sort((a, b) => a - b);
+      return { medianMs: samples[15], maxMs: samples[29] };
+    }
+    case "attackDispute": {
+      setValue(attackRow(m.claim).querySelector("textarea")!, m.text);
+      break;
+    }
+    case "attackRowHtml":
+      return attackRow(m.claim).outerHTML;
+    case "followRow": {
+      attackRow(m.claim).querySelector<HTMLAnchorElement>(".card-head a")!.click();
+      break;
+    }
     case "dragPrompt": {
       const handle = document.querySelector<HTMLElement>(".return-handle");
       if (!handle) throw new Error("нет ручки панели");

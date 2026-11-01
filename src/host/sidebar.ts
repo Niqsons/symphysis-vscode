@@ -1,5 +1,6 @@
-// Боковая панель: изменения проекта со счётчиками и оглавление выбранного журнала.
+// Боковая панель: изменения проекта со счётчиками, оглавление журнала и оглавление атаки.
 import * as vscode from "vscode";
+import { attackOutline, verdictState, type OutlineFile, type OutlineLens, type OutlineRow } from "../shared/attack";
 import { recordMark } from "../shared/ops";
 import { emptyDraft } from "../shared/logic";
 import type { CoreFailure } from "../shared/protocol";
@@ -18,13 +19,16 @@ function failureLine(f: CoreFailure): string {
   }
 }
 
-/** Статус атак из frontmatter файлов: `decisions.md: passed`; битый файл называется. */
+/** Статус атак из frontmatter файлов: `decisions: passed`; битый файл и устаревший вердикт называются. */
 function attackLine(state: ChangeState): string {
-  return (state.payload?.attacks ?? []).map((a) => {
-    const name = a.path.split(/[\\/]/).pop()?.replace(/\.md$/, "");
+  const parts = (state.payload?.attacks ?? []).map((a) => {
+    const name = a.path.split("/").pop()?.replace(/\.md$/, "");
     if (a.error) return `${name}: битый файл`;
-    return `${name}: ${a.frontmatter?.status ?? "?"}`;
-  }).join(", ");
+    const stale = verdictState(a, state.payload?.sha256) === "stale" ? ", устарел" : "";
+    return `${name}: ${a.frontmatter?.status || "?"}${stale}`;
+  });
+  // Атака журнала идёт раньше атаки артефактов и важнее: строка в панели обрезается справа.
+  return parts.sort((a, b) => Number(b.startsWith("decisions")) - Number(a.startsWith("decisions"))).join(" · ");
 }
 
 export class ChangesProvider implements vscode.TreeDataProvider<ChangeState> {
@@ -83,6 +87,7 @@ export class TocProvider implements vscode.TreeDataProvider<JournalRecord> {
 
   show(key: string | null): void {
     this.key = key;
+    this.draft = emptyDraft();
     this.emitter.fire();
   }
 
@@ -108,6 +113,80 @@ export class TocProvider implements vscode.TreeDataProvider<JournalRecord> {
     item.tooltip = rec.question;
     item.iconPath = payload ? MARK_ICON[recordMark(payload, this.draft, rec)] : undefined;
     item.command = { command: "symphysis.revealRecord", title: "Показать запись", arguments: [rec.id] };
+    return item;
+  }
+}
+
+type OutlineNode = OutlineFile | OutlineLens | OutlineRow;
+
+const SEVERITY_ICON: Record<OutlineRow["level"], vscode.ThemeIcon> = {
+  signal: new vscode.ThemeIcon("error", new vscode.ThemeColor("problemsErrorIcon.foreground")),
+  accent: new vscode.ThemeIcon("warning", new vscode.ThemeColor("problemsWarningIcon.foreground")),
+  muted: new vscode.ThemeIcon("info"),
+  plain: new vscode.ThemeIcon("circle-outline"),
+};
+
+const weights = (n: { blockers: number; warnings: number }) =>
+  [n.blockers ? `блокеров ${n.blockers}` : "", n.warnings ? `предупреждений ${n.warnings}` : ""].filter(Boolean);
+
+/** Оглавление режима «атака»: отдельный список, потому что у него свои записи и свой режим; клик сам переводит страницу в «атаку». */
+export class AttackTocProvider implements vscode.TreeDataProvider<OutlineNode> {
+  private readonly emitter = new vscode.EventEmitter<void>();
+  readonly onDidChangeTreeData = this.emitter.event;
+  private key: string | null = null;
+
+  constructor(private readonly store: JournalStore) {}
+
+  show(key: string | null): void {
+    this.key = key;
+    this.emitter.fire();
+  }
+
+  refresh(): void {
+    this.emitter.fire();
+  }
+
+  /** Сказать вслух, почему список пуст; пустое дерево выглядит как поломка. */
+  message(): string | undefined {
+    if (!this.key) return "Журнал не открыт.";
+    return this.files().length ? undefined : "Атаки ещё нет: у изменения нет файлов attack/*.md.";
+  }
+
+  private files(): OutlineFile[] {
+    const payload = this.key ? this.store.get(this.key)?.payload : null;
+    return payload ? attackOutline(payload.attacks, payload.sha256) : [];
+  }
+
+  getChildren(node?: OutlineNode): OutlineNode[] {
+    if (!node) return this.files();
+    return node.kind === "file" ? node.lenses : node.kind === "lens" ? node.rows : [];
+  }
+
+  getTreeItem(node: OutlineNode): vscode.TreeItem {
+    const item = new vscode.TreeItem(node.kind === "file" ? node.name : node.kind === "lens" ? node.title : node.section);
+    item.id = `${this.key}|${node.anchor}`;
+    item.command = { command: "symphysis.revealAttack", title: "Показать в атаке", arguments: [node.anchor] };
+    switch (node.kind) {
+      case "file": {
+        const parts = node.error ? ["битый файл"] : [node.status || "?", ...(node.stale ? ["устарел"] : []), ...weights(node)];
+        item.description = parts.join(" · ");
+        item.tooltip = node.error ?? parts.join("\n");
+        item.iconPath = node.error ? SEVERITY_ICON.signal : new vscode.ThemeIcon("file");
+        item.collapsibleState = node.lenses.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None;
+        break;
+      }
+      case "lens":
+        item.description = [String(node.count), ...weights(node)].join(" · ");
+        item.tooltip = [node.title, node.label].filter(Boolean).join(" — ");
+        item.iconPath = node.blockers ? SEVERITY_ICON.signal : node.warnings ? SEVERITY_ICON.accent : SEVERITY_ICON.muted;
+        item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+        break;
+      case "row":
+        item.description = node.claim;
+        item.tooltip = `${node.severity}\n${node.claim}`;
+        item.iconPath = SEVERITY_ICON[node.level];
+        break;
+    }
     return item;
   }
 }

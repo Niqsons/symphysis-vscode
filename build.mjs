@@ -18,6 +18,7 @@ if (process.argv.includes("--unit")) {
 } else {
   await build({ ...node, sourcemap: "linked", entryPoints: ["src/extension.ts"], outfile: "out/extension.js" });
   await build({ ...web, minify: true, entryPoints: ["src/webview/main.tsx"], outfile: "media/viewer.js" });
+  await build({ ...web, minify: true, entryPoints: ["src/webview/search.tsx"], outfile: "media/search.js" });
   fs.copyFileSync("src/webview/style.css", "media/viewer.css");
   if (process.argv.includes("--tests")) {
     await buildUnits();

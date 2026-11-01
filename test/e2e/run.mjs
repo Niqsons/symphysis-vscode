@@ -36,8 +36,20 @@ fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(change("изм�
 fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(change("изменение-два"), "decisions.json"));
 change("без-журнала");
 change("archive");
-const big = path.join(SYMPHYSIS, "openspec", "changes", "calibration-fixes", "decisions.json");
-if (fs.existsSync(big)) fs.copyFileSync(big, path.join(change("большой-журнал"), "decisions.json"));
+const withAttack = change("с-атакой");
+fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(withAttack, "decisions.json"));
+fs.mkdirSync(path.join(withAttack, "attack"));
+fs.copyFileSync(path.join(fixtures, "attack-rich.md"), path.join(withAttack, "attack", "decisions.md"));
+fs.writeFileSync(path.join(withAttack, "attack", "artifacts.md"), "не файл атаки\n", "utf8");
+const big = path.join(SYMPHYSIS, "openspec", "changes", "calibration-fixes");
+if (fs.existsSync(path.join(big, "decisions.json"))) {
+  const dir = change("большой-журнал");
+  fs.copyFileSync(path.join(big, "decisions.json"), path.join(dir, "decisions.json"));
+  if (fs.existsSync(path.join(big, "attack"))) {
+    fs.mkdirSync(path.join(dir, "attack"));
+    for (const f of fs.readdirSync(path.join(big, "attack"))) fs.copyFileSync(path.join(big, "attack", f), path.join(dir, "attack", f));
+  }
+}
 
 for (const k of Object.keys(process.env)) {
   if (/^(VSCODE_|ELECTRON_|NoDefaultCurrentDirectoryInExePath$|PYTHONIOENCODING$)/i.test(k)) delete process.env[k];
@@ -54,7 +66,9 @@ try {
     extensionTestsEnv: {
       SYMPHYSIS_E2E_RESULTS: results, SYMPHYSIS_E2E_PAUSE_MS: process.env.SYMPHYSIS_E2E_PAUSE_MS ?? "",
       SYMPHYSIS_E2E_THEME: process.env.SYMPHYSIS_E2E_THEME ?? "", SYMPHYSIS_E2E_SHOW: process.env.SYMPHYSIS_E2E_SHOW ?? "",
-      SYMPHYSIS_E2E_STRETCH: process.env.SYMPHYSIS_E2E_STRETCH ?? "",
+      SYMPHYSIS_E2E_STRETCH: process.env.SYMPHYSIS_E2E_STRETCH ?? "", SYMPHYSIS_E2E_MODE: process.env.SYMPHYSIS_E2E_MODE ?? "",
+      SYMPHYSIS_E2E_LENS: process.env.SYMPHYSIS_E2E_LENS ?? "", SYMPHYSIS_E2E_FILTER: process.env.SYMPHYSIS_E2E_FILTER ?? "",
+      SYMPHYSIS_E2E_SEARCH: process.env.SYMPHYSIS_E2E_SEARCH ?? "", SYMPHYSIS_E2E_FIND: process.env.SYMPHYSIS_E2E_FIND ?? "",
     },
     launchArgs: [project, "--disable-extensions", "--user-data-dir", path.join(work, "profile"), "--extensions-dir", path.join(work, "extensions"),
       "--skip-welcome", "--skip-release-notes", "--disable-workspace-trust"],

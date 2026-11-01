@@ -58,7 +58,7 @@ export interface AttackRow {
 
 export interface AttackFile {
   path: string;
-  frontmatter?: Record<string, unknown>;
+  frontmatter?: { status: string; targets: { path: string; sha256: string }[] };
   rows?: AttackRow[];
   error?: string;
 }

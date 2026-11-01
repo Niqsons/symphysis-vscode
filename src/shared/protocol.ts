@@ -1,4 +1,5 @@
-// Сообщения между хостом расширения и страницей просмотрщика.
+// Сообщения между хостом расширения и страницами: просмотрщиком и поиском в боковой панели.
+import type { SearchOutcome } from "./search";
 import type { Draft, ViewPayload } from "./types";
 
 export type CoreFailure =
@@ -16,15 +17,22 @@ export interface Colors {
   muted: string;
 }
 
+export type ViewMode = "decisions" | "check" | "attack";
+
+/** Какие записи показывает режим «решения». */
+export type RecordFilter = "all" | "forks" | "open" | "facts";
+
 /** Удобства интерфейса: живут в workspaceState (Р4), в черновик не идут. */
 export interface UiState {
-  openOnly: boolean;
+  mode: ViewMode;
+  attackLens: string;
+  recordFilter: RecordFilter;
   promptOpen: boolean;
   /** Высота поля промпта в пикселях; `null` — низкая по умолчанию, по числу строк. */
   promptHeight: number | null;
 }
 
-export const DEFAULT_UI: UiState = { openOnly: false, promptOpen: true, promptHeight: null };
+export const DEFAULT_UI: UiState = { mode: "decisions", attackLens: "all", recordFilter: "all", promptOpen: true, promptHeight: null };
 
 export interface JournalView {
   key: string;
@@ -40,11 +48,17 @@ export type ApplyReport =
   | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string }
   | { stage: "error"; text: string };
 
+/** Куда перейти на странице: якорь и режим, в котором он живёт; режима нет — запись журнала, она есть и в «решениях», и в «проверке». */
+export interface RevealTarget {
+  id: string;
+  mode?: ViewMode;
+}
+
 export type HostMessage =
   | { type: "show"; view: JournalView; draft: Draft; damagedDraft: string | null; colors: Colors; ui: UiState }
   | { type: "journal"; view: JournalView }
   | { type: "colors"; colors: Colors }
-  | { type: "reveal"; id: string }
+  | ({ type: "reveal" } & RevealTarget)
   | { type: "applied"; key: string; result: ApplyReport };
 
 export type PageMessage =
@@ -55,3 +69,11 @@ export type PageMessage =
   | { type: "apply"; key: string; text: string; shownSha: string | undefined; date: string }
   | { type: "reset"; key: string }
   | { type: "openPythonSetting" };
+
+/** Страница поиска в боковой панели. `scope` — открытое изменение; `null` — журнал не открыт, искать негде. */
+export type SearchHostMessage = { type: "searchState"; query: string; scope: string | null; outcome: SearchOutcome; colors: Colors };
+
+export type SearchPageMessage =
+  | { type: "searchReady" }
+  | { type: "searchQuery"; query: string }
+  | { type: "searchOpen"; target: RevealTarget };

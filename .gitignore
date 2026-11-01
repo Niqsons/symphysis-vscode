@@ -53,5 +53,6 @@ out/
 dist/
 *.vsix
 media/viewer.js
+media/search.js
 media/viewer.css
 media/test-driver.js

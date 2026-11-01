@@ -4,7 +4,8 @@ import * as vscode from "vscode";
 import { viewJson, type CoreEnv, type ViewResult } from "./host/core";
 import { findTools, listChanges, type ChangeRef } from "./host/project";
 import { resolvePython, type PythonResolution } from "./host/python";
-import { ChangesProvider, TocProvider } from "./host/sidebar";
+import { SearchView } from "./host/searchView";
+import { AttackTocProvider, ChangesProvider, TocProvider } from "./host/sidebar";
 import { JournalStore, keyOf } from "./host/store";
 import { ViewerPanel } from "./host/viewerPanel";
 import type { Colors, CoreFailure } from "./shared/protocol";
@@ -47,20 +48,37 @@ export function activate(context: vscode.ExtensionContext) {
     concurrency: CONCURRENT_RUNS,
     onUpdate: (key) => {
       changes.refresh();
-      if (key === viewer.currentKey) toc.refresh();
+      if (key === viewer.currentKey) {
+        toc.refresh();
+        attackToc.refresh();
+        attackView.message = attackToc.message();
+        search.refresh();
+      }
       viewer.journalUpdated(key);
     },
   });
   const changes = new ChangesProvider(store, () => workspaceDirs().length > 1);
   const toc = new TocProvider(store);
   const tocView = vscode.window.createTreeView("symphysis.toc", { treeDataProvider: toc });
+  const attackToc = new AttackTocProvider(store);
+  const attackView = vscode.window.createTreeView("symphysis.attackToc", { treeDataProvider: attackToc });
+  attackView.message = attackToc.message();
+  const search = new SearchView({ context, store, colors, reveal: (t) => viewer.reveal(t.id, t.mode) });
   const viewer: ViewerPanel = new ViewerPanel({
     context, store, coreEnv, colors,
     onShown: (key) => {
       toc.show(key);
-      tocView.description = key ? store.get(key)?.ref.name : undefined;
+      attackToc.show(key);
+      search.show(key);
+      const name = key ? store.get(key)?.ref.name : undefined;
+      tocView.description = name;
+      attackView.description = name;
+      attackView.message = attackToc.message();
     },
-    onDraft: (key, draft) => toc.setDraft(key, draft),
+    onDraft: (key, draft) => {
+      toc.setDraft(key, draft);
+      search.setDraft(key, draft);
+    },
   });
 
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.
@@ -103,21 +121,24 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("symphysis.changes", changes),
     tocView,
+    attackView,
+    vscode.window.registerWebviewViewProvider("symphysis.search", search),
     vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); }),
     vscode.commands.registerCommand("symphysis.openChange", (key?: string) => {
       const target = key ?? store.list()[0]?.ref.dir;
       if (target) viewer.open(target);
     }),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
+    vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
     vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("symphysis.colors")) viewer.colorsChanged();
+      if (e.affectsConfiguration("symphysis.colors")) { viewer.colorsChanged(); search.refresh(); }
       if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); }
     }),
     { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); } },
   );
 
-  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, keyOf };
+  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, changes, toc, attackToc, search, keyOf };
   return undefined;
 }
 

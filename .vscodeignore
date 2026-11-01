@@ -2,5 +2,6 @@
 !package.json
 !out/extension.js
 !media/viewer.js
+!media/search.js
 !media/viewer.css
 !media/icon.svg

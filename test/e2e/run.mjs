@@ -3,6 +3,7 @@ import { runTests } from "@vscode/test-electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { bigJournal } from "../core-journals.mjs";
 import { addChange, cleanEnv, CODE, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-e2e-"));
@@ -36,14 +37,12 @@ fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(withAttack, "de
 fs.mkdirSync(path.join(withAttack, "attack"));
 fs.copyFileSync(path.join(fixtures, "attack-rich.md"), path.join(withAttack, "attack", "decisions.md"));
 fs.writeFileSync(path.join(withAttack, "attack", "artifacts.md"), "не файл атаки\n", "utf8");
-const big = path.join(SYMPHYSIS, "openspec", "changes", "calibration-fixes");
-if (fs.existsSync(path.join(big, "decisions.json"))) {
-  const dir = change("большой-журнал");
-  fs.copyFileSync(path.join(big, "decisions.json"), path.join(dir, "decisions.json"));
-  if (fs.existsSync(path.join(big, "attack"))) {
-    fs.mkdirSync(path.join(dir, "attack"));
-    for (const f of fs.readdirSync(path.join(big, "attack"))) fs.copyFileSync(path.join(big, "attack", f), path.join(dir, "attack", f));
-  }
+const big = bigJournal(SYMPHYSIS).dir;
+const bigCopy = change("большой-журнал");
+fs.copyFileSync(path.join(big, "decisions.json"), path.join(bigCopy, "decisions.json"));
+if (fs.existsSync(path.join(big, "attack"))) {
+  fs.mkdirSync(path.join(bigCopy, "attack"));
+  for (const f of fs.readdirSync(path.join(big, "attack"))) fs.copyFileSync(path.join(big, "attack", f), path.join(bigCopy, "attack", f));
 }
 
 cleanEnv();

@@ -675,57 +675,55 @@ export async function run(): Promise<void> {
     assert.deepEqual(back.violations, []);
   });
 
-  if (fs.existsSync(path.join(key("большой-журнал"), "decisions.json"))) {
-    await step("большой настоящий журнал: все записи, символ в поле слова быстрый", async () => {
-      await vscode.commands.executeCommand("symphysis.openChange", key("большой-журнал"));
-      const s = await until("большой журнал", async () => {
-        const r = await snap();
-        return /большой-журнал/.test(r.title) && r.cards.length > 10 ? r : null;
-      }, 20000);
-      const total = JSON.parse(fs.readFileSync(path.join(key("большой-журнал"), "decisions.json"), "utf8")).records.length;
-      assert.equal(s.cards.length, total);
-      const firstFork = JSON.parse(fs.readFileSync(path.join(key("большой-журнал"), "decisions.json"), "utf8")).records.find((r: any) => r.kind === "развилка").id;
-      measures.bigKeystroke = await drive("measure", { id: firstFork });
-      assert.deepEqual(s.violations, []);
-      assert.equal(s.overflowX.px, 0, `вбок вылезает: ${s.overflowX.culprit}`);
-      const check = await drive("measureMode", { name: "проверка" });
-      measures.bigCheckMs = check.ms;
-      assert.equal(check.snapshot.overflowX.px, 0, `«проверка», вбок вылезает: ${check.snapshot.overflowX.culprit}`);
-      assert.deepEqual(check.snapshot.violations, []);
-      assert.equal(check.snapshot.inputsInMain, 0);
-      const attackFiles = api.store.get(key("большой-журнал")).payload.attacks;
-      const realRows = attackFiles.reduce((n: number, a: any) => n + (a.rows?.length ?? 0), 0);
-      assert.ok(realRows > 0, "у настоящего журнала должны быть строки атаки");
-      const att = await drive("measureMode", { name: "атака" });
-      measures.bigAttackMs = att.ms;
-      measures.bigAttackRows = realRows;
-      assert.equal(att.snapshot.overflowX.px, 0, `«атака», вбок вылезает: ${att.snapshot.overflowX.culprit}`);
-      assert.deepEqual(att.snapshot.violations, []);
-      assert.equal((await drive("attackRows")).length, realRows);
-      measures.bigDisputeKeystroke = await drive("measureDispute");
-      const outline = api.attackToc.getChildren().flatMap((f) => api.attackToc.getChildren(f).flatMap((l) => api.attackToc.getChildren(l)));
-      assert.equal(outline.length, realRows, "оглавление атаки показывает все строки");
-      await clickTree(outline[outline.length - 1]);
-      await until("последняя строка", async () => (await drive("cardVisible", { id: outline[outline.length - 1].anchor })).inView);
-      // Поиск на настоящем журнале: счёт на хосте и весь путь от символа в поле до показа, вместе с задержкой ввода.
-      const payload = api.store.get(key("большой-журнал")).payload;
-      const samples = Array.from({ length: 30 }, () => {
-        const t1 = performance.now();
-        search(payload, emptyDraft(), "журнал");
-        return performance.now() - t1;
-      }).sort((a, b) => a - b);
-      measures.bigSearch = { medianMs: samples[15], maxMs: samples[29] };
-      const wide = await searchDrive("searchType", { text: "журнал" });
-      measures.bigSearchHits = wide.hits.length;
-      measures.bigSearchRoundTripMs = wide.ms;
-      assert.ok(wide.hits.length > 10);
-      assert.equal(wide.overflowPx, 0, "поиск не должен вылезать вбок");
-      assert.deepEqual(wide.violations, []);
-      const number = await searchDrive("searchType", { text: "6" });
-      assert.equal(number.overflowPx, 0, "карточка записи не должна вылезать вбок");
-      await drive("mode", { name: "решения" });
-    });
-  }
+  await step("большой настоящий журнал: все записи, символ в поле слова быстрый", async () => {
+    await vscode.commands.executeCommand("symphysis.openChange", key("большой-журнал"));
+    const s = await until("большой журнал", async () => {
+      const r = await snap();
+      return /большой-журнал/.test(r.title) && r.cards.length > 10 ? r : null;
+    }, 20000);
+    const total = JSON.parse(fs.readFileSync(path.join(key("большой-журнал"), "decisions.json"), "utf8")).records.length;
+    assert.equal(s.cards.length, total);
+    const firstFork = JSON.parse(fs.readFileSync(path.join(key("большой-журнал"), "decisions.json"), "utf8")).records.find((r: any) => r.kind === "развилка").id;
+    measures.bigKeystroke = await drive("measure", { id: firstFork });
+    assert.deepEqual(s.violations, []);
+    assert.equal(s.overflowX.px, 0, `вбок вылезает: ${s.overflowX.culprit}`);
+    const check = await drive("measureMode", { name: "проверка" });
+    measures.bigCheckMs = check.ms;
+    assert.equal(check.snapshot.overflowX.px, 0, `«проверка», вбок вылезает: ${check.snapshot.overflowX.culprit}`);
+    assert.deepEqual(check.snapshot.violations, []);
+    assert.equal(check.snapshot.inputsInMain, 0);
+    const attackFiles = api.store.get(key("большой-журнал")).payload.attacks;
+    const realRows = attackFiles.reduce((n: number, a: any) => n + (a.rows?.length ?? 0), 0);
+    assert.ok(realRows > 0, "у настоящего журнала должны быть строки атаки");
+    const att = await drive("measureMode", { name: "атака" });
+    measures.bigAttackMs = att.ms;
+    measures.bigAttackRows = realRows;
+    assert.equal(att.snapshot.overflowX.px, 0, `«атака», вбок вылезает: ${att.snapshot.overflowX.culprit}`);
+    assert.deepEqual(att.snapshot.violations, []);
+    assert.equal((await drive("attackRows")).length, realRows);
+    measures.bigDisputeKeystroke = await drive("measureDispute");
+    const outline = api.attackToc.getChildren().flatMap((f) => api.attackToc.getChildren(f).flatMap((l) => api.attackToc.getChildren(l)));
+    assert.equal(outline.length, realRows, "оглавление атаки показывает все строки");
+    await clickTree(outline[outline.length - 1]);
+    await until("последняя строка", async () => (await drive("cardVisible", { id: outline[outline.length - 1].anchor })).inView);
+    // Поиск на настоящем журнале: счёт на хосте и весь путь от символа в поле до показа, вместе с задержкой ввода.
+    const payload = api.store.get(key("большой-журнал")).payload;
+    const samples = Array.from({ length: 30 }, () => {
+      const t1 = performance.now();
+      search(payload, emptyDraft(), "журнал");
+      return performance.now() - t1;
+    }).sort((a, b) => a - b);
+    measures.bigSearch = { medianMs: samples[15], maxMs: samples[29] };
+    const wide = await searchDrive("searchType", { text: "журнал" });
+    measures.bigSearchHits = wide.hits.length;
+    measures.bigSearchRoundTripMs = wide.ms;
+    assert.ok(wide.hits.length > 10);
+    assert.equal(wide.overflowPx, 0, "поиск не должен вылезать вбок");
+    assert.deepEqual(wide.violations, []);
+    const number = await searchDrive("searchType", { text: "6" });
+    assert.equal(number.overflowPx, 0, "карточка записи не должна вылезать вбок");
+    await drive("mode", { name: "решения" });
+  });
 
   // --- вкладка схемы ----------------------------------------------------------------------------------------------
   const schemeDrive = driver(() => api.scheme.webview, api.scheme.messages);

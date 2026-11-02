@@ -8,6 +8,7 @@ import { applyAnswers, viewJson, type CoreEnv } from "../../src/host/core";
 import { changeRef, saveAnswers, type ChangeRef } from "../../src/host/project";
 import { allOptions, buildPrompt, cleanupIngested, disputeKey, emptyDraft, nextLetter } from "../../src/shared/logic";
 import { ADDRESSEES, type Draft, type ViewPayload } from "../../src/shared/types";
+import { bigJournal, coreJournals } from "../core-journals.mjs";
 import { addAttack, copyCore, makeProject, noCoreReason, SYMPHYSIS } from "./fixture-project";
 
 const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
@@ -126,16 +127,26 @@ function exercise(p: ViewPayload): Draft {
   return d;
 }
 
-const realJournals = (() => {
-  const base = path.join(SYMPHYSIS, "openspec", "changes");
-  if (!fs.existsSync(base)) return [];
-  return fs.readdirSync(base).filter((n) => fs.existsSync(path.join(base, n, "decisions.json")));
-})();
+const realJournals = coreJournals(SYMPHYSIS);
 
-for (const name of realJournals) {
+// Список строится по диску, поэтому журнал, уехавший в другой каталог, убирает свои прогоны без единого красного теста.
+test("большой журнал среди настоящих: перенос в архив не убирает прогоны молча", opts, () => {
+  assert.match(bigJournal(SYMPHYSIS).dir, /calibration-fixes$/);
+});
+
+test("поиск журналов: активные и архив, большой находится по имени без даты, без него ошибка, а не пропуск", opts, () => {
+  const { project, change } = makeProject();
+  assert.throws(() => bigJournal(project), /calibration-fixes/);
+  const archived = path.join(project, "openspec", "changes", "archive", "2026-11-02-calibration-fixes");
+  fs.mkdirSync(archived, { recursive: true });
+  fs.copyFileSync(path.join(change, "decisions.json"), path.join(archived, "decisions.json"));
+  assert.equal(bigJournal(project).dir, archived);
+  assert.deepEqual(coreJournals(project).map((j) => j.name), [path.basename(change), path.basename(archived)]);
+});
+
+for (const { name, dir: from } of realJournals) {
   test(`настоящий журнал ${name}: промпт по всем видам строк проходит apply --dry-run`, opts, async () => {
     const { project, change } = makeProject(name);
-    const from = path.join(SYMPHYSIS, "openspec", "changes", name);
     fs.copyFileSync(path.join(from, "decisions.json"), path.join(change, "decisions.json"));
     if (fs.existsSync(path.join(from, "attack"))) {
       fs.mkdirSync(path.join(change, "attack"));

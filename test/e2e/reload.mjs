@@ -2,13 +2,13 @@
 // поэтому здесь обычное окно разработки, а этапы ведёт расширение reload-host. Страницу отсюда не видно: её держит `npm run e2e`.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { addChange, cleanEnv, CODE, fixtures, projectWithTools, repo, report } from "./harness.mjs";
+import { tempDir } from "../temp-dir.mjs";
+import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report } from "./harness.mjs";
 
 const STAGE_LIMIT_MS = 60000;
 
-const work = fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-reload-"));
+const work = tempDir("symphysis-reload-");
 const project = path.join(work, "проект с пробелами");
 projectWithTools(project);
 const change = addChange(project, "со-схемой");
@@ -56,5 +56,4 @@ if (end !== "done") {
   code = 1;
 }
 if (report(results)) code = 1;
-console.log(`каталог прогона: ${work}`);
-process.exit(code);
+finish(work, code);

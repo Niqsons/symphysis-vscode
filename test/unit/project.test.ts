@@ -5,11 +5,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { tempDir } from "../temp-dir.mjs";
 import { coreRoot } from "./fixture-project";
 import { deleteDraft, findTools, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
 import { emptyDraft } from "../../src/shared/logic";
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-проект-"));
+const tmp = () => tempDir("symphysis-проект-");
 
 function change(root: string, name: string, files: Record<string, string> = {}): string {
   const dir = path.join(root, "openspec", "changes", name);

@@ -1,7 +1,7 @@
 // Установленный проект во временном каталоге с кириллицей и пробелами: ядро — копия `tools/` соседнего репозитория symphysis.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { tempDir } from "../temp-dir.mjs";
 
 /** Пустая переменная считается незаданной. */
 export const coreRoot = (env: NodeJS.ProcessEnv, sibling: string) => env.SYMPHYSIS_ROOT || sibling;
@@ -27,7 +27,7 @@ export function copyCore(project: string): string {
 }
 
 export function makeProject(changeName = "изменение один"): { project: string; tools: string; change: string } {
-  const project = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-")), "проект с пробелами");
+  const project = path.join(tempDir("symphysis-"), "проект с пробелами");
   fs.mkdirSync(project, { recursive: true });
   const tools = copyCore(project);
   fs.writeFileSync(path.join(project, "intent.md"), "Надо показать журнал человеку.\n", "utf8");

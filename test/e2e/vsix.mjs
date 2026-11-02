@@ -2,9 +2,9 @@
 import { runTests } from "@vscode/test-electron";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { addChange, cleanEnv, CODE, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
+import { tempDir } from "../temp-dir.mjs";
+import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 import { pack } from "../../package.mjs";
 
 cleanEnv();
@@ -26,7 +26,7 @@ const version = /-(\d+\.\d+\.\d+\+[0-9a-f]+(?:\.dirty)?)\.vsix$/.exec(vsix)?.[1]
 if (!version) fail(`имя пакета без версии и хеша: ${vsix}`, packed);
 if (!fs.readFileSync(manifest).equals(manifestBefore)) fail("упаковка изменила package.json", packed);
 
-const work = fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-vsix-"));
+const work = tempDir("symphysis-vsix-");
 const project = path.join(work, "проект с пробелами");
 const profile = path.join(work, "profile");
 const extensions = path.join(work, "extensions");
@@ -77,5 +77,4 @@ for (const l of errors) console.log(`   ${l}`);
 if (!logs.length || errors.length) code = 1;
 
 console.log(`пакет: ${vsix}, ${Math.round(fs.statSync(vsix).size / 1024)} КБ`);
-console.log(`каталог прогона: ${work}`);
-process.exit(code);
+finish(work, code);

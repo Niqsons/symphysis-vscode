@@ -175,8 +175,8 @@ function pagePrompt(env: CoreEnv, ref: ChangeRef, change: string, d: Draft): str
   fs.writeFileSync(stateFile, JSON.stringify(state), "utf8");
   const run = spawnSync(process.execPath, [SMOKE, page, stateFile], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
-  fs.rmSync(page);
-  fs.rmSync(stateFile);
+  fs.unlinkSync(page);
+  fs.unlinkSync(stateFile);
   return JSON.parse(run.stdout).out as string;
 }
 

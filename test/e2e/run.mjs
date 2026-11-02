@@ -1,12 +1,12 @@
 // Запуск сквозного сценария в настоящем VS Code с чистым профилем и чистым окружением.
 import { runTests } from "@vscode/test-electron";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { bigJournal } from "../core-journals.mjs";
-import { addChange, cleanEnv, CODE, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
+import { tempDir } from "../temp-dir.mjs";
+import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 
-const work = fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-e2e-"));
+const work = tempDir("symphysis-e2e-");
 
 const project = path.join(work, "проект с пробелами");
 projectWithTools(project);
@@ -70,5 +70,4 @@ try {
   code = 1;
 }
 if (report(results)) code = 1;
-console.log(`каталог прогона: ${work}`);
-process.exit(code);
+finish(work, code);

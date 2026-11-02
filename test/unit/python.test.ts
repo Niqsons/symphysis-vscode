@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { resolvePython, runPython } from "../../src/host/python";
+import { tempDir } from "../temp-dir.mjs";
 
 const real = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
 const realDir = path.dirname(real);
 const exe = process.platform === "win32" ? "python.exe" : "python";
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "symphysis-python-"));
+const tmp = () => tempDir("symphysis-python-");
 
 test("находит python в PATH и отдаёт абсолютный путь и версию", () => {
   const r = resolvePython({ PATH: realDir }, []);

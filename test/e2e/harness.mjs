@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { keepTemp } from "../temp-dir.mjs";
 
 export const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const CODE = process.env.SYMPHYSIS_CODE ?? path.join(process.env.LOCALAPPDATA ?? "", "Programs", "Microsoft VS Code", "Code.exe");
@@ -33,6 +34,15 @@ export function cleanEnv() {
   for (const k of Object.keys(process.env)) {
     if (/^(VSCODE_|ELECTRON_|NoDefaultCurrentDirectoryInExePath$|PYTHONIOENCODING$)/i.test(k)) delete process.env[k];
   }
+}
+
+/** Конец прогона: зелёный снимает свой каталог при выходе, красный оставляет его для разбора и называет. */
+export function finish(work, code) {
+  if (code) {
+    keepTemp(work);
+    console.log(`каталог прогона оставлен: ${work}`);
+  }
+  process.exit(code);
 }
 
 /** Печатает шаги из файла результатов; возвращает код выхода. */

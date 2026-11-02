@@ -120,6 +120,11 @@ export function recordMark(p: ViewPayload, d: Draft, rec: JournalRecord): Record
 }
 
 /** Фильтр режима «решения»: развилка без выбора открыта и с учётом черновика, как в карточке. */
+/** Связан ли журнал со схемой: `nodes: []` работает как нет поля (F-86). */
+export const hasNodes = (p: ViewPayload) => p.records.some((r) => (r.nodes ?? []).length > 0);
+/** Сравнение дословное (F-87). */
+export const inNode = (rec: JournalRecord, id: string) => (rec.nodes ?? []).includes(id);
+
 export function matchesRecordFilter(p: ViewPayload, d: Draft, rec: JournalRecord, f: RecordFilter): boolean {
   switch (f) {
     case "all": return true;

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { emptyDraft, normalizeDraft } from "../shared/logic";
+import { parseScheme, type ParsedScheme } from "../shared/scheme";
 import type { Draft } from "../shared/types";
 
 export interface ChangeRef {
@@ -47,6 +48,19 @@ export function listChanges(root: string): ChangeRef[] {
 }
 
 /** Промпт как есть в `answers/<дата>.md`; занято — `<дата>-2.md`, `-3`… Создание исключительное: чужой файл не затирается. */
+export const schemeFile = (dir: string) => path.join(dir, "scheme.md");
+
+/** `scheme.md` изменения. Не текст файла — файл без блока, а не отказ (`security.md`, бинарные файлы). */
+export function readScheme(dir: string): ParsedScheme & { exists: boolean } {
+  let text: string;
+  try {
+    text = fs.readFileSync(schemeFile(dir), "utf8");
+  } catch {
+    return { exists: false, text: null, blocks: 0, first_line: null };
+  }
+  return { exists: true, ...parseScheme(text) };
+}
+
 export function saveAnswers(dir: string, date: string, text: string): string {
   const answers = path.join(dir, "answers");
   fs.mkdirSync(answers, { recursive: true });

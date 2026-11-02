@@ -6,8 +6,9 @@ import { findTools, listChanges, type ChangeRef } from "./host/project";
 import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
 import { AttackTocProvider, ChangesProvider, TocProvider } from "./host/sidebar";
+import { SCHEME_TYPE, SchemePanel } from "./host/schemePanel";
 import { JournalStore, keyOf } from "./host/store";
-import { ViewerPanel } from "./host/viewerPanel";
+import { VIEWER_TYPE, ViewerPanel } from "./host/viewerPanel";
 import type { Colors, CoreFailure } from "./shared/protocol";
 
 const REFRESH_DELAY_MS = 150;
@@ -74,12 +75,15 @@ export function activate(context: vscode.ExtensionContext) {
       tocView.description = name;
       attackView.description = name;
       attackView.message = attackToc.message();
+      if (key) scheme.follow(key);
     },
     onDraft: (key, draft) => {
       toc.setDraft(key, draft);
       search.setDraft(key, draft);
     },
+    openScheme: (key) => scheme.open(key),
   });
+  const scheme = new SchemePanel({ context, store, showNode: (key, id) => viewer.showNode(key, id), currentKey: () => viewer.currentKey });
 
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.
   const timers = new Map<string, NodeJS.Timeout>();
@@ -108,6 +112,10 @@ export function activate(context: vscode.ExtensionContext) {
         const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, glob));
         return [w, w.onDidChange(on), w.onDidCreate(on), w.onDidDelete(on)];
       });
+      // Схема: вкладка рисует сразу, просмотрщик узнаёт через обычное перечитывание журнала (подсказка «узел не найден»).
+      const schemeWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/changes/*/scheme.md"));
+      const onScheme = (uri: vscode.Uri) => { scheme.fileChanged(path.dirname(uri.fsPath)); on(uri); };
+      journalWatchers.push([schemeWatcher, schemeWatcher.onDidChange(onScheme), schemeWatcher.onDidCreate(onScheme), schemeWatcher.onDidDelete(onScheme)]);
       const tools = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, ".symphysis/tools/journal.py"));
       const all = () => { store.refreshAll(); changes.refresh(); };
       return [...journalWatchers.flat(), tools, tools.onDidChange(all), tools.onDidCreate(all), tools.onDidDelete(all)];
@@ -123,10 +131,16 @@ export function activate(context: vscode.ExtensionContext) {
     tocView,
     attackView,
     vscode.window.registerWebviewViewProvider("symphysis.search", search),
+    vscode.window.registerWebviewPanelSerializer(VIEWER_TYPE, { deserializeWebviewPanel: async (panel) => viewer.restore(panel) }),
+    vscode.window.registerWebviewPanelSerializer(SCHEME_TYPE, { deserializeWebviewPanel: async (panel) => scheme.restore(panel) }),
     vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); }),
     vscode.commands.registerCommand("symphysis.openChange", (key?: string) => {
       const target = key ?? store.list()[0]?.ref.dir;
       if (target) viewer.open(target);
+    }),
+    vscode.commands.registerCommand("symphysis.openScheme", (key?: string) => {
+      const target = key ?? viewer.currentKey ?? store.list()[0]?.ref.dir;
+      if (target) scheme.open(target);
     }),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
@@ -138,7 +152,7 @@ export function activate(context: vscode.ExtensionContext) {
     { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); } },
   );
 
-  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, changes, toc, attackToc, search, keyOf };
+  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf };
   return undefined;
 }
 

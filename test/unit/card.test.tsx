@@ -64,13 +64,20 @@ test("отступление от постановки: бейдж выделя�
   assert.match(html(rec), /tag accent[^>]*>отступление от F-09/);
 });
 
-test("антипод виден на варианте; выбранный антипод блокирует вариант", () => {
+test("антипод виден на варианте; выбранный антипод не блокирует, пара видна у обоих", () => {
   const a = fork("F-01", { antipodes: [{ option: "A", other: "F-02.B" }] });
   const b = fork("F-02");
   const p = payload([a, b]);
   assert.ok(html(b, p).includes("антипод F-01.A"));
   const d: Draft = { ...emptyDraft(), decisions: { "F-01": { choice: "A", word: "", parked: [] } } };
-  assert.match(html(b, p, d), /class="opt blocked"/);
+  assert.match(html(b, p, d), /антипод уже выбран: F-01\.A/);
+  assert.doesNotMatch(html(b, p, d), /blocked/);
+  const both: Draft = { ...d, decisions: { ...d.decisions, "F-02": { choice: "B", word: "", parked: [] } } };
+  assert.match(html(a, p, both), /антипод уже выбран: F-02\.B/);
+});
+
+test("подсказка адресатов: «материалы» ищет агент, в файлах или пробой (F-41)", () => {
+  assert.match(html(fork("F-01")), /ответ ищет агент, в файлах или пробой/);
 });
 
 test("улики: сверено побочным, пропавшая цитата сигнальным, с местом и цитатой", () => {

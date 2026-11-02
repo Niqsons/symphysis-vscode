@@ -8,6 +8,7 @@ import { search } from "../../src/shared/search";
 import type { AttackFile, AttackRow, Draft, ViewPayload } from "../../src/shared/types";
 import { AttackView, LensFilter } from "../../src/webview/AttackView";
 import { CheckView } from "../../src/webview/CheckView";
+import { FailureText } from "../../src/webview/FailureText";
 import { SearchResults } from "../../src/webview/SearchResults";
 import { Segmented } from "../../src/webview/Segmented";
 import { fact, fork, option, payload } from "./helpers";
@@ -239,4 +240,12 @@ test("поиск по номеру: запись, зависимости кра�
 test("поиск по номеру: зависимостей нет — так и сказано; запись, которой нет, названа", () => {
   assert.ok(flat(results(payload([fork("F-01")]), "1")).includes("зависимостей нет"));
   assert.ok(flat(results(payload([fork("F-01", { depends_on: ["F-99"] })]), "1")).includes("записи нет"));
+});
+
+test("Прежних данных нет: просмотрщик говорит, что обновить, называет проект и команду (F-78, F-79)", () => {
+  const text = (need: "tools" | "vsix") => renderToStaticMarkup(<FailureText failure={{ kind: "contract", need, root: "D:/проект" }} openPythonSetting={noop} />);
+  assert.match(text("tools"), /D:\/проект/);
+  assert.match(text("tools"), /symphysis install --project \. --force/);
+  assert.match(text("vsix"), /D:\/проект/);
+  assert.match(text("vsix"), /поставь новый \.vsix/);
 });

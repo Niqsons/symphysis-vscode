@@ -4,12 +4,16 @@ import * as vscode from "vscode";
 import { applyFlow } from "./apply";
 import type { CoreEnv } from "./core";
 import { pageHtml } from "./page";
-import { deleteDraft, readDraft, writeDraft, type ChangeRef } from "./project";
+import { deleteDraft, readDraft, readScheme, writeDraft, type ChangeRef } from "./project";
 import type { ChangeState, JournalStore } from "./store";
+import { asleepTab } from "./tabs";
 import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState, type ViewMode } from "../shared/protocol";
 import type { Draft } from "../shared/types";
 
+export const VIEWER_TYPE = "symphysis.viewer";
 const UI_KEY = "symphysis.ui";
+/** Какое изменение показать, когда VS Code вернёт вкладку после перезагрузки. Не стирается: читается, только если вкладка осталась. */
+const SHOWN_KEY = "symphysis.shownJournal";
 
 export interface ViewerDeps {
   context: vscode.ExtensionContext;
@@ -18,12 +22,13 @@ export interface ViewerDeps {
   colors(): Colors;
   onShown(key: string | null): void;
   onDraft(key: string, draft: Draft): void;
+  openScheme(key: string): void;
 }
 
 const isFailure = (v: CoreEnv | CoreFailure): v is CoreFailure => "kind" in v;
 
 function toView(state: ChangeState): JournalView {
-  return { key: state.ref.dir, name: state.ref.name, payload: state.payload, failure: state.failure, loading: state.loading };
+  return { key: state.ref.dir, name: state.ref.name, payload: state.payload, failure: state.failure, loading: state.loading, scheme: readScheme(state.ref.dir).text };
 }
 
 export class ViewerPanel {
@@ -31,6 +36,7 @@ export class ViewerPanel {
   private ready = false;
   private key: string | null = null;
   private applying = false;
+  private pendingNode: string | null = null;
 
   constructor(private readonly deps: ViewerDeps) {}
 
@@ -38,16 +44,34 @@ export class ViewerPanel {
     return this.key;
   }
 
-  open(key: string): void {
+  open(key: string, column: vscode.ViewColumn = vscode.ViewColumn.Active): void {
     this.key = key;
+    void this.deps.context.workspaceState.update(SHOWN_KEY, key);
     // Боковая панель узнаёт о журнале раньше страницы: показ передаёт ей черновик, и он должен лечь к новому журналу, а не к прежнему.
     this.deps.onShown(key);
     if (this.panel) {
       this.panel.reveal(undefined, true);
       if (this.ready) this.show();
     } else {
-      this.create();
+      // Новая встаёт в группу спящей и только потом закрывает её: последняя вкладка группы унесла бы и группу.
+      const asleep = asleepTab(VIEWER_TYPE);
+      this.create(asleep?.group.viewColumn ?? column);
+      if (asleep) void vscode.window.tabGroups.close(asleep);
     }
+    this.deps.store.refresh(key);
+  }
+
+  /** VS Code вернул вкладку после перезагрузки окна (F-125). Показывать нечего или вкладка уже есть — закрывается. */
+  restore(panel: vscode.WebviewPanel): void {
+    const key = this.deps.context.workspaceState.get<string>(SHOWN_KEY);
+    if (this.panel || !key || !this.deps.store.get(key)) {
+      panel.dispose();
+      return;
+    }
+    panel.webview.options = this.contentOptions();
+    this.key = key;
+    this.deps.onShown(key);
+    this.attach(panel);
     this.deps.store.refresh(key);
   }
 
@@ -68,6 +92,18 @@ export class ViewerPanel {
     }
   }
 
+  /** Клик по узлу на вкладке схемы: просмотрщик закрыт или показывает другое — сначала открывается этот журнал (F-63). */
+  showNode(key: string, id: string): void {
+    if (this.panel && this.ready && key === this.key) {
+      this.panel.reveal(undefined, true);
+      void this.post({ type: "node", id });
+    } else {
+      this.pendingNode = id;
+      // Рядом, а не поверх: активна вкладка схемы, и человек должен видеть и её, и карточки.
+      this.open(key, vscode.ViewColumn.Beside);
+    }
+  }
+
   /** Для тестов: сообщения страницы. */
   readonly messages = new vscode.EventEmitter<PageMessage>();
   /** Для тестов: страница как есть. */
@@ -83,17 +119,22 @@ export class ViewerPanel {
     return this.panel!.webview.postMessage(m);
   }
 
-  private create(): void {
-    const root = this.deps.context.extensionUri;
-    const panel = vscode.window.createWebviewPanel("symphysis.viewer", "Журнал решений", { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, {
-      enableScripts: true,
+  private contentOptions(): vscode.WebviewOptions {
+    return { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.deps.context.extensionUri, "media")] };
+  }
+
+  private create(column: vscode.ViewColumn): void {
+    this.attach(vscode.window.createWebviewPanel(VIEWER_TYPE, "Журнал решений", { viewColumn: column, preserveFocus: false }, {
+      ...this.contentOptions(),
       enableFindWidget: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(root, "media")],
-    });
+    }));
+  }
+
+  private attach(panel: vscode.WebviewPanel): void {
     this.panel = panel;
     this.ready = false;
-    panel.iconPath = vscode.Uri.joinPath(root, "media", "icon.svg");
+    panel.iconPath = vscode.Uri.joinPath(this.deps.context.extensionUri, "media", "icon.svg");
     panel.webview.html = pageHtml(panel.webview, this.deps.context, "viewer.js");
     panel.webview.onDidReceiveMessage((m: PageMessage) => {
       this.messages.fire(m);
@@ -114,6 +155,10 @@ export class ViewerPanel {
     const { draft, damaged } = readDraft(state.ref.root, state.ref.name);
     this.deps.onDraft(state.ref.dir, draft);
     void this.post({ type: "show", view: toView(state), draft, damagedDraft: damaged, colors: this.deps.colors(), ui: this.ui() });
+    if (this.pendingNode) {
+      void this.post({ type: "node", id: this.pendingNode });
+      this.pendingNode = null;
+    }
   }
 
   private ui(): UiState {
@@ -144,6 +189,9 @@ export class ViewerPanel {
         return;
       case "apply":
         await this.apply(m);
+        return;
+      case "openScheme":
+        this.deps.openScheme(m.key);
         return;
       case "openPythonSetting":
         await vscode.commands.executeCommand("workbench.action.openSettings", "symphysis.python");

@@ -38,6 +38,8 @@ function snapshot() {
   const prompt = document.querySelector<HTMLTextAreaElement>(".prompt-text");
   return {
     title: document.querySelector(".top h1")?.textContent ?? "",
+    nodeFilter: document.querySelector(".nodefilter b")?.textContent ?? null,
+    empty: document.querySelector("main .empty")?.textContent ?? null,
     mode: document.querySelector(".modes .active")?.textContent ?? "",
     returnPanel: !!document.querySelector(".return"),
     inputsInMain: document.querySelectorAll("main textarea, main input, main button, main select").length,
@@ -71,11 +73,74 @@ function searchSnapshot() {
   };
 }
 
+/** Вкладка схемы. */
+function schemeSnapshot() {
+  const canvas = document.querySelector<HTMLElement>("#canvas");
+  const stage = document.querySelector<HTMLElement>("#stage");
+  const source = document.querySelector<HTMLElement>("#source");
+  const svg = canvas?.querySelector("svg") ?? null;
+  const nodes = svg ? [...svg.querySelectorAll<SVGGElement>("g.node")] : [];
+  let topVisible: boolean | null = null;
+  if (nodes.length && stage) {
+    const box = (n: Element) => n.getBoundingClientRect();
+    const top = nodes.reduce((a, b) => (box(b).top < box(a).top ? b : a));
+    const t = box(top), s = box(stage);
+    topVisible = t.left >= s.left && t.right <= s.right && t.top >= s.top && t.bottom <= s.bottom;
+  }
+  return {
+    state: stage?.dataset.state ?? "",
+    plates: [...document.querySelectorAll<HTMLElement>("#plates .note")].map((n) => n.textContent ?? ""),
+    openButton: !!buttonByText(document, "Открыть scheme.md"),
+    source: source && !source.hidden ? source.textContent : null,
+    hasSvg: !!svg,
+    nodes: nodes.map((n) => n.id),
+    scale: Number(canvas?.dataset.scale),
+    x: Number(canvas?.dataset.x),
+    y: Number(canvas?.dataset.y),
+    topVisible,
+    onclick: svg ? svg.querySelectorAll("[onclick]").length : 0,
+    jsLinks: svg ? [...svg.querySelectorAll("a")].filter((a) => /javascript:/i.test(a.getAttribute("href") ?? a.getAttribute("xlink:href") ?? "")).length : 0,
+    violations: [...violations],
+    stageWidth: stage?.clientWidth ?? 0,
+  };
+}
+
+/** Настоящие события указателя: нажатие, сдвиг, отпускание над узлом или над пустым местом. */
+function press(target: Element, dx: number, dy: number) {
+  const r = target.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const fire = (type: string, cx: number, cy: number) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: cx, clientY: cy, pointerId: 1, button: 0 }));
+  fire("pointerdown", x, y);
+  if (dx || dy) fire("pointermove", x + dx, y + dy);
+  fire("pointerup", x + dx, y + dy);
+}
+
 async function drive(m: any): Promise<unknown> {
   const card = m.id ? document.getElementById(m.id) : null;
   switch (m.action) {
     case "snapshot":
       return snapshot();
+    case "schemeSnapshot":
+      return schemeSnapshot();
+    case "schemeNode": {
+      const node = [...document.querySelectorAll("#canvas g.node")].find((n) => n.id.includes(`-${m.id}-`));
+      if (!node) throw new Error(`нет узла ${m.id}`);
+      press(node, m.dx ?? 0, m.dy ?? 0);
+      await settle();
+      return schemeSnapshot();
+    }
+    case "schemeDrag": {
+      press(document.querySelector("#stage")!, m.dx, m.dy);
+      await settle();
+      return schemeSnapshot();
+    }
+    case "schemeClickText": {
+      const button = buttonByText(document, m.text);
+      if (!button) throw new Error(`нет кнопки «${m.text}»`);
+      for (let i = 0; i < (m.times ?? 1); i++) button.click();
+      await settle();
+      return schemeSnapshot();
+    }
     case "cardHtml":
       return card?.outerHTML ?? null;
     case "choose": {

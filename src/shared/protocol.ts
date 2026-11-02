@@ -1,4 +1,5 @@
 // Сообщения между хостом расширения и страницами: просмотрщиком и поиском в боковой панели.
+import type { ParsedScheme } from "./scheme";
 import type { SearchOutcome } from "./search";
 import type { Draft, ViewPayload } from "./types";
 
@@ -7,6 +8,7 @@ export type CoreFailure =
   | { kind: "no-tools"; root: string }
   | { kind: "no-python"; reason: string; tried: string[] }
   | { kind: "old-core"; tools: string }
+  | { kind: "contract"; need: "tools" | "vsix"; root: string }
   | { kind: "invalid-journal"; text: string }
   | { kind: "timeout" }
   | { kind: "crash"; text: string };
@@ -40,6 +42,8 @@ export interface JournalView {
   payload: ViewPayload | null;
   failure: CoreFailure | null;
   loading: boolean;
+  /** Текст схемы изменения: подсказка «узел не найден». Нет схемы — `null`. */
+  scheme: string | null;
 }
 
 export type ApplyReport =
@@ -59,6 +63,7 @@ export type HostMessage =
   | { type: "journal"; view: JournalView }
   | { type: "colors"; colors: Colors }
   | ({ type: "reveal" } & RevealTarget)
+  | { type: "node"; id: string }
   | { type: "applied"; key: string; result: ApplyReport };
 
 export type PageMessage =
@@ -68,7 +73,21 @@ export type PageMessage =
   | { type: "copy"; text: string }
   | { type: "apply"; key: string; text: string; shownSha: string | undefined; date: string }
   | { type: "reset"; key: string }
+  | { type: "openScheme"; key: string }
   | { type: "openPythonSetting" };
+
+/** Вкладка схемы. */
+export interface SchemeView extends ParsedScheme {
+  name: string;
+  exists: boolean;
+}
+
+export type SchemeHostMessage = { type: "scheme"; view: SchemeView };
+
+export type SchemePageMessage =
+  | { type: "schemeReady" }
+  | { type: "schemeNode"; id: string }
+  | { type: "schemeOpenFile"; line: number | null };
 
 /** Страница поиска в боковой панели. `scope` — открытое изменение; `null` — журнал не открыт, искать негде. */
 export type SearchHostMessage = { type: "searchState"; query: string; scope: string | null; outcome: SearchOutcome; colors: Colors };

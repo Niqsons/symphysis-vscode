@@ -1,0 +1,9 @@
+{
+  "name": "symphysis-reload-host",
+  "publisher": "symphysis",
+  "version": "0.0.0",
+  "description": "Ведёт этапы теста перезагрузки в обычном окне разработки. В пакет не входит.",
+  "engines": { "vscode": "^1.90.0" },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js"
+}

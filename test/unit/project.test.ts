@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { coreRoot } from "./fixture-project";
 import { deleteDraft, findTools, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
 import { emptyDraft } from "../../src/shared/logic";
 
@@ -92,4 +94,21 @@ test("черновик: сброс удаляет файл, отсутствие
   deleteDraft(root, "х");
   deleteDraft(root, "х");
   assert.equal(fs.existsSync(path.join(root, ".symphysis", "viewer", "х.json")), false);
+});
+
+
+// --- SYMPHYSIS_ROOT: опечатка в пути не должна выглядеть как «ядра нет» (F-20, F-82) ---
+
+test("Пустая переменная считается незаданной", () => {
+  assert.equal(coreRoot({ SYMPHYSIS_ROOT: "" }, "сосед"), "сосед");
+  assert.equal(coreRoot({}, "сосед"), "сосед");
+  assert.equal(coreRoot({ SYMPHYSIS_ROOT: "мой" }, "сосед"), "мой");
+});
+
+test("Опечатка в пути: прогон красный и называет причину, тесты на ядре не пропущены", () => {
+  const env: NodeJS.ProcessEnv = { ...process.env, SYMPHYSIS_ROOT: path.join(os.tmpdir(), "нет-такого-ядра") };
+  delete env.NODE_TEST_CONTEXT;
+  const run = spawnSync(process.execPath, ["--test", path.join(__dirname, "core.test.js")], { encoding: "utf8", env });
+  assert.notEqual(run.status, 0, run.stdout);
+  assert.match(run.stdout + run.stderr, /SYMPHYSIS_ROOT/);
 });

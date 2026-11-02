@@ -13,6 +13,7 @@ import { addAttack, copyCore, makeProject, noCoreReason, SYMPHYSIS } from "./fix
 const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
 const opts = { skip: noCoreReason };
 const DATE = "2026-11-01";
+const SMOKE = path.join(SYMPHYSIS, "tests", "fixtures", "viewer-smoke.js");
 
 function setup(): { env: CoreEnv; ref: ChangeRef; change: string } {
   const { project, tools, change } = makeProject();
@@ -149,3 +150,51 @@ for (const name of realJournals) {
     assert.equal(r.ok, true, r.report.filter((l) => l.startsWith("[!!]")).slice(0, 10).join("\n"));
   });
 }
+
+
+// --- один черновик, страница и плагин: журналы после apply совпадают побайтно (F-20, F-80, F-81) ---
+
+/** Промпт настоящей страницы: `render-html` этого журнала и скрипт её шаблона при том же черновике. */
+function pagePrompt(env: CoreEnv, ref: ChangeRef, change: string, d: Draft): string {
+  const page = path.join(change, "decisions.html");
+  const rendered = spawnSync(env.python, ["-X", "utf8", path.join(env.tools, "journal.py"), "render-html", path.relative(env.cwd, ref.journal), "--out", path.relative(env.cwd, page)], { cwd: env.cwd, encoding: "utf8" });
+  assert.equal(rendered.status, 0, rendered.stderr);
+  const { attackDisputes: _unused, ...state } = d;
+  const stateFile = path.join(change, "state.json");
+  fs.writeFileSync(stateFile, JSON.stringify(state), "utf8");
+  const run = spawnSync(process.execPath, [SMOKE, page, stateFile], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  fs.rmSync(page);
+  fs.rmSync(stateFile);
+  return JSON.parse(run.stdout).out as string;
+}
+
+async function sameJournal(d: Draft) {
+  const first = setup();
+  const second = setup();
+  const page = pagePrompt(first.env, first.ref, first.change, d);
+  // Дату промпта страница берёт у часов: плагину подаётся та же, чтобы журналы сравнивались только по словам.
+  const date = /(\d{4}-\d{2}-\d{2})/.exec(page.split("\n")[0])![1];
+  const plugin = buildPrompt(await load(second.env, second.ref), d, date).text;
+  const a = await applyAnswers(first.env, first.ref, saveAnswers(first.change, date, page));
+  assert.equal(a.ok, true, `страница:\n${page}\n---\n${a.report.join("\n")}`);
+  const b = await applyAnswers(second.env, second.ref, saveAnswers(second.change, date, plugin));
+  assert.equal(b.ok, true, `плагин:\n${plugin}\n---\n${b.report.join("\n")}`);
+  assert.equal(fs.readFileSync(path.join(first.change, "decisions.json"), "utf8"), fs.readFileSync(path.join(second.change, "decisions.json"), "utf8"), `страница:\n${page}\n---\nплагин:\n${plugin}`);
+}
+
+test("Сверка видов слова: выбор, слово, вариант, зависимость, парковка, спор, заметка, новая развилка", opts, async () => {
+  await sameJournal(FULL);
+});
+
+test("Слово со знаками: кавычки, перевод строки, тире и черта дают одно слово", opts, async () => {
+  await sameJournal({ ...emptyDraft(), decisions: { "F-02": { choice: "A", word: "«кавычки»\nвторая строка — тире | черта `код`", parked: [] } } });
+});
+
+test("Тест-страховка F-80: два добавленных варианта к одной записи получают одни буквы", opts, async () => {
+  await sameJournal({
+    ...emptyDraft(),
+    decisions: { "F-02": { choice: "E", word: "второй свой", parked: [] } },
+    added: { "F-02": [{ letter: "D", text: "первый вариант человека" }, { letter: "E", text: "второй вариант человека" }] },
+  });
+});

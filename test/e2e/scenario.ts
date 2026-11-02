@@ -3,48 +3,22 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import * as crypto from "node:crypto";
 import { emptyDraft } from "../../src/shared/logic";
 import { search } from "../../src/shared/search";
+import { results, sleep, step, until } from "./steps";
 
 interface Api {
-  store: { list(): any[]; get(key: string): any };
-  viewer: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; currentKey: string | null; findWidget: boolean };
+  store: { list(): any[]; get(key: string): any; sync(): void };
+  viewer: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; currentKey: string | null; findWidget: boolean; restore(panel: vscode.WebviewPanel): void };
+  scheme: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; restore(panel: vscode.WebviewPanel): void };
   changes: { getTreeItem(state: any): vscode.TreeItem };
   toc: { getTreeItem(rec: any): vscode.TreeItem };
   attackToc: { getChildren(node?: any): any[]; getTreeItem(node: any): vscode.TreeItem; message(): string | undefined };
   search: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null };
 }
 
-const results: { name: string; ok: boolean; ms?: number; error?: string }[] = [];
 const measures: Record<string, unknown> = {};
-
-async function step(name: string, fn: () => Promise<void>) {
-  const t0 = Date.now();
-  try {
-    await fn();
-    results.push({ name, ok: true, ms: Date.now() - t0 });
-  } catch (e) {
-    results.push({ name, ok: false, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) });
-  }
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function until<T>(what: string, fn: () => T | Promise<T>, ms = 15000): Promise<T> {
-  const t0 = Date.now();
-  let last: unknown;
-  while (Date.now() - t0 < ms) {
-    try {
-      const v = await fn();
-      if (v) return v;
-      last = v;
-    } catch (e) {
-      last = e;
-    }
-    await sleep(40);
-  }
-  throw new Error(`нет за ${ms} мс: ${what}; последнее: ${String(last)}`);
-}
 
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;
@@ -134,12 +108,14 @@ export async function run(): Promise<void> {
     assert.equal(fs.readFileSync(path.join(root, ".symphysis", "viewer", ".gitignore"), "utf8"), "*\n");
   });
 
-  await step("антипод: F-03.B при выбранном F-02.A заблокирован, журнал не тронут", async () => {
+  await step("антипод: F-03.B при выбранном F-02.A проходит, пара видна у обоих, в промпте обе строки", async () => {
     await drive("choose", { id: "F-03", letter: "B" });
-    const html = await drive("cardHtml", { id: "F-03" });
-    assert.match(html, /антипод уже выбран: F-02\.A/);
+    assert.match(await drive("cardHtml", { id: "F-03" }), /антипод уже выбран: F-02\.A/);
+    assert.match(await drive("cardHtml", { id: "F-02" }), /антипод уже выбран: F-03\.B/);
     const s = await snap();
-    assert.ok(!/F-03: B/.test(s.prompt));
+    assert.match(s.prompt, /- F-02: A/);
+    assert.match(s.prompt, /- F-03: B/);
+    await drive("choose", { id: "F-03", letter: "A" });
   });
 
   await step("журнал изменён снаружи: карточка обновляется без кнопки, черновик цел, уведомление названо", async () => {
@@ -309,6 +285,33 @@ export async function run(): Promise<void> {
       fs.writeFileSync(script, good);
     }
     await until("восстановление", async () => !(await snap()).notes.some((n: string) => n.includes("старая версия инструментов")));
+  });
+
+  await step("номер контракта: ядро новее — просьба про .vsix, прежние данные на экране, «Внести» закрыта, черновик цел; ядро обновили — всё открыто", async () => {
+    const render = path.join(root, ".symphysis", "tools", "journal_render.py");
+    const script = path.join(root, ".symphysis", "tools", "journal.py");
+    const draftFile = path.join(root, ".symphysis", "viewer", "изменение-один.json");
+    const good = fs.readFileSync(render);
+    await drive("word", { id: "F-02", text: "слово на время проверки номера" });
+    await until("файл черновика", () => fs.existsSync(draftFile) && JSON.parse(fs.readFileSync(draftFile, "utf8")).decisions["F-02"]?.word);
+    const before = fs.readFileSync(draftFile);
+    const shown = (await snap()).cards;
+    const notice = /поставь новый \.vsix/;
+    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 1\r?$/m, "CONTRACT = 99"));
+    fs.writeFileSync(script, fs.readFileSync(script));
+    try {
+      const s = await until("просьба про .vsix", async () => { const r = await snap(); return r.notes.some((n: string) => notice.test(n)) ? r : null; });
+      assert.equal(s.applyDisabled, true);
+      assert.deepEqual(s.cards, shown);
+      assert.ok(fs.readFileSync(draftFile).equals(before), "черновик изменился");
+    } finally {
+      fs.writeFileSync(render, good);
+      fs.writeFileSync(script, fs.readFileSync(script));
+    }
+    const s = await until("восстановление", async () => { const r = await snap(); return r.notes.some((n: string) => notice.test(n)) ? null : r; });
+    assert.equal(s.applyDisabled, false);
+    assert.ok(fs.readFileSync(draftFile).equals(before), "черновик изменился");
+    await drive("word", { id: "F-02", text: "" });
   });
 
   await step("панель возврата: низкая по умолчанию, тянется вверх, высота запоминается, двойной клик возвращает", async () => {
@@ -724,6 +727,326 @@ export async function run(): Promise<void> {
     });
   }
 
+  // --- вкладка схемы ----------------------------------------------------------------------------------------------
+  const schemeDrive = driver(() => api.scheme.webview, api.scheme.messages);
+  const schemeSnap = () => schemeDrive("schemeSnapshot");
+  const schemeTabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /^Схема/.test(t.label));
+  const withScheme = key("со-схемой");
+  const schemePath = path.join(withScheme, "scheme.md");
+  const schemeSource = fs.readFileSync(schemePath, "utf8");
+  const schemeState = (state: string) => until(`схема: ${state}`, async () => {
+    const r = await schemeDrive("schemeSnapshot").catch(() => null);
+    return r?.state === state ? r : null;
+  });
+  const openJournal = async (name: string) => {
+    await vscode.commands.executeCommand("symphysis.openChange", key(name));
+    await until(`журнал ${name}`, async () => { const r = await snap(); return r.title.includes(name) && r.cards.length ? r : null; });
+  };
+
+  await step("вкладка схемы сама не открывается", async () => {
+    await openJournal("со-схемой");
+    assert.equal(api.scheme.webview, null);
+    assert.equal(schemeTabs().length, 0);
+  });
+
+  await step("кнопка «схема»: вкладка рядом, рисунок, CSP без нарушений", async () => {
+    await drive("click", { text: "схема" });
+    await until("вкладка", () => api.scheme.webview);
+    const s = await schemeState("svg");
+    assert.equal(schemeTabs()[0].label, "Схема: со-схемой");
+    assert.equal(s.nodes.length, 5);
+    assert.deepEqual(s.violations, []);
+    assert.equal(s.scale, 1);
+    assert.notEqual(vscode.window.tabGroups.all.length, 1, "вкладка стоит рядом, а не поверх просмотрщика");
+  });
+
+  await step("повторное нажатие: вторая вкладка не появляется, открытая получает фокус", async () => {
+    await drive("click", { text: "схема" });
+    await until("фокус", () => /^Схема/.test(vscode.window.tabGroups.activeTabGroup.activeTab?.label ?? ""));
+    assert.equal(schemeTabs().length, 1);
+  });
+
+  await step("перетаскивание двигает схему и не трогает фильтр; сдвиг на 3 пикселя — клик, на 4 — перетаскивание (F-68)", async () => {
+    const before = await schemeSnap();
+    const moved = await schemeDrive("schemeDrag", { dx: -40, dy: 25 });
+    assert.equal(moved.x, before.x - 40);
+    assert.equal(moved.y, before.y + 25);
+    assert.equal((await snap()).nodeFilter, null);
+    await schemeDrive("schemeNode", { id: "A", dx: 4, dy: 0 });
+    assert.equal((await snap()).nodeFilter, null);
+    await schemeDrive("schemeNode", { id: "A", dx: 3, dy: 0 });
+    await until("условие A", async () => (await snap()).nodeFilter === "A");
+    await schemeDrive("schemeNode", { id: "A" });
+    await until("условие снято", async () => (await snap()).nodeFilter === null);
+  });
+
+  await step("клик по узлу из другого режима: «решения», «показать» прежнее, условие в шапке; повторный клик снимает", async () => {
+    await drive("mode", { name: "атака" });
+    await drive("filter", { name: "открытые" }).catch(() => undefined);
+    await schemeDrive("schemeNode", { id: "A" });
+    const s = await until("условие", async () => { const r = await snap(); return r.nodeFilter === "A" ? r : null; });
+    assert.match(s.mode, /решения/);
+    assert.deepEqual(s.cards.filter((c: string) => c !== "F-01"), s.cards.filter((c: string) => c === "F-02"), "только записи узла A");
+    await schemeDrive("schemeNode", { id: "A" });
+    await until("условие снято", async () => (await snap()).nodeFilter === null);
+  });
+
+  await step("условие не прячет открытые: шапка считает по всему журналу и говорит, сколько скрыто (F-104)", async () => {
+    await schemeDrive("schemeNode", { id: "B" });
+    const s = await until("условие B", async () => { const r = await snap(); return r.nodeFilter === "B" ? r : null; });
+    assert.match(s.stats, /открыто \d+/);
+    assert.match(s.stats, /из них скрыто условием \d+/);
+    await schemeDrive("schemeNode", { id: "B" });
+    await until("снято", async () => (await snap()).nodeFilter === null);
+  });
+
+  await step("узел без записей: сказано, что записей нет; одинаковые подписи различаются (F-72)", async () => {
+    await schemeDrive("schemeNode", { id: "D" });
+    const d = await until("условие D", async () => { const r = await snap(); return r.nodeFilter === "D" ? r : null; });
+    assert.match(d.empty, /У узла D записей нет/);
+    await schemeDrive("schemeNode", { id: "C" });
+    await until("условие C", async () => (await snap()).nodeFilter === "C");
+    await schemeDrive("schemeNode", { id: "C" });
+    await until("снято", async () => (await snap()).nodeFilter === null);
+  });
+
+  await step("узел с кириллицей находит запись; узла нет в схеме — запись на месте с подсказкой, регистр важен (F-06, F-87)", async () => {
+    await schemeDrive("schemeNode", { id: "узел1" });
+    await until("условие узел1", async () => { const r = await snap(); return r.nodeFilter === "узел1" && r.cards.includes("F-03") ? r : null; });
+    await schemeDrive("schemeNode", { id: "узел1" });
+    await until("снято", async () => (await snap()).nodeFilter === null);
+    assert.match(await drive("cardHtml", { id: "F-04" }), /узел не найден: Узел1/);
+    assert.doesNotMatch(await drive("cardHtml", { id: "F-03" }), /узел не найден/);
+  });
+
+  await step("переход к записи, скрытой условием: условие снято, запись показана (F-75)", async () => {
+    await schemeDrive("schemeNode", { id: "A" });
+    await until("условие A", async () => (await snap()).nodeFilter === "A");
+    await vscode.commands.executeCommand("symphysis.revealRecord", "F-04");
+    const s = await until("запись показана", async () => { const r = await snap(); return r.cards.includes("F-04") ? r : null; });
+    assert.equal(s.nodeFilter, null);
+  });
+
+  await step("журнал сменился: вкладка следует за ним; журнал без nodes: клик говорит об этом, условие не ставится (F-64, F-73)", async () => {
+    await openJournal("схема-без-узлов");
+    const s = await until("схема другого журнала", async () => { const r = await schemeSnap(); return r.nodes.some((n: string) => n.includes("-P-")) ? r : null; });
+    assert.equal(s.state, "svg");
+    assert.equal(schemeTabs()[0].label, "Схема: схема-без-узлов");
+    await schemeDrive("schemeNode", { id: "P" });
+    const v = await until("сообщение", async () => { const r = await snap(); return r.notes.some((n: string) => n.includes("не связаны со схемой")) ? r : null; });
+    assert.equal(v.nodeFilter, null);
+    await openJournal("со-схемой");
+    await until("схема первого журнала", async () => (await schemeSnap()).nodes.some((n: string) => n.includes("-A-")));
+  });
+
+  await step("клик при закрытом просмотрщике: просмотрщик открывается с этим журналом и условием (F-63)", async () => {
+    const tab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => /^Журнал/.test(t.label))!;
+    await vscode.window.tabGroups.close(tab);
+    await until("просмотрщик закрыт", () => api.viewer.webview === null);
+    await schemeDrive("schemeNode", { id: "A" });
+    const s = await until("условие", async () => {
+      if (!api.viewer.webview) return null;
+      const r = await drive("snapshot").catch(() => null);
+      return r?.nodeFilter === "A" ? r : null;
+    });
+    assert.match(s.title, /со-схемой/);
+    assert.ok((await schemeSnap()).hasSvg, "рисунок виден");
+    const groups = vscode.window.tabGroups.all;
+    assert.ok(groups.some((g) => /^Журнал/.test(g.activeTab?.label ?? "")) && groups.some((g) => /^Схема/.test(g.activeTab?.label ?? "")), "просмотрщик и схема видны рядом");
+    await schemeDrive("schemeNode", { id: "A" });
+    await until("снято", async () => (await snap()).nodeFilter === null);
+  });
+
+  // --- возврат вкладок после перезагрузки окна (F-125). Саму перезагрузку держит `npm run e2e:reload`, здесь — что плагин делает с возвращённой вкладкой --------
+  const tabsOfType = (type: string) => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith(type));
+  const closeTabOf = async (type: string, closed: () => boolean) => {
+    await vscode.window.tabGroups.close(tabsOfType(type)[0]);
+    await until("вкладка закрыта", closed);
+  };
+  /** Вкладка, про которую плагин не знает: такой её оставляет перезагрузка, пока VS Code её не поднял. */
+  const foreignPanel = async (type: string, column: vscode.ViewColumn) => {
+    const before = tabsOfType(type).length;
+    const panel = vscode.window.createWebviewPanel(type, "вернувшаяся", { viewColumn: column, preserveFocus: true }, {});
+    // Настоящая спящая вкладка есть с начала работы окна, а эта дойдёт до `tabGroups` не сразу.
+    await until("вкладка появилась", () => tabsOfType(type).length > before);
+    return panel;
+  };
+  const gone = (panel: vscode.WebviewPanel) => {
+    let closed = false;
+    panel.onDidDispose(() => { closed = true; });
+    return () => until("вкладка закрыта", () => closed);
+  };
+
+  await step("спящая вкладка журнала: выбор изменения заменяет её в той же группе, второй нет (F-125)", async () => {
+    await closeTabOf("symphysis.viewer", () => api.viewer.webview === null);
+    const asleep = await foreignPanel("symphysis.viewer", vscode.ViewColumn.One);
+    const column = asleep.viewColumn;
+    const replaced = gone(asleep);
+    await openJournal("со-схемой");
+    await replaced();
+    assert.equal(tabsOfType("symphysis.viewer").length, 1);
+    assert.equal(tabsOfType("symphysis.viewer")[0].group.viewColumn, column);
+  });
+
+  await step("спящая вкладка схемы: кнопка заменяет её в той же группе, второй нет (F-125)", async () => {
+    await closeTabOf("symphysis.scheme", () => api.scheme.webview === null);
+    const asleep = await foreignPanel("symphysis.scheme", vscode.ViewColumn.Two);
+    const column = asleep.viewColumn;
+    const replaced = gone(asleep);
+    await vscode.commands.executeCommand("symphysis.openScheme", withScheme);
+    await replaced();
+    assert.equal(tabsOfType("symphysis.scheme").length, 1);
+    assert.equal(tabsOfType("symphysis.scheme")[0].group.viewColumn, column);
+    await schemeState("svg");
+  });
+
+  await step("возвращённая вкладка журнала показывает то же изменение, боковая панель его знает (F-125)", async () => {
+    await closeTabOf("symphysis.viewer", () => api.viewer.webview === null);
+    api.viewer.restore(await foreignPanel("symphysis.viewer", vscode.ViewColumn.One));
+    const s = await until("журнал вернулся", async () => { const r = await snap().catch(() => null); return r?.title.includes("со-схемой") && r.cards.length ? r : null; });
+    assert.ok(s.cards.length > 0);
+    assert.equal(api.viewer.currentKey, withScheme);
+    assert.equal(tabsOfType("symphysis.viewer").length, 1);
+  });
+
+  await step("возвращённая вкладка схемы рисует файл того же изменения (F-125)", async () => {
+    await closeTabOf("symphysis.scheme", () => api.scheme.webview === null);
+    api.scheme.restore(await foreignPanel("symphysis.scheme", vscode.ViewColumn.Two));
+    const s = await schemeState("svg");
+    assert.equal(s.scale, 1);
+    await until("подпись вкладки", () => schemeTabs()[0]?.label === "Схема: со-схемой");
+  });
+
+  await step("схема, проспавшая смену журнала, просыпается с журналом просмотрщика (F-64, F-125)", async () => {
+    await closeTabOf("symphysis.scheme", () => api.scheme.webview === null);
+    await openJournal("схема-без-узлов");
+    api.scheme.restore(await foreignPanel("symphysis.scheme", vscode.ViewColumn.Two));
+    await until("подпись вкладки", () => schemeTabs()[0]?.label === "Схема: схема-без-узлов");
+    await openJournal("со-схемой");
+    await until("схема первого журнала", () => schemeTabs()[0]?.label === "Схема: со-схемой");
+  });
+
+  await step("при открытой вкладке вернувшаяся закрывается: одна на окно (F-125)", async () => {
+    const extra = await foreignPanel("symphysis.viewer", vscode.ViewColumn.One);
+    const closed = gone(extra);
+    const shown = api.viewer.webview;
+    api.viewer.restore(extra);
+    await closed();
+    assert.equal(api.viewer.webview, shown);
+    await until("вкладка одна", () => tabsOfType("symphysis.viewer").length === 1);
+  });
+
+  await step("изменения больше нет: вернувшиеся вкладки закрываются, журнал и схема открываются заново (F-125)", async () => {
+    const vanishing = key("исчезнет");
+    fs.mkdirSync(vanishing, { recursive: true });
+    fs.copyFileSync(path.join(withScheme, "decisions.json"), path.join(vanishing, "decisions.json"));
+    api.store.sync();
+    await openJournal("исчезнет");
+    await vscode.commands.executeCommand("symphysis.openScheme", vanishing);
+    await until("схема исчезающего", () => schemeTabs()[0]?.label === "Схема: исчезнет");
+    await closeTabOf("symphysis.viewer", () => api.viewer.webview === null);
+    await closeTabOf("symphysis.scheme", () => api.scheme.webview === null);
+    fs.rmSync(vanishing, { recursive: true, force: true });
+    api.store.sync();
+    const journalTab = await foreignPanel("symphysis.viewer", vscode.ViewColumn.One);
+    const schemeTab = await foreignPanel("symphysis.scheme", vscode.ViewColumn.Two);
+    const closed = [gone(journalTab), gone(schemeTab)];
+    api.viewer.restore(journalTab);
+    api.scheme.restore(schemeTab);
+    for (const wait of closed) await wait();
+    assert.equal(api.viewer.webview, null);
+    assert.equal(api.scheme.webview, null);
+    await openJournal("со-схемой");
+    await vscode.commands.executeCommand("symphysis.openScheme", withScheme);
+    await schemeState("svg");
+  });
+
+  await step("широкая схема открывается в натуральном размере, верхний узел виден; «вписать» уменьшает, маленькая не растягивается (F-35, F-69)", async () => {
+    await openJournal("широкая-схема");
+    const big = await until("широкая", async () => { const r = await schemeSnap(); return r.nodes.length === 20 ? r : null; });
+    assert.equal(big.scale, 1);
+    assert.equal(big.topVisible, true);
+    const fit = await schemeDrive("schemeClickText", { text: "вписать" });
+    assert.ok(fit.scale < 1, `масштаб ${fit.scale}`);
+    await openJournal("схема-без-узлов");
+    await until("маленькая", async () => (await schemeSnap()).nodes.length === 2);
+    const small = await schemeDrive("schemeClickText", { text: "вписать" });
+    assert.equal(small.scale, 1);
+    await openJournal("со-схемой");
+    await until("схема первого журнала", async () => (await schemeSnap()).nodes.length === 5);
+  });
+
+  await step("«−» двадцать раз: рисунок на месте, «+» возвращает (F-67)", async () => {
+    const out = await schemeDrive("schemeClickText", { text: "−", times: 20 });
+    assert.ok(out.hasSvg && out.scale >= 0.1, `масштаб ${out.scale}`);
+    const back = await schemeDrive("schemeClickText", { text: "+", times: 3 });
+    assert.ok(back.scale > out.scale);
+  });
+
+  await step("правка сохранена: рисунок обновляется сам; на середине — прежний рисунок, плашка с верной строкой и кнопкой (F-28)", async () => {
+    fs.writeFileSync(schemePath, "```mermaid\nflowchart TD\n  A --> B\n  B --> Новый\n```\n", "utf8");
+    const fresh = await until("новый узел", async () => { const r = await schemeSnap(); return r.nodes.some((n: string) => n.includes("-Новый-")) ? r : null; });
+    assert.equal(fresh.state, "svg");
+    fs.writeFileSync(schemePath, "# Заголовок\n\nтекст\n\n```mermaid\nflowchart TD\n  A[незакрытая --> B\n  B --> C\n```\n", "utf8");
+    const broken = await until("плашка", async () => { const r = await schemeSnap(); return r.plates.length ? r : null; });
+    assert.ok(broken.hasSvg, "прежний рисунок остаётся");
+    assert.equal(broken.state, "svg");
+    assert.match(broken.plates[0], /строка 7 в scheme\.md/);
+    assert.equal(broken.openButton, true);
+    await schemeDrive("schemeClickText", { text: "Открыть scheme.md" });
+    await until("файл открыт", () => vscode.window.visibleTextEditors.some((e) => e.document.fileName.endsWith("scheme.md")));
+    await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+  });
+
+  await step("файл удалён: рисунок убран, плашка «Схема не создана»; файл без схемы: своя плашка; битый при первом показе: ошибка и текст (F-05, F-60, F-70)", async () => {
+    fs.rmSync(schemePath);
+    const gone = await schemeState("missing");
+    assert.equal(gone.hasSvg, false);
+    assert.match(gone.plates[0], /Схема не создана/);
+    fs.writeFileSync(schemePath, "# Только текст\n", "utf8");
+    const empty = await schemeState("empty");
+    assert.match(empty.plates[0], /В scheme\.md нет схемы/);
+    assert.equal(empty.openButton, true);
+    fs.writeFileSync(schemePath, "```mermaid\nflowchart TD\n  A[незакрытая --> B\n```\n", "utf8");
+    const text = await schemeState("text");
+    assert.match(text.source, /незакрытая/);
+    assert.match(text.plates[0], /строка 3 в scheme\.md/);
+  });
+
+  await step("два блока: первый и плашка; BOM и CRLF: рисунок и верная строка (F-59, F-61)", async () => {
+    fs.writeFileSync(schemePath, "```mermaid\nflowchart TD\n  A --> B\n```\n\n```mermaid\nflowchart TD\n  C --> D --> E\n```\n", "utf8");
+    const two = await until("два блока", async () => { const r = await schemeSnap(); return r.state === "svg" && r.nodes.length === 2 ? r : null; });
+    assert.match(two.plates[0], /в файле 2 блока, показан первый/);
+    fs.writeFileSync(schemePath, "﻿# С\r\n\r\n```mermaid\r\nflowchart TD\r\n  X --> Y --> Z\r\n```\r\n", "utf8");
+    await until("CRLF", async () => { const r = await schemeSnap(); return r.state === "svg" && r.nodes.length === 3 ? r : null; });
+    fs.writeFileSync(schemePath, "﻿# С\r\n\r\n```mermaid\r\nflowchart TD\r\n  A[незакрытая --> B\r\n```\r\n", "utf8");
+    const line = await until("строка", async () => { const r = await schemeSnap(); return r.plates.length ? r : null; });
+    assert.match(line.plates[0], /строка 5 в scheme\.md/);
+  });
+
+  await step("опасная подпись: функция по клику не вызывается, ссылка снята, загрузка картинки заблокирована; другой вид диаграммы без клик-фильтра", async () => {
+    fs.writeFileSync(schemePath, "```mermaid\nflowchart TD\n  A[\"<img src='http://127.0.0.1:9/pixel.png'>\"] --> B\n  click A call boom()\n  click B href \"javascript:boom()\"\n```\n", "utf8");
+    const evil = await until("подпись", async () => { const r = await schemeSnap(); return r.state === "svg" && r.nodes.length === 2 ? r : null; });
+    assert.equal(evil.onclick, 0);
+    assert.equal(evil.jsLinks, 0);
+    fs.writeFileSync(schemePath, "```mermaid\nsequenceDiagram\n  Alice->>Bob: привет\n```\n", "utf8");
+    const seq = await until("последовательность", async () => { const r = await schemeSnap(); return r.state === "svg" && r.nodes.length === 0 ? r : null; });
+    assert.equal(seq.hasSvg, true);
+    fs.writeFileSync(schemePath, schemeSource, "utf8");
+    await until("схема вернулась", async () => (await schemeSnap()).nodes.length === 5);
+  });
+
+  await step("вкладка не пишет в scheme.md: хеш до и после клика, масштаба и перетаскивания (F-103)", async () => {
+    const hash = () => crypto.createHash("sha256").update(fs.readFileSync(schemePath)).digest("hex");
+    const before = hash();
+    await schemeDrive("schemeNode", { id: "A" });
+    await schemeDrive("schemeClickText", { text: "+" });
+    await schemeDrive("schemeDrag", { dx: 15, dy: 15 });
+    await schemeDrive("schemeNode", { id: "A" });
+    await sleep(200);
+    assert.equal(hash(), before);
+  });
+
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures }, null, 1), "utf8");
 
   // Пауза для снимка окна: журнал с открытой развилкой, выбором и словом.
@@ -737,6 +1060,11 @@ export async function run(): Promise<void> {
       await vscode.commands.executeCommand("symphysis.openChange", key(show));
       await sleep(800);
       if (process.env.SYMPHYSIS_E2E_MODE) await drive("mode", { name: process.env.SYMPHYSIS_E2E_MODE });
+      if (process.env.SYMPHYSIS_E2E_NODE) {
+        await vscode.commands.executeCommand("symphysis.openScheme", key(show));
+        await until("рисунок", async () => (await schemeDrive("schemeSnapshot").catch(() => null))?.state === "svg");
+        await schemeDrive("schemeNode", { id: process.env.SYMPHYSIS_E2E_NODE });
+      }
       if (process.env.SYMPHYSIS_E2E_LENS) await drive("lens", { name: process.env.SYMPHYSIS_E2E_LENS });
       if (process.env.SYMPHYSIS_E2E_FILTER) await drive("filter", { name: process.env.SYMPHYSIS_E2E_FILTER });
       if (process.env.SYMPHYSIS_E2E_SEARCH) {

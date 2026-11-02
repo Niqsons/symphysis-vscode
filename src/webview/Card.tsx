@@ -1,12 +1,12 @@
 // Карточка записи в режиме «решения». Показано всё: варианты с «маловероятно» и причиной, рекомендация под списком,
 // антиподы, зависимости, парковки, улики — убрать вариант значило бы решить за человека.
 import { memo, useState } from "react";
-import { allOptions, antipodesOf, blockedBy, chosen, effectiveDeps } from "../shared/logic";
+import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps } from "../shared/logic";
 import { addDep, addOption, choose, clearChoice, evidenceLevel, isHumanOption, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
 import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type JournalRecord, type ViewPayload } from "../shared/types";
 
 const ONE_WAY = "в одну сторону";
-const PARK_HINT = "Парковка — дополнительный вопрос, который нельзя закрыть сейчас: он уходит адресату. «материалы» — ответ ищется в файлах (исследование), «человек» — нужно решение человека, «ИБ» — проверка по чек-листу безопасности. Решение по самой развилке парковка не снимает.";
+const PARK_HINT = "Парковка — дополнительный вопрос, который нельзя закрыть сейчас: он уходит адресату. «материалы» — ответ ищет агент, в файлах или пробой (исследование), «человек» — нужно решение человека, «ИБ» — проверка по чек-листу безопасности. Решение по самой развилке парковка не снимает.";
 
 /** Единственная разметка данных журнала — пары backticks; остальное React показывает текстом. */
 export const Text = ({ s }: { s: string }) => <>{String(s ?? "").split(/`([^`]+)`/).map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part))}</>;
@@ -38,6 +38,8 @@ export interface CardProps {
   deps?: { add: string[]; remove: string[] };
   dispute?: string;
   links: string;
+  /** Узлы записи, которых нет в схеме: запись остаётся в списке, подсказка говорит об этом (F-06). */
+  missingNodes?: string;
 }
 
 function Status({ rec, draft, payload }: { rec: JournalRecord; draft: Draft; payload: ViewPayload }) {
@@ -135,8 +137,6 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
   const cur = chosen(ctx.payload, draft, rec.id);
   const journal = rec.decision?.option ?? null;
   const pick = (letter: string) => {
-    const blocked = blockedBy(ctx.payload, ctx.getDraft(), rec.id, letter);
-    if (blocked.length) return setMsg(`антипод уже выбран: ${blocked.join(", ")} — сначала измени то решение`);
     setMsg("");
     ctx.update((d) => choose(d, rec, letter));
   };
@@ -150,10 +150,10 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
       {rec.evidence.length > 0 && <div className="note"><b>улики записи</b>{rec.evidence.map((ev, i) => <EvidenceLine ev={ev} key={i} />)}</div>}
       {rec.finding && <div className="note"><b>находка:</b> <Text s={rec.finding} /></div>}
       {allOptions(rec, draft).map((o) => {
-        const blocked = blockedBy(ctx.payload, draft, rec.id, o.letter);
+        const paired = chosenAntipodes(ctx.payload, draft, rec.id, o.letter);
         const anti = antipodesOf(ctx.payload.records, rec.id, o.letter);
         return (
-          <label className={`opt${cur === o.letter ? " chosen" : ""}${blocked.length ? " blocked" : ""}`} key={o.letter}>
+          <label className={`opt${cur === o.letter ? " chosen" : ""}`} key={o.letter}>
             <input type="radio" name={rec.id} value={o.letter} checked={cur === o.letter} onChange={() => pick(o.letter)} />
             <div className="opt-body">
               <span className="letter">{o.letter}.</span> <Text s={o.text} />
@@ -165,6 +165,7 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
               {anti.length > 0 && <span className="tag accent" title={`нельзя вместе с: ${anti.join(", ")}`}>антипод {anti.join(", ")}</span>}
               {o.local && <button type="button" className="small tag-button" onClick={(e) => { e.preventDefault(); ctx.update((d) => removeAddedOption(d, rec.id, o.letter)); }}>убрать</button>}
               {o.unlikely && <span className="ev">маловероятно: <Text s={o.unlikely} /></span>}
+              {paired.length > 0 && <span className="note accent">антипод уже выбран: {paired.join(", ")}. Выбрать можно, но вместе они станут строкой атаки.</span>}
               {o.evidence.map((ev, i) => <EvidenceLine ev={ev} key={i} />)}
             </div>
           </label>
@@ -206,7 +207,7 @@ function Fact({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
   );
 }
 
-export const Card = memo(function Card({ rec, ctx }: CardProps) {
+export const Card = memo(function Card({ rec, ctx, missingNodes }: CardProps) {
   const draft = ctx.getDraft();
   const isFact = rec.kind === "факт";
   const parked = rec.parking.length + (draft.decisions[rec.id]?.parked.length ?? 0);
@@ -222,6 +223,7 @@ export const Card = memo(function Card({ rec, ctx }: CardProps) {
         {level && <span className={`badge ${level === ONE_WAY ? "accent" : "muted"}`} title={rec.reversibility!.why}>{level}</span>}
       </header>
       <h3 className="q"><Text s={rec.question} /></h3>
+      {missingNodes && <div className="note accent">узел не найден: {missingNodes}</div>}
       {rec.reversibility?.why && <div className="cons">обратимость: <Text s={rec.reversibility.why} /></div>}
       {isFact ? <Fact rec={rec} ctx={ctx} /> : <Fork rec={rec} ctx={ctx} />}
     </article>

@@ -19,10 +19,15 @@ if (process.argv.includes("--unit")) {
   await build({ ...node, sourcemap: "linked", entryPoints: ["src/extension.ts"], outfile: "out/extension.js" });
   await build({ ...web, minify: true, entryPoints: ["src/webview/main.tsx"], outfile: "media/viewer.js" });
   await build({ ...web, minify: true, entryPoints: ["src/webview/search.tsx"], outfile: "media/search.js" });
+  await build({ ...web, minify: true, entryPoints: ["src/webview/scheme.ts"], outfile: "media/scheme.js" });
+  // Файл mermaid закреплённой версии идёт в пакет как есть: у плагина и инсталлятора один номер (F-40, F-53).
+  fs.copyFileSync("node_modules/mermaid/dist/mermaid.min.js", "media/mermaid.min.js");
+  fs.copyFileSync("node_modules/mermaid/LICENSE", "media/mermaid.LICENSE");
   fs.copyFileSync("src/webview/style.css", "media/viewer.css");
   if (process.argv.includes("--tests")) {
     await buildUnits();
     await build({ ...node, entryPoints: ["test/e2e/scenario.ts"], outfile: "out/e2e/scenario.js" });
+    await build({ ...node, entryPoints: ["test/e2e/vsix-scenario.ts"], outfile: "out/e2e/vsix-scenario.js" });
     await build({ ...web, entryPoints: ["test/e2e/driver.ts"], outfile: "media/test-driver.js" });
   }
 }

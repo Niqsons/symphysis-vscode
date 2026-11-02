@@ -83,7 +83,7 @@ export function antipodesOf(records: JournalRecord[], id: string, letter: string
   return [...out];
 }
 
-export function blockedBy(p: ViewPayload, d: Draft, id: string, letter: string): string[] {
+export function chosenAntipodes(p: ViewPayload, d: Draft, id: string, letter: string): string[] {
   return antipodesOf(p.records, id, letter).filter((k) => {
     const [other, l] = k.split(".");
     return chosen(p, d, other) === l;

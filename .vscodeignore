@@ -3,5 +3,8 @@
 !out/extension.js
 !media/viewer.js
 !media/search.js
+!media/scheme.js
+!media/mermaid.min.js
+!media/mermaid.LICENSE
 !media/viewer.css
 !media/icon.svg

@@ -26,6 +26,8 @@ export interface Parking {
 
 export interface JournalRecord {
   id: string;
+  /** Узлы схемы, к которым относится запись; поле необязательно (F-23). */
+  nodes?: string[];
   question: string;
   kind: "развилка" | "факт";
   status: string;
@@ -64,6 +66,8 @@ export interface AttackFile {
 }
 
 export interface ViewPayload {
+  /** Номер контракта с ядром; сверяет `viewJson`, дальше по страницам он не нужен. */
+  contract?: number;
   title: string;
   source: string;
   generated?: string;

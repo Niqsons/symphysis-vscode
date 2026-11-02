@@ -1,0 +1,7 @@
+{
+  "name": "symphysis-vsix-check",
+  "description": "Пустышка: запуску тестов VS Code нужен каталог разрабатываемого расширения. Само расширение в этой проверке — установленное из .vsix.",
+  "publisher": "symphysis-test",
+  "version": "0.0.0",
+  "engines": { "vscode": "^1.100.0" }
+}

@@ -5,6 +5,9 @@ import type { ViewPayload } from "../shared/types";
 import type { ChangeRef } from "./project";
 import { runPython, type RunResult } from "./python";
 
+/** Номер контракта, на который рассчитан этот плагин (`docs/repo-contract.md` ядра). */
+export const EXPECTED_CONTRACT = 1;
+
 export type ViewResult = { ok: true; payload: ViewPayload } | { ok: false; failure: CoreFailure };
 export interface CoreEnv { python: string; tools: string; cwd: string }
 export interface Report { ok: boolean; report: string[] }
@@ -29,6 +32,12 @@ export async function viewJson(env: CoreEnv, ref: ChangeRef): Promise<ViewResult
   if (r.code !== 0) return { ok: false, failure: { kind: "crash", text: r.stderr.trim() || `код ${r.code}` } };
   try {
     const payload = JSON.parse(r.stdout) as ViewPayload;
+    // Новый вывод при расхождении не показывается: прежние данные держит хранилище, «Внести» закрыта отказом.
+    const contract: unknown = payload.contract;
+    if (contract !== EXPECTED_CONTRACT) {
+      const newer = typeof contract === "number" && Number.isInteger(contract) && contract > EXPECTED_CONTRACT;
+      return { ok: false, failure: { kind: "contract", need: newer ? "vsix" : "tools", root: env.cwd } };
+    }
     // Путь «как подан» входит в ключ спора и в текст промпта: разделитель системы в них не нужен.
     payload.attacks = payload.attacks.map((a) => ({ ...a, path: a.path.replaceAll("\\", "/") }));
     return { ok: true, payload };

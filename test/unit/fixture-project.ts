@@ -3,8 +3,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export const SYMPHYSIS = process.env.SYMPHYSIS_ROOT ?? path.resolve(__dirname, "..", "..", "..", "symphysis");
+/** Пустая переменная считается незаданной. */
+export const coreRoot = (env: NodeJS.ProcessEnv, sibling: string) => env.SYMPHYSIS_ROOT || sibling;
+
+export const SYMPHYSIS = coreRoot(process.env, path.resolve(__dirname, "..", "..", "..", "symphysis"));
 export const hasCore = fs.existsSync(path.join(SYMPHYSIS, "tools", "journal.py"));
+// Заданный путь без ядра — опечатка, а не «ядра нет на этой машине»: пропуск здесь был бы ложным зелёным.
+if (process.env.SYMPHYSIS_ROOT && !hasCore) throw new Error(`SYMPHYSIS_ROOT=${SYMPHYSIS}: нет tools/journal.py, тесты на настоящем ядре не запустить`);
 export const noCoreReason = hasCore ? false : `нет ядра symphysis в ${SYMPHYSIS}; укажи SYMPHYSIS_ROOT`;
 const FIXTURES = path.resolve(__dirname, "..", "..", "test", "fixtures");
 

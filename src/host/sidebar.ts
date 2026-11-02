@@ -13,6 +13,7 @@ function failureLine(f: CoreFailure): string {
     case "no-tools": return "нет инструментов symphysis";
     case "no-python": return "Python не найден";
     case "old-core": return "старые инструменты: обнови symphysis";
+    case "contract": return f.need === "vsix" ? "инструменты новее плагина: поставь новый .vsix" : "старые инструменты: обнови symphysis";
     case "invalid-journal": return "журнал негоден";
     case "timeout": return "Python не ответил";
     case "crash": return "ядро не отработало";

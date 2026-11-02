@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  allOptions, antipodesOf, blockedBy, buildPrompt, chosen, cleanupIngested, effectiveDeps, emptyDraft, nextLetter, normalizeDraft,
+  allOptions, antipodesOf, buildPrompt, chosenAntipodes, chosen, cleanupIngested, effectiveDeps, emptyDraft, nextLetter, normalizeDraft,
 } from "../../src/shared/logic";
 import type { AttackRow, Draft } from "../../src/shared/types";
 import { fact, fork, option, payload } from "./helpers";
@@ -117,12 +117,12 @@ test("битый файл атаки промпт не ломает", () => {
   assert.equal(buildPrompt(payload([], { attacks: [{ path: "attack/x.md", error: "битый" }] }), emptyDraft(), DATE).empty, true);
 });
 
-test("антиподы видны с обеих сторон; блокируют, только если другая сторона выбрана", () => {
+test("антиподы видны с обеих сторон; пара называется, только если другая сторона выбрана", () => {
   const p = payload([fork("F-01", { antipodes: [{ option: "A", other: "F-02.B" }] }), fork("F-02")]);
   assert.deepEqual(antipodesOf(p.records, "F-01", "A"), ["F-02.B"]);
   assert.deepEqual(antipodesOf(p.records, "F-02", "B"), ["F-01.A"]);
-  assert.deepEqual(blockedBy(p, emptyDraft(), "F-02", "B"), []);
-  assert.deepEqual(blockedBy(p, draft({ decisions: { "F-01": decision("A") } }), "F-02", "B"), ["F-01.A"]);
+  assert.deepEqual(chosenAntipodes(p, emptyDraft(), "F-02", "B"), []);
+  assert.deepEqual(chosenAntipodes(p, draft({ decisions: { "F-01": decision("A") } }), "F-02", "B"), ["F-01.A"]);
 });
 
 test("выбор: черновик важнее журнала, журнал важнее пустоты, рекомендация выбором не считается", () => {

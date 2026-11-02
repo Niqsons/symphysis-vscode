@@ -1,10 +1,11 @@
 // Ядро настоящее: `journal.py` из соседнего репозитория, скопированный в проект с кириллицей и пробелами в пути.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import cp, { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { applyAnswers, rebuild, viewJson } from "../../src/host/core";
+import { mock } from "node:test";
+import { applyAnswers, EXPECTED_CONTRACT, rebuild, viewJson } from "../../src/host/core";
 import { changeRef, sha256File } from "../../src/host/project";
 import { addAttack, makeProject, noCoreReason } from "./fixture-project";
 
@@ -131,4 +132,81 @@ test("пересборка: битый файл атаки — страница 
   assert.ok(fs.existsSync(path.join(change, "decisions.md")));
   assert.equal(fs.existsSync(path.join(change, "decisions.html")), false);
   assert.ok(r.report.some((l) => l.startsWith("[!!]")), r.report.join("\n"));
+});
+
+
+// --- номер контракта: ядро настоящее, номер подменяется прямо в его коде (F-08, F-31, F-76, F-78) ---
+
+/** `literal` — значение на Python; `null` — ядро без номера совсем. */
+function patchContract(tools: string, literal: string | null) {
+  const file = path.join(tools, "journal_render.py");
+  const text = fs.readFileSync(file, "utf8");
+  const next = literal === null
+    ? text.replace(/^ *payload\["contract"\] = CONTRACT\r?\n/m, "")
+    : text.replace(/^CONTRACT = 1\r?$/m, `CONTRACT = ${literal}`);
+  assert.notEqual(next, text, "код ядра не подменён");
+  fs.writeFileSync(file, next, "utf8");
+}
+
+test("Номер совпал: журнал показан, отказа нет", opts, async () => {
+  const { env, ref } = setup();
+  const r = await viewJson(env, ref);
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.payload.contract, EXPECTED_CONTRACT);
+});
+
+test("Ядро без номера: просит обновить инструменты", opts, async () => {
+  const { env, ref } = setup();
+  patchContract(env.tools, null);
+  const r = await viewJson(env, ref);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.deepEqual(r.failure, { kind: "contract", need: "tools", root: env.cwd });
+});
+
+test("Номер ядра ниже: просит обновить инструменты", opts, async () => {
+  const { env, ref } = setup();
+  patchContract(env.tools, "0");
+  const r = await viewJson(env, ref);
+  assert.ok(!r.ok && r.failure.kind === "contract" && r.failure.need === "tools");
+});
+
+test("Номер ядра выше: просит поставить новый .vsix", opts, async () => {
+  const { env, ref } = setup();
+  patchContract(env.tools, "99");
+  const r = await viewJson(env, ref);
+  assert.ok(!r.ok && r.failure.kind === "contract" && r.failure.need === "vsix");
+});
+
+for (const literal of ['"1"', "1.5", "None", "-1"]) {
+  test(`негодный номер ${literal}: журнал не показан, просит обновить инструменты (F-76)`, opts, async () => {
+    const { env, ref } = setup();
+    patchContract(env.tools, literal);
+    const r = await viewJson(env, ref);
+    assert.ok(!r.ok && r.failure.kind === "contract" && r.failure.need === "tools", JSON.stringify(r));
+  });
+}
+
+test("Два проекта с разными номерами: сверка по проекту журнала, просьба называет проект, второй работает", opts, async () => {
+  const stale = setup();
+  const fine = setup();
+  patchContract(stale.env.tools, "0");
+  const a = await viewJson(stale.env, stale.ref);
+  const b = await viewJson(fine.env, fine.ref);
+  assert.ok(!a.ok && a.failure.kind === "contract" && a.failure.root === stale.env.cwd);
+  assert.equal(b.ok, true);
+});
+
+test("Вызовы процессов при несовпадении: только чтение журнала, ничего не обновляется (F-106)", opts, async () => {
+  const { env, ref } = setup();
+  patchContract(env.tools, "99");
+  const spy = mock.method(cp, "execFile");
+  try {
+    const r = await viewJson(env, ref);
+    assert.equal(r.ok, false);
+    assert.equal(spy.mock.calls.length, 1);
+    const args = spy.mock.calls[0].arguments[1] as string[];
+    assert.ok(args.includes("view-json"), args.join(" "));
+  } finally {
+    spy.mock.restore();
+  }
 });

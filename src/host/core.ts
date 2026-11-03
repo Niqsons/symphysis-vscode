@@ -6,7 +6,7 @@ import type { ChangeRef } from "./project";
 import { runPython, type RunResult } from "./python";
 
 /** Номер контракта, на который рассчитан этот плагин (`docs/repo-contract.md` ядра). */
-export const EXPECTED_CONTRACT = 1;
+export const EXPECTED_CONTRACT = 2;
 
 export type ViewResult = { ok: true; payload: ViewPayload } | { ok: false; failure: CoreFailure };
 export interface CoreEnv { python: string; tools: string; cwd: string }
@@ -38,7 +38,7 @@ export async function viewJson(env: CoreEnv, ref: ChangeRef): Promise<ViewResult
       const newer = typeof contract === "number" && Number.isInteger(contract) && contract > EXPECTED_CONTRACT;
       return { ok: false, failure: { kind: "contract", need: newer ? "vsix" : "tools", root: env.cwd } };
     }
-    // Путь «как подан» входит в ключ спора и в текст промпта: разделитель системы в них не нужен.
+    // Ядро номера 2 отдаёт путь от корня с `/`; замена оставлена страховкой: путь входит в ключ спора и в текст промпта.
     payload.attacks = payload.attacks.map((a) => ({ ...a, path: a.path.replaceAll("\\", "/") }));
     return { ok: true, payload };
   } catch (e) {
@@ -63,6 +63,6 @@ export async function rebuild(env: CoreEnv, ref: ChangeRef): Promise<Report> {
   };
   if (!(await step(["check", journal]))) return { ok: false, report };
   const md = await step(["render-md", journal, "--out", rel(env, path.join(ref.dir, "decisions.md"))]);
-  const html = await step(["render-html", journal, "--out", rel(env, path.join(ref.dir, "decisions.html")), ...attackArgs(env, ref)]);
+  const html = await step(["render-html", journal, "--out", rel(env, path.join(ref.dir, "symphysis.html")), ...attackArgs(env, ref)]);
   return { ok: md && html, report };
 }

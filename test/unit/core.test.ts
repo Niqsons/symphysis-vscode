@@ -114,12 +114,14 @@ test("apply: отказ называет запись, журнал не тро�
   assert.equal(sha256File(ref.journal), before);
 });
 
-test("пересборка: decisions.md и decisions.html записаны, отчёт собран", opts, async () => {
+test("Номера совпали: пересборка пишет decisions.md и symphysis.html, справка посчитана, отчёт собран", opts, async () => {
   const { env, ref, change } = setup();
   const r = await rebuild(env, ref);
   assert.equal(r.ok, true, r.report.join("\n"));
   assert.ok(fs.existsSync(path.join(change, "decisions.md")));
-  assert.ok(fs.existsSync(path.join(change, "decisions.html")));
+  assert.ok(fs.existsSync(path.join(change, "symphysis.html")));
+  // Ядро в проекте с step_help.py: страница несёт справку, а не отказ «скрипта справки нет».
+  assert.ok(!fs.readFileSync(path.join(change, "symphysis.html"), "utf8").includes("Скрипта справки"));
   assert.ok(r.report.some((l) => l.includes("цитаты нет дословно")), r.report.join("\n"));
 });
 
@@ -130,7 +132,7 @@ test("пересборка: битый файл атаки — страница 
   const r = await rebuild(env, ref);
   assert.equal(r.ok, false);
   assert.ok(fs.existsSync(path.join(change, "decisions.md")));
-  assert.equal(fs.existsSync(path.join(change, "decisions.html")), false);
+  assert.equal(fs.existsSync(path.join(change, "symphysis.html")), false);
   assert.ok(r.report.some((l) => l.startsWith("[!!]")), r.report.join("\n"));
 });
 
@@ -143,13 +145,14 @@ function patchContract(tools: string, literal: string | null) {
   const text = fs.readFileSync(file, "utf8");
   const next = literal === null
     ? text.replace(/^ *payload\["contract"\] = CONTRACT\r?\n/m, "")
-    : text.replace(/^CONTRACT = 1\r?$/m, `CONTRACT = ${literal}`);
+    : text.replace(/^CONTRACT = 2\r?$/m, `CONTRACT = ${literal}`);
   assert.notEqual(next, text, "код ядра не подменён");
   fs.writeFileSync(file, next, "utf8");
 }
 
 test("Номер совпал: журнал показан, отказа нет", opts, async () => {
   const { env, ref } = setup();
+  assert.equal(EXPECTED_CONTRACT, 2);
   const r = await viewJson(env, ref);
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.payload.contract, EXPECTED_CONTRACT);

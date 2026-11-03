@@ -161,7 +161,7 @@ export async function run(): Promise<void> {
     assert.match(fs.readFileSync(path.join(one, "answers", files[0]), "utf8"), /- F-02: A — «файлы рядом»/);
     assert.equal(JSON.parse(fs.readFileSync(journal, "utf8")).records[1].decision.option, "A");
     assert.ok(fs.existsSync(path.join(one, "decisions.md")));
-    assert.ok(fs.existsSync(path.join(one, "decisions.html")));
+    assert.ok(fs.existsSync(path.join(one, "symphysis.html")));
     const clean = await until("очистка черновика", async () => {
       const r = await snap();
       return /нового нет/.test(r.prompt) ? r : null;
@@ -297,7 +297,7 @@ export async function run(): Promise<void> {
     const before = fs.readFileSync(draftFile);
     const shown = (await snap()).cards;
     const notice = /поставь новый \.vsix/;
-    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 1\r?$/m, "CONTRACT = 99"));
+    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 2\r?$/m, "CONTRACT = 99"));
     fs.writeFileSync(script, fs.readFileSync(script));
     try {
       const s = await until("просьба про .vsix", async () => { const r = await snap(); return r.notes.some((n: string) => notice.test(n)) ? r : null; });
@@ -463,7 +463,7 @@ export async function run(): Promise<void> {
     assert.ok(before.equals(fs.readFileSync(path.join(attacked, "attack", "decisions.md"))));
     // Битый файл атаки: журнал внесён, decisions.md собран, страницы нет — и отчёт это называет, а не молчит.
     assert.ok(fs.existsSync(path.join(attacked, "decisions.md")));
-    assert.equal(fs.existsSync(path.join(attacked, "decisions.html")), false);
+    assert.equal(fs.existsSync(path.join(attacked, "symphysis.html")), false);
     assert.match(r.report, /производные файлы собраны не все/);
     const clean = await until("очистка", async () => {
       const x = await snap();

@@ -167,7 +167,7 @@ for (const { name, dir: from } of realJournals) {
 
 /** Промпт настоящей страницы: `render-html` этого журнала и скрипт её шаблона при том же черновике. */
 function pagePrompt(env: CoreEnv, ref: ChangeRef, change: string, d: Draft): string {
-  const page = path.join(change, "decisions.html");
+  const page = path.join(change, "symphysis.html");
   const rendered = spawnSync(env.python, ["-X", "utf8", path.join(env.tools, "journal.py"), "render-html", path.relative(env.cwd, ref.journal), "--out", path.relative(env.cwd, page)], { cwd: env.cwd, encoding: "utf8" });
   assert.equal(rendered.status, 0, rendered.stderr);
   const { attackDisputes: _unused, ...state } = d;

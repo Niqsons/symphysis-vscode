@@ -1,6 +1,6 @@
 // «Внести»: только этим путём слово человека идёт в журнал, и только по клику в странице — иначе внесёт агент.
 import fs from "node:fs";
-import { applyAnswers, rebuild, type CoreEnv } from "./core";
+import { applyAnswers, rebuild, viewJson, type CoreEnv } from "./core";
 import { saveAnswers, sha256File, type ChangeRef } from "./project";
 
 export interface ApplyInput {
@@ -14,6 +14,7 @@ export interface ApplyInput {
 export type ApplyOutcome =
   | { stage: "stale" }
   | { stage: "refused"; report: string[] }
+  | { stage: "error"; text: string }
   | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string };
 
 function currentSha(file: string): string | null {
@@ -26,6 +27,11 @@ function currentSha(file: string): string | null {
 
 export async function applyFlow({ env, ref, text, shownSha, date }: ApplyInput): Promise<ApplyOutcome> {
   if (!shownSha || currentSha(ref.journal) !== shownSha) return { stage: "stale" };
+  // Номер сверяется заново: ядро могло смениться после показа, а кнопка закрыта только по старому ответу. Цена — один вызов `view-json`.
+  const seen = await viewJson(env, ref);
+  if (!seen.ok && seen.failure.kind === "contract") {
+    return { stage: "error", text: seen.failure.need === "vsix" ? "инструменты symphysis новее плагина: поставь новый .vsix" : "старые инструменты: обнови symphysis" };
+  }
   const answers = saveAnswers(ref.dir, date, text);
   const applied = await applyAnswers(env, ref, answers);
   if (!applied.ok) {

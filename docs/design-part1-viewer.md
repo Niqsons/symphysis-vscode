@@ -34,7 +34,7 @@
 
 **Схема решения и справка о ходе работы — разные вещи.** Слово владельца
 (2026-10-31): «схема в части два это справка о ходе работы. А схема
-в symphysis-viewer и файле decisions.html это динамически составляемая
+в symphysis-viewer и файле symphysis.html это динамически составляемая
 схема по проектируемому решению».
 
 Зачем расширение, если есть страница: VS Code открыт в том проекте,
@@ -337,7 +337,7 @@ README инсталлятора; `check.js` ищет `python`, затем `pytho
 | --- | --- |
 | Данные в расширение | `python -X utf8 <tools>/journal.py view-json <decisions.json> [--attack <файл>]…` → JSON на stdout: записи со сверенными уликами (`found`, `verdict`, `line`), разобранные файлы атак, `sha256` журнала, счётчики, `notes[]`, у записи и парковки — `destination` («куда уйдёт») по правилам `render_design`. Негодный журнал — код 1 и stderr; битый файл атаки — `{path, error}` у этого файла, журнал виден, код 0 |
 | Слово человека в ядро | Текст промпта по грамматике `journal_apply.parse_answers`; вносит `journal.py apply` |
-| Пересборка производных | После `apply` — `check`, `render-md`, `render-html`: `decisions.md` и `decisions.html` пишет ядро |
+| Пересборка производных | После `apply` — `check`, `render-md`, `render-html`: `decisions.md` и `symphysis.html` пишет ядро |
 
 `<tools>` — `.symphysis/tools/` установленного проекта; в репозитории
 symphysis — `tools/`. Контракт промпта проверяется сквозным тестом:
@@ -349,7 +349,7 @@ symphysis — `tools/`. Контракт промпта проверяется �
 | Файл | Пишет |
 | --- | --- |
 | `decisions.json` | ядро (`apply`), агент (новые записи) |
-| `decisions.md`, `decisions.html` | ядро (`render-*`) |
+| `decisions.md`, `symphysis.html` | ядро (`render-*`) |
 | `answers/<дата>.md` изменения | расширение по кнопке «Внести» (Р8) |
 | `.symphysis/viewer/<изменение>.json` — черновики человека | расширение |
 | `.symphysis/viewer/events.jsonl`, курсоры и хеши сессий, скрипт хука | расширение |

@@ -28,6 +28,20 @@ function version(file: string): string | null {
   return !r.error && r.status === 0 ? (r.stdout || r.stderr).trim() : null;
 }
 
+/** Файлы с этими именами по PATH: только абсолютные каталоги вне рабочей области. Порядок: имя, затем каталог. */
+export function pathCandidates(env: NodeJS.ProcessEnv, workspaceDirs: string[], names: string[]): string[] {
+  const entries = (env.PATH ?? env.Path ?? "").split(path.delimiter).filter(Boolean);
+  const found: string[] = [];
+  for (const name of names) {
+    for (const dir of entries) {
+      if (!path.isAbsolute(dir) || workspaceDirs.some((w) => inside(dir, w))) continue;
+      const file = path.join(dir, process.platform === "win32" ? `${name}.exe` : name);
+      if (fs.existsSync(file)) found.push(file);
+    }
+  }
+  return found;
+}
+
 /** `override` — настройка `symphysis.python`, только абсолютный путь; иначе `python`, затем `python3` из PATH. */
 export function resolvePython(env: NodeJS.ProcessEnv, workspaceDirs: string[], override?: string): PythonResolution {
   if (override) {
@@ -35,17 +49,11 @@ export function resolvePython(env: NodeJS.ProcessEnv, workspaceDirs: string[], o
     const v = fs.existsSync(override) ? version(override) : null;
     return v ? { ok: true, path: override, version: v } : { ok: false, reason: `${override} не отвечает на --version`, tried: [override] };
   }
-  const entries = (env.PATH ?? env.Path ?? "").split(path.delimiter).filter(Boolean);
   const tried: string[] = [];
-  for (const name of ["python", "python3"]) {
-    for (const dir of entries) {
-      if (!path.isAbsolute(dir) || workspaceDirs.some((w) => inside(dir, w))) continue;
-      const file = path.join(dir, process.platform === "win32" ? `${name}.exe` : name);
-      if (!fs.existsSync(file)) continue;
-      tried.push(file);
-      const v = version(file);
-      if (v) return { ok: true, path: file, version: v };
-    }
+  for (const file of pathCandidates(env, workspaceDirs, ["python", "python3"])) {
+    tried.push(file);
+    const v = version(file);
+    if (v) return { ok: true, path: file, version: v };
   }
   return { ok: false, reason: "нет python и python3 в PATH вне рабочей области", tried };
 }

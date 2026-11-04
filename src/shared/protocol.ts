@@ -61,6 +61,8 @@ export interface JournalView {
   loading: boolean;
   /** Текст схемы изменения: подсказка «узел не найден». Нет схемы — `null`. */
   scheme: string | null;
+  /** Числа задач из расчёта справки для этого журнала; нет ответа, сбой или расчёт для другого изменения — `null`. */
+  tasks: { complete: number; total: number } | null;
 }
 
 export type ApplyReport =

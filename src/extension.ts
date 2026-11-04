@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { viewJson, type CoreEnv, type ViewResult } from "./host/core";
 import { resolveGit } from "./host/hookGit";
 import { HookRunner } from "./host/hookRunner";
+import { tasksFor } from "./host/helpTasks";
 import { findTools, listChanges, type ChangeRef } from "./host/project";
 import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
@@ -84,20 +85,22 @@ export function activate(context: vscode.ExtensionContext) {
       tocView.description = name;
       attackView.description = name;
       attackView.message = attackToc.message();
-      if (key) { scheme.follow(key); helpIfStale(); }
+      // Открытый журнал считает свой шаг сразу: числа задач в шапке приходят из этого расчёта (13.1).
+      if (key) { scheme.follow(key); recalcHelp(); }
     },
     onDraft: (key, draft) => {
       toc.setDraft(key, draft);
       search.setDraft(key, draft);
     },
     openScheme: (key) => scheme.open(key),
+    tasksOf: (key) => tasksFor(key, lastHelp),
   });
   // Одна точка, куда приходит ответ расчёта справки: вкладка показывает его, а считается и при закрытой вкладке, пока открыт журнал.
   // Последний ответ хранится для строки счётчиков просмотрщика (следующая единица).
   let lastHelp: { target: HelpTarget; outcome: HelpOutcome } | null = null;
   const help = new StepHelpRunner({
     compute: (target) => computeHelp(target, coreEnv),
-    onResult: (target, outcome) => { lastHelp = { target, outcome }; scheme.helpAnswered(target, outcome); },
+    onResult: (target, outcome) => { lastHelp = { target, outcome }; scheme.helpAnswered(target, outcome); viewer.tasksChanged(); },
   });
   // Справка считается, только пока её видно или открыт журнал (F-42). Файлы менялись, а смотреть было некому: пересчёт при следующем показе.
   let helpStale = false;

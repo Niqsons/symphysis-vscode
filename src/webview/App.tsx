@@ -17,6 +17,7 @@ import { FailureText } from "./FailureText";
 import { applyColors } from "./colors";
 import { ReturnPanel } from "./ReturnPanel";
 import { Segmented } from "./Segmented";
+import { TasksPart } from "./Tasks";
 
 const MODES: { mode: ViewMode; label: string; title: string }[] = [
   { mode: "decisions", label: "решения", title: "круг просмотрщика: варианты, слово, парковка, промпт возврата" },
@@ -315,6 +316,7 @@ export function App() {
             {" "}· открыто <b className={counts.open ? "accent" : ""}>{counts.open}</b>{hiddenOpen > 0 && <> · из них скрыто условием <b className="accent">{hiddenOpen}</b></>} · с парковкой <b>{counts.parked}</b> · фактов <b>{counts.facts}</b>
             {counts.disputed > 0 && <> · оспорено <b>{counts.disputed}</b></>}
             {counts.newForks > 0 && <> · новых развилок <b>{counts.newForks}</b></>}
+            <TasksPart tasks={view.tasks} />
             {" "}· <span className="muted">улик сверено {payload.stats.evidence_found} из {payload.stats.evidence_total}</span>
             {counts.quoteMissing > 0 && <> · <b className="signal">цитат не найдено: {counts.quoteMissing}</b></>}
             {view.loading && <span className="muted"> · перечитывается…</span>}

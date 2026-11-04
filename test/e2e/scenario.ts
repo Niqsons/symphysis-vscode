@@ -867,7 +867,7 @@ export async function run(): Promise<void> {
   const watched = key("со-схемой");
   const stepFile = path.join(watched, "intent.md");
   const forkBefore = fs.readFileSync(forkFile, "utf8");
-  const setFork = (over: { file?: boolean; hang?: number; broken?: boolean }) => {
+  const setFork = (over: { file?: boolean; hang?: number; broken?: boolean; tasks?: { total: number; complete: number } }) => {
     const scenario = JSON.parse(forkBefore);
     const paths = (id: string, existing: string[]) => ({ outputPath: `${id}.md`, resolvedOutputPath: path.join(watched, `${id}.md`), existingOutputPaths: existing });
     scenario.status = over.broken ? { stdout: "", stderr: "сбой форка в тесте", code: 1 } : { stdout: JSON.stringify({
@@ -875,6 +875,10 @@ export async function run(): Promise<void> {
       artifacts: [{ id: "intent", outputPath: "intent.md", status: over.file ? "done" : "ready", requires: [] }, { id: "decisions", outputPath: "decisions.md", status: "ready", requires: ["intent"] }],
       artifactPaths: { intent: paths("intent", over.file ? [stepFile] : []), decisions: paths("decisions", []) },
     }), hang: over.hang ?? 0 };
+    if (over.tasks) {
+      const { total, complete } = over.tasks;
+      scenario.apply = { stdout: JSON.stringify({ state: complete === total ? "all_done" : "ready", missingArtifacts: [], progress: { total, complete, remaining: total - complete } }) };
+    }
     fs.writeFileSync(forkFile, JSON.stringify(scenario), "utf8");
   };
   const stepLinks = () => schemeDrive("helpLinks").catch(() => null);
@@ -985,23 +989,26 @@ export async function run(): Promise<void> {
     await helpShown("справка изменения", (r) => r.name === "со-схемой" && r.steps.includes("intent"));
     await schemeDrive("helpClick", { text: "intent" });
     await seesFile();
-    // Расчёт висит дольше всего ожидания шага: «старые данные на месте» проверяется безусловно.
-    setFork({ file: false, hang: 4 });
-    const started = calcs();
-    if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
-    await until("расчёт начался", () => calcs() > started);
-    const t0 = Date.now();
-    const turned = await schemeDrive("helpClick", { text: "decisions" });
-    const s = await snap();
-    assert.ok(Date.now() - t0 < 1500, "интерфейс ждал расчёта");
-    assert.equal(turned.page, "decisions");
-    assert.ok(turned.steps.length > 0 && turned.isHelp, "старые данные пропали");
-    assert.equal(s.cards.length, 4, "просмотрщик не отвечает");
-    await schemeDrive("helpClick", { text: "intent" });
-    assert.ok((await stepLinks()).some((k: string) => k.endsWith("intent.md")), "до нового ответа старые данные пропали");
-    assert.equal(calcs(), started + 1, "расчёта в этот момент нет или он не один");
-    await until("новый ответ без файла", async () => !(await stepLinks())?.some((k: string) => k.endsWith("intent.md")), 10000);
-    setFork({ file: false });
+    try {
+      // Расчёт висит дольше всего ожидания шага: «старые данные на месте» проверяется безусловно.
+      setFork({ file: false, hang: 4 });
+      const started = calcs();
+      if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
+      await until("расчёт начался", () => calcs() > started);
+      const t0 = Date.now();
+      const turned = await schemeDrive("helpClick", { text: "decisions" });
+      const s = await snap();
+      assert.ok(Date.now() - t0 < 1500, "интерфейс ждал расчёта");
+      assert.equal(turned.page, "decisions");
+      assert.ok(turned.steps.length > 0 && turned.isHelp, "старые данные пропали");
+      assert.equal(s.cards.length, 4, "просмотрщик не отвечает");
+      await schemeDrive("helpClick", { text: "intent" });
+      assert.ok((await stepLinks()).some((k: string) => k.endsWith("intent.md")), "до нового ответа старые данные пропали");
+      assert.equal(calcs(), started + 1, "расчёта в этот момент нет или он не один");
+      await until("новый ответ без файла", async () => !(await stepLinks())?.some((k: string) => k.endsWith("intent.md")), 10000);
+    } finally {
+      setFork({ file: false });
+    }
   });
 
   await step("«Обновить»: кнопка считает сразу, без склейки", async () => {
@@ -1014,6 +1021,9 @@ export async function run(): Promise<void> {
   await step("«Сбой не закрывает «Внести»»: расчёт справки упал — журнал показан, «Внести» открыта, выбор цел", async () => {
     await drive("choose", { id: "F-02", letter: "A" });
     assert.equal((await snap()).applyDisabled, false);
+    setFork({ file: false, tasks: { total: 5, complete: 2 } });
+    await schemeDrive("helpClick", { text: "Обновить" });
+    await until("числа задач до сбоя", async () => /Задач закрыто 2 из 5/.test((await snap()).stats));
     setFork({ broken: true });
     await schemeDrive("helpClick", { text: "Обновить" });
     const failed = await helpShown("сбой форка на вкладке", (r) => r.note && /openspec|форк|сбой/i.test(r.note));
@@ -1021,11 +1031,38 @@ export async function run(): Promise<void> {
     const s = await snap();
     assert.equal(s.cards.length, 4);
     assert.equal(s.applyDisabled, false, "«Внести» закрыта сбоем справки");
+    assert.doesNotMatch(s.stats, /Задач закрыто/, "после сбоя расчёта часть о задачах осталась в шапке");
     assert.match(s.prompt, /- F-02: A/);
     await schemeDrive("helpClick", { text: "Как готовить intent.md?" });
     setFork({ file: false });
     await drive("click", { id: "F-02", text: "снять выбор A" });
     fs.writeFileSync(forkFile, forkBefore, "utf8");
+    await schemeDrive("panelSwitch", { text: "схема" });
+  });
+
+  await step("Счётчик задач при закрытой вкладке справки: числа в строке счётчиков, меняются с расчётом, пропадают при total 0 (13.1)", async () => {
+    try {
+      setFork({ file: false, tasks: { total: 5, complete: 2 } });
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      await until("всё закрыто", () => api.scheme.webview === null && api.viewer.currentKey === null);
+      await openJournal("со-схемой");
+      assert.equal(api.scheme.webview, null, "вкладка справки открылась");
+      await until("числа задач", async () => /Задач закрыто 2 из 5/.test((await snap()).stats));
+      setFork({ file: false, tasks: { total: 5, complete: 5 } });
+      fs.writeFileSync(path.join(watched, "числа.md"), "x\n", "utf8");
+      await until("все закрыты", async () => /Задач закрыто 5 из 5/.test((await snap()).stats));
+      setFork({ file: false, tasks: { total: 0, complete: 0 } });
+      fs.appendFileSync(path.join(watched, "числа.md"), "ещё\n");
+      await until("задач нет", async () => !/Задач закрыто/.test((await snap()).stats));
+      assert.equal(api.scheme.webview, null);
+    } finally {
+      const extra = path.join(watched, "числа.md");
+      if (fs.existsSync(extra)) fs.unlinkSync(extra);
+      fs.writeFileSync(forkFile, forkBefore, "utf8");
+    }
+    // Дальше шаги работают с вкладкой справки рядом с журналом.
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("вкладка", () => api.scheme.webview);
     await schemeDrive("panelSwitch", { text: "схема" });
   });
 

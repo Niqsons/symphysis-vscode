@@ -173,3 +173,10 @@ test("подписи разделов те же слова, что заголо�
   const html = render(output());
   for (const label of ["Механики", "Если пропустить", "Что смотреть"]) assert.ok(html.includes(`<b>${label}</b>`), label);
 });
+
+test("«Счётчика нет на вкладке»: шаг `apply`, задачи есть — ни чисел задач, ни чисел развилок", () => {
+  const html = render(output({ current_step: "apply", tasks: { state: "ready", total: 5, complete: 2, remaining: 3 }, forks: { open: 4, parked: 1 } }));
+  const text = flat(html);
+  assert.doesNotMatch(text, /Задач закрыто|2 из 5|закрыто|развилок/i);
+  assert.doesNotMatch(text, /\b[245]\b\s*(из|задач)/);
+});

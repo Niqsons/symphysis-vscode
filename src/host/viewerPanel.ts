@@ -25,15 +25,18 @@ export interface ViewerDeps {
   onShown(key: string | null): void;
   onDraft(key: string, draft: Draft): void;
   openScheme(key: string): void;
+  /** Числа задач из последнего ответа расчёта справки для этого журнала (13.1). */
+  tasksOf(key: string): JournalView["tasks"];
 }
 
 const isFailure = (v: CoreEnv | CoreFailure): v is CoreFailure => "kind" in v;
 
-function toView(state: ChangeState): JournalView {
-  return { key: state.ref.dir, name: state.ref.name, payload: state.payload, failure: state.failure, loading: state.loading, scheme: readScheme(state.ref.dir).text };
-}
 
 export class ViewerPanel {
+  private toView(state: ChangeState): JournalView {
+    return { key: state.ref.dir, name: state.ref.name, payload: state.payload, failure: state.failure, loading: state.loading, scheme: readScheme(state.ref.dir).text, tasks: this.deps.tasksOf(state.ref.dir) };
+  }
+
   private panel: vscode.WebviewPanel | null = null;
   private ready = false;
   private key: string | null = null;
@@ -80,7 +83,13 @@ export class ViewerPanel {
   /** Журнал обновился: страница получает новые данные, черновик у неё остаётся. */
   journalUpdated(key: string): void {
     const state = this.deps.store.get(key);
-    if (this.panel && this.ready && key === this.key && state) void this.post({ type: "journal", view: toView(state) });
+    if (this.panel && this.ready && key === this.key && state) void this.post({ type: "journal", view: this.toView(state) });
+  }
+
+  /** Пришёл ответ расчёта справки: числа задач обновляются, просмотрщик ничего не ждал. */
+  tasksChanged(): void {
+    const state = this.key ? this.deps.store.get(this.key) : undefined;
+    if (this.panel && this.ready && state) void this.post({ type: "journal", view: this.toView(state) });
   }
 
   colorsChanged(): void {
@@ -156,7 +165,7 @@ export class ViewerPanel {
     this.panel.title = `Журнал: ${state.ref.name}`;
     const { draft, damaged } = readDraft(state.ref.root, state.ref.name);
     this.deps.onDraft(state.ref.dir, draft);
-    void this.post({ type: "show", view: toView(state), draft, damagedDraft: damaged, colors: this.deps.colors(), ui: this.ui() });
+    void this.post({ type: "show", view: this.toView(state), draft, damagedDraft: damaged, colors: this.deps.colors(), ui: this.ui() });
     if (this.pendingNode) {
       void this.post({ type: "node", id: this.pendingNode });
       this.pendingNode = null;

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
+import { tasksFor } from "../../src/host/helpTasks";
 import { findTools } from "../../src/host/project";
 import { attackAnchor, lensAnchor, rowAnchor } from "../../src/shared/attack";
 import { buildPrompt, emptyDraft } from "../../src/shared/logic";
@@ -14,6 +15,7 @@ import { CheckView } from "../../src/webview/CheckView";
 import { FailureText } from "../../src/webview/FailureText";
 import { HelpBody } from "../../src/webview/HelpBody";
 import { SearchResults } from "../../src/webview/SearchResults";
+import { TasksPart } from "../../src/webview/Tasks";
 import { Segmented } from "../../src/webview/Segmented";
 import { tempDir } from "../temp-dir.mjs";
 import { fact, fork, option, payload } from "./helpers";
@@ -347,4 +349,49 @@ test("настоящий `findTools` с настройкой мимо инстр
     assert.ok(text.includes(toolsPath), text);
   }
   assert.ok(path.isAbsolute(install));
+});
+
+// Строка «Задач закрыто N из N» (13.1): числа только из ответа расчёта для изменения открытого журнала.
+const flatText = (html: string) => html.replace(/<[^>]+>/g, "");
+const answer = (change: string, over: Partial<StepHelpOutput> = {}, root = "D:/п") => ({
+  target: { root, change }, outcome: { kind: "output" as const, root, output: helpOutput({ change, tasks: { state: "ready", total: 5, complete: 2, remaining: 3 }, ...over }) },
+});
+const JOURNAL_A = path.join("D:/п", "openspec", "changes", "а");
+const JOURNAL_B = path.join("D:/п", "openspec", "changes", "б");
+
+test("«Задачи идут»: в строке счётчиков «Задач закрыто 2 из 5»", () => {
+  const tasks = tasksFor(JOURNAL_A, answer("а"));
+  assert.deepEqual(tasks, { complete: 2, total: 5 });
+  assert.match(flatText(renderToStaticMarkup(<TasksPart tasks={tasks} />)), /Задач закрыто 2 из 5/);
+});
+
+test("«Все закрыты»: «Задач закрыто 5 из 5»", () => {
+  const tasks = tasksFor(JOURNAL_A, answer("а", { tasks: { state: "all_done", total: 5, complete: 5, remaining: 0 } }));
+  assert.match(flatText(renderToStaticMarkup(<TasksPart tasks={tasks} />)), /Задач закрыто 5 из 5/);
+});
+
+test("«Задач нет»: total 0 или чисел нет — части о задачах нет", () => {
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={tasksFor(JOURNAL_A, answer("а", { tasks: { state: "no_tasks", total: 0, complete: 0, remaining: 0 } }))} />), "");
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={tasksFor(JOURNAL_A, answer("а", { tasks: null }))} />), "");
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={null} />), "");
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={{ complete: 1, total: 0 }} />), "");
+});
+
+test("«Журнал сменился»: числа А журналу Б не достаются, после ответа Б показаны его числа", () => {
+  const forA = answer("а");
+  assert.deepEqual(tasksFor(JOURNAL_A, forA), { complete: 2, total: 5 });
+  assert.equal(tasksFor(JOURNAL_B, forA), null, "до ответа Б части нет");
+  const forB = answer("б", { tasks: { state: "ready", total: 7, complete: 1, remaining: 6 } });
+  assert.deepEqual(tasksFor(JOURNAL_B, forB), { complete: 1, total: 7 });
+});
+
+test("«Журнал сменился»: одноимённое изменение в другой папке — другой журнал, числа не переходят", () => {
+  assert.equal(tasksFor(path.join("D:/вторая", "openspec", "changes", "а"), answer("а")), null);
+});
+
+test("«Сбой расчёта»: `error`, отказ, список на выбор, нет ответа — части о задачах нет", () => {
+  assert.equal(tasksFor(JOURNAL_A, answer("а", { error: "сбой форка" })), null);
+  assert.equal(tasksFor(JOURNAL_A, { target: { root: "D:/п", change: "а" }, outcome: { kind: "failure", failure: { kind: "timeout" } } }), null);
+  assert.equal(tasksFor(JOURNAL_A, { target: { roots: ["D:/п"] }, outcome: { kind: "choice", choices: [] } }), null);
+  assert.equal(tasksFor(JOURNAL_A, null), null);
 });

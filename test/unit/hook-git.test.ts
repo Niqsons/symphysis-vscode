@@ -174,8 +174,8 @@ test("снятие: блока больше нет, `exclude` как до уст
   assert.match(status(root), /\.claude\//);
 });
 
-for (const [client, rel, scenario] of [["claude", CLAUDE, "Файл настроек отслеживается git"], ["opencode", OPENCODE, "Файл opencode отслеживается git"]] as const) {
-  test(`«${scenario}»: файл не тронут, строк нет, причина названа`, async () => {
+for (const [client, rel, scenario] of [["claude", CLAUDE, "«Файл настроек отслеживается git»"], ["opencode", OPENCODE, "«Файл opencode отслеживается git»"]] as const) {
+  test(`${scenario}: файл не тронут, строк нет, причина названа`, async () => {
     const root = repo();
     put(root, rel, "закоммичено\n");
     git(root, "add", "-f", "--", rel);
@@ -188,7 +188,7 @@ for (const [client, rel, scenario] of [["claude", CLAUDE, "Файл настро
     assert.equal(status(root), "");
   });
 
-  test(`«${scenario}»: файл только добавлен в индекс, считается отслеживаемым`, async () => {
+  test(`${scenario}: файл только добавлен в индекс, считается отслеживаемым`, async () => {
     const root = repo();
     put(root, rel, "в индексе\n");
     git(root, "add", "-f", "--", rel);

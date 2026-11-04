@@ -57,10 +57,10 @@ function noChanges() {
 
 /** `name` — имя запуска и сценария, `prepare` — что открыть и что передать сценарию. Запуски идут по порядку, каталог проекта между ними общий. */
 const RUNS = [
-  { name: "Выключение в одном проекте", prepare: twoFolders },
-  { name: "Первая активация ставит запись", prepare: () => ({ open: again, env: { SYMPHYSIS_E2E_ON: again } }) },
+  { name: "«Выключение в одном проекте»", prepare: twoFolders },
+  { name: "«Первая активация ставит запись»", prepare: () => ({ open: again, env: { SYMPHYSIS_E2E_ON: again } }) },
   {
-    name: "Запись удалена руками",
+    name: "«Запись удалена руками»",
     prepare: () => {
       // Файла нет, только если упал прошлый запуск: тогда этот покажет своё, а не оборвёт прогон.
       const settings = path.join(again, ".claude", "settings.local.json");
@@ -68,9 +68,9 @@ const RUNS = [
       return { open: again, env: { SYMPHYSIS_E2E_ON: again } };
     },
   },
-  { name: "Проект без журнала", prepare: withoutJournal },
-  { name: "Пустой проект, боковая панель", prepare: emptyFolder },
-  { name: "Команда палитры", prepare: noChanges },
+  { name: "«Проект без журнала»", prepare: withoutJournal },
+  { name: "«Пустой проект, боковая панель»", prepare: emptyFolder },
+  { name: "«Команда палитры»", prepare: noChanges },
 ];
 
 cleanEnv();

@@ -37,7 +37,7 @@ async function assertHelpOpens() {
 }
 
 const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
-  "Выключение в одном проекте": async (ext) => {
+  "«Выключение в одном проекте»": async (ext) => {
     await hookDone(ext);
     const off = process.env.SYMPHYSIS_E2E_OFF!;
     const on = process.env.SYMPHYSIS_E2E_ON!;
@@ -48,21 +48,21 @@ const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
     assert.equal(fs.existsSync(scriptOf(off)), false);
     assertHookStands(on);
   },
-  "Первая активация ставит запись": async (ext) => {
+  "«Первая активация ставит запись»": async (ext) => {
     await hookDone(ext);
     assertHookStands(process.env.SYMPHYSIS_E2E_ON!);
   },
-  "Запись удалена руками": async (ext) => {
+  "«Запись удалена руками»": async (ext) => {
     await hookDone(ext);
     assertHookStands(process.env.SYMPHYSIS_E2E_ON!);
   },
-  "Проект без журнала": async (ext) => {
+  "«Проект без журнала»": async (ext) => {
     await hookDone(ext);
     assert.deepEqual(ext.exports.changes.getChildren().map((c) => c.ref.name), ["без-журнала"]);
     assertHookStands(process.env.SYMPHYSIS_E2E_ON!);
     await assertHelpOpens();
   },
-  "Пустой проект, боковая панель": async (ext) => {
+  "«Пустой проект, боковая панель»": async (ext) => {
     // Контроль: окно открыто, панель закрыта, плагина нет. Без него «активирован событием» в других запусках ничего бы не значило.
     await sleep(2000);
     assert.equal(ext.isActive, false, "пустая папка не должна поднимать плагин при открытии окна");
@@ -76,7 +76,7 @@ const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
     assert.ok(viewsWelcome.find((w: { view: string }) => w.view === "symphysis.changes").contents.includes("нет каталога openspec/changes"));
     await assertHelpOpens();
   },
-  "Команда палитры": async (ext) => {
+  "«Команда палитры»": async (ext) => {
     await activated(ext);
     assert.deepEqual(ext.exports.changes.getChildren(), [], "изменений нет");
     await vscode.commands.executeCommand("symphysis.openHelp");
@@ -97,6 +97,6 @@ const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
 export async function run(): Promise<void> {
   const name = process.env.SYMPHYSIS_E2E_RUN!;
   const ext = vscode.extensions.all.find((e) => e.packageJSON.name === "symphysis-vscode")! as Ext;
-  await step(`«${name}»`, () => RUNS[name](ext));
+  await step(name, () => RUNS[name](ext));
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures: {} }, null, 1), "utf8");
 }

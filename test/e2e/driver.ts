@@ -206,7 +206,8 @@ async function drive(m: any): Promise<unknown> {
       const button = buttonByText(document, m.text);
       if (!button) throw new Error(`нет кнопки «${m.text}»`);
       for (let i = 0; i < (m.times ?? 1); i++) button.click();
-      await settle();
+      // Кнопка, что открывает файл поверх вкладки, скрывает страницу: скрытая страница кадров не получает, ответа не было бы.
+      if (!m.hides) await settle();
       return schemeSnapshot();
     }
     case "link": {

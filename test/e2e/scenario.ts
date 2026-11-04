@@ -1465,7 +1465,7 @@ export async function run(): Promise<void> {
     assert.equal(broken.state, "svg");
     assert.match(broken.plates[0], /строка 7 в scheme\.md/);
     assert.equal(broken.openButton, true);
-    await schemeDrive("schemeClickText", { text: "Открыть scheme.md" });
+    await schemeDrive("schemeClickText", { text: "Открыть scheme.md", hides: true });
     await until("файл открыт", () => vscode.window.visibleTextEditors.some((e) => e.document.fileName.endsWith("scheme.md")));
     // «Кнопка «Открыть scheme.md»»: правка файла, поэтому не предпросмотр, как и прежде.
     const schemeTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputText && t.input.uri.fsPath.endsWith("scheme.md"));

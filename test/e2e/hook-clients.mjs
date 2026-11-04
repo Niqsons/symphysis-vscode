@@ -163,6 +163,9 @@ function claudeAsk(name, cwd, session, { retry = true } = {}) {
   return r;
 }
 
+// Сессии opencode лежат в общей базе, и Desktop их показывает: `--standalone` базу не отделяет. Тест удаляет только свои.
+const opencodeSessions = new Set();
+
 function openCodeOnce(cwd, session) {
   const args = ["run", "--standalone", "--format", "json", "--print-logs", "--log-level", "warn", "-m", OC_MODEL, ...(session ? ["--session", session] : []), OC_QUESTION];
   const run = spawnSync(OPENCODE, args, { cwd, env, encoding: "utf8", timeout: 240000, windowsHide: true });
@@ -183,6 +186,7 @@ function openCodeOnce(cwd, session) {
   const lines = String(run.stderr).split(/\r?\n/).filter((l) => /level=(ERROR|WARN)|loading plugin|instructions/i.test(l));
   const errors = lines.map((l) => l.slice(0, 220)).slice(0, 8);
   const text = texts.join("");
+  if (id) opencodeSessions.add(id);
   const loaded = lines.some((l) => /loading plugin/.test(l) && l.includes("symphysis-hook.js"));
   return { code: run.status ?? `сбой запуска: ${run.error?.message}`, id, text, errors, loaded, ok: run.status === 0 && text.trim() !== "" };
 }
@@ -355,6 +359,11 @@ function cleanClaudeSessions() {
   }
 }
 
+function cleanOpencodeSessions() {
+  const left = [...opencodeSessions].filter((id) => spawnSync(OPENCODE, ["session", "delete", "--standalone", id], { env, encoding: "utf8", timeout: 60000, windowsHide: true }).status !== 0);
+  check("после прогона свои сессии opencode удалены", opencodeSessions.size > 0 && left.length === 0, `сессий ${opencodeSessions.size}, не удалено: ${left.join(", ")}`);
+}
+
 // --- прогон ---
 
 function logPath() {
@@ -393,6 +402,7 @@ if (!missing) {
     check("opencode: прогон дошёл до конца", false, String(e.stack ?? e));
   }
   cleanClaudeSessions();
+  cleanOpencodeSessions();
   note({ итог: { проверок: tests.length, упало: tests.filter((t) => !t.ok).length } });
   const file = logPath();
   fs.writeFileSync(file, `${log.join("\n")}\n`, { encoding: "utf8" });

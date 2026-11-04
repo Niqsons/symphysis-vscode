@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { emptyDraft } from "../../src/shared/logic";
+import { buildPrompt, emptyDraft } from "../../src/shared/logic";
 import type { Draft, JournalRecord, ViewPayload } from "../../src/shared/types";
 import { Card, type CardContext } from "../../src/webview/Card";
 import { fact, fork, option, payload } from "./helpers";
@@ -165,11 +165,13 @@ test("«Выбор мимо рекомендации»: просьба видн�
   assert.ok(out.includes(ASK));
   assert.doesNotMatch(out, /disabled/);
   assert.equal((out.match(/type="radio"/g) ?? []).length, 2);
+  assert.ok(buildPrompt(payload([rec]), withChoice("B"), DATE).text.includes("- F-01: B"));
 });
 
 test("«Слово написано»: просьбы нет", () => {
   const rec = askRec();
   assert.ok(!html(rec, payload([rec]), withChoice("B", "потому что")).includes(ASK));
+  assert.match(buildPrompt(payload([rec]), withChoice("B", "потому что"), DATE).text, /- F-01: B.*потому что/);
 });
 
 test("«Одни пробелы»: просьба на месте", () => {
@@ -185,6 +187,8 @@ test("«Рекомендованный вариант»: просьбы нет",
 test("«Вариант человека»: просьбы нет ни у варианта из журнала, ни у локального", () => {
   const rec = fork("F-01", { options: [option("A"), option("B", { added: true })], recommendation: { option: "A", why: "причина" } });
   assert.ok(!html(rec, payload([rec]), withChoice("B")).includes(ASK));
+  const marked = fork("F-01", { options: [option("A"), option("B", { text: "свой (добавлен человеком)", added: false })], recommendation: { option: "A", why: "причина" } });
+  assert.ok(!html(marked, payload([marked]), withChoice("B")).includes(ASK));
   const own = askRec();
   const d: Draft = { ...withChoice("C"), added: { "F-01": [{ letter: "C", text: "свой" }] } };
   assert.ok(!html(own, payload([own]), d).includes(ASK));

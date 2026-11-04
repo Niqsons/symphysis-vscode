@@ -240,6 +240,9 @@ export function buildPrompt(p: ViewPayload, d: Draft, date: string): Prompt {
   return { text: lines.join("\n"), empty, conflictKeys, undecidedKeys };
 }
 
+/** Вариант добавлен человеком: флаг записи или пометка в тексте (как приходит из `apply` и импорта). */
+export const isHumanOption = (o: JournalOption): boolean => o.added || o.text.includes(ADDED_MARK);
+
 /** Просьба слова при выборе мимо рекомендации; текст тот же, что в шаблоне страницы ядра (F-29). */
 export const WORD_NEEDED_TEXT = "Выбран не рекомендованный вариант: напиши, почему. Так выбор поймёт читатель журнала; внести можно и без слова.";
 
@@ -248,7 +251,7 @@ export function wordMissing(p: ViewPayload, d: Draft, rec: JournalRecord): boole
   const rc = rec.recommendation?.option;
   const cur = chosen(p, d, rec.id);
   if (!rc || !cur || cur === rc) return false;
-  if (allOptions(rec, d).some((o) => o.letter === cur && o.added)) return false;
+  if (allOptions(rec, d).some((o) => o.letter === cur && isHumanOption(o))) return false;
   const saved = rec.decision?.option === cur ? rec.decision.word : "";
   return !norm(d.decisions[rec.id]?.word) && !norm(saved);
 }

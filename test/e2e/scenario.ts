@@ -1603,6 +1603,49 @@ export async function run(): Promise<void> {
 
   // Пауза для снимка окна: журнал с открытой развилкой, выбором и словом.
   const pause = Number(process.env.SYMPHYSIS_E2E_PAUSE_MS || 0);
+  await step("справка следует за окружением: настройка Python и инструментов, инструменты появились, команда «Обновить»; новый путь к Python доходит до записи хука", async () => {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await until("всё закрыто", () => api.scheme.webview === null && api.viewer.currentKey === null);
+    await openJournal("изменение-один");
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("вкладка", () => api.scheme.webview);
+    const alive = (what: string) => helpShown(what, (r) => r.name === "изменение-один" && r.current);
+    const refused = (what: string, text: RegExp) => helpShown(what, (r) => text.test(r.note ?? ""));
+    const setPython = (value: string | undefined) => vscode.workspace.getConfiguration("symphysis").update("python", value, vscode.ConfigurationTarget.Global);
+    await alive("справка считается");
+
+    const was = hookRecords()[0].command as string;
+    // Тот же интерпретатор другой записью пути: запись хука обязана её получить.
+    const alias = `${path.dirname(was)}${path.sep}.${path.sep}${path.basename(was)}`;
+    await setPython(path.join(root, "нет-такого.exe"));
+    await refused("нет Python", /Python не найден/);
+    await setPython(alias);
+    await alive("Python поправлен");
+    await until("запись хука с новым путём", () => hookRecords()[0]?.command === alias);
+    await setPython(undefined);
+    await until("запись хука с прежним путём", () => hookRecords()[0]?.command === was);
+    await api.hookIdle();
+    await alive("настройка снята");
+
+    fs.renameSync(toolsScript, toolsAway);
+    try {
+      await refused("инструменты ушли", /Поставь инструменты/);
+      await setToolsPath(process.env.SYMPHYSIS_E2E_INSTALL);
+      await alive("инструменты по настройке");
+      await setToolsPath(undefined);
+      await refused("настройка снята", /Поставь инструменты/);
+    } finally {
+      fs.renameSync(toolsAway, toolsScript);
+    }
+    await alive("инструменты поставлены");
+
+    const before = calcs();
+    await vscode.commands.executeCommand("symphysis.refresh");
+    await until("расчёт по команде", () => calcs() > before);
+    await api.hookIdle();
+    await hookStands("запись на месте");
+  });
+
   if (pause) {
     const theme = process.env.SYMPHYSIS_E2E_THEME;
     if (theme) await vscode.workspace.getConfiguration("workbench").update("colorTheme", theme, vscode.ConfigurationTarget.Global);

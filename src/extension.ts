@@ -183,7 +183,7 @@ export function activate(context: vscode.ExtensionContext) {
       journalWatchers.push([schemeWatcher, schemeWatcher.onDidChange(onScheme), schemeWatcher.onDidCreate(onScheme), schemeWatcher.onDidDelete(onScheme)]);
       const tools = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, ".symphysis/tools/journal.py"));
       const recheck = () => hook.request(root);
-      const all = () => { store.refreshAll(); changes.refresh(); recheck(); };
+      const all = () => { store.refreshAll(); changes.refresh(); recheck(); helpSoon(); };
       // Файл настроек только перепроверяет условие хука: журнал по нему не считается.
       const config = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/config.yaml"));
       return [...journalWatchers.flat(), tools, tools.onDidChange(all), tools.onDidCreate(all), tools.onDidDelete(all), config, config.onDidChange(recheck), config.onDidCreate(recheck), config.onDidDelete(recheck)];
@@ -201,7 +201,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider("symphysis.search", search),
     vscode.window.registerWebviewPanelSerializer(VIEWER_TYPE, { deserializeWebviewPanel: async (panel) => viewer.restore(panel) }),
     vscode.window.registerWebviewPanelSerializer(SCHEME_TYPE, { deserializeWebviewPanel: async (panel) => scheme.restore(panel) }),
-    vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); }),
+    vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }),
     vscode.commands.registerCommand("symphysis.openChange", (key?: string) => {
       const target = key ?? store.list()[0]?.ref.dir;
       if (target) viewer.open(target);
@@ -214,11 +214,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("symphysis.openHelp", () => scheme.open(viewer.currentKey, "help")),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); }),
+    // Окружение справки сменилось: отказ на вкладке не должен пережить свою причину. Расчёт, шедший в этот момент, отброшен сверкой цели, новый его заменяет.
+    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("symphysis.colors")) { viewer.colorsChanged(); search.refresh(); }
-      if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); }
-      if (e.affectsConfiguration("symphysis.toolsPath")) { store.refreshAll(); changes.refresh(); hookAll(); }
+      if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }
+      if (e.affectsConfiguration("symphysis.toolsPath")) { store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }
       if (e.affectsConfiguration("symphysis.hook.enabled")) hookAll();
     }),
     { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); clearTimeout(helpTimer); } },

@@ -129,6 +129,7 @@ function helpSnapshot() {
 /** Настоящие события указателя: нажатие, сдвиг, отпускание над узлом или над пустым местом. */
 function press(target: Element, dx: number, dy: number) {
   const r = target.getBoundingClientRect();
+    text: body?.textContent ?? "",
   const x = r.left + r.width / 2, y = r.top + r.height / 2;
   const fire = (type: string, cx: number, cy: number) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: cx, clientY: cy, pointerId: 1, button: 0 }));
   fire("pointerdown", x, y);

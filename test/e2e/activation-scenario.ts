@@ -1,4 +1,4 @@
-// Сценарии `activation.mjs`: что сделала сама активация. Имя функции — имя запуска.
+// Сценарии `activation.mjs`: что сделала сама активация и что требует своего окна. Имя функции — имя запуска.
 // `activate` тест не зовёт ни в одном запуске: он поднял бы плагин и там, где событие активации не сработало (F-39).
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
@@ -91,6 +91,41 @@ const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
     assert.ok(help.currentInList, "текущий шаг не отмечен в списке");
     assert.deepEqual(help.violations, []);
     await until("заголовок вкладки без изменения", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Справка"));
+  },
+  // Окно открыто файлом рабочей области: из окна одной папки `updateWorkspaceFolders` перезапускает хост вместе с тестом.
+  "папки меняются при открытой справке: расчёт в момент добавления не оставляет вкладку на «Считается…», новая папка появляется, ушедшая исчезает": async (ext) => {
+    await hookDone(ext);
+    const env = process.env;
+    const drive = driver(() => ext.exports.scheme.webview, ext.exports.scheme.messages);
+    const shown = (what: string, check: (r: any) => unknown) => until(`справка: ${what}`, async () => {
+      const r = await drive("helpSnapshot").catch(() => null);
+      return r?.isHelp && check(r) ? r : null;
+    }, 25000);
+    const folders = (start: number, remove: number, ...add: string[]) => new Promise<void>((resolve) => {
+      const seen = vscode.workspace.onDidChangeWorkspaceFolders(() => { seen.dispose(); resolve(); });
+      assert.ok(vscode.workspace.updateWorkspaceFolders(start, remove, ...add.map((dir) => ({ uri: vscode.Uri.file(dir) }))));
+    });
+    const scenario = path.join(env.SYMPHYSIS_E2E_FORK!, "scenario.json");
+
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await shown("расчёт ещё идёт", (r) => /Считается/.test(r.text));
+    fs.copyFileSync(path.join(env.SYMPHYSIS_E2E_FORK!, "без-задержки.json"), scenario);
+    await folders(1, 0, env.SYMPHYSIS_E2E_THIRD!);
+    const settled = await shown("вкладка ушла с «Считается…»", (r) => r.current);
+    assert.match(settled.current, /intent/);
+    await folders(1, 1);
+
+    // Шим один на все папки: первая перестаёт отвечать, иначе и она назвала бы чужое изменение.
+    const script = path.join(env.SYMPHYSIS_E2E_FIRST!, ".symphysis", "tools", "journal.py");
+    fs.renameSync(script, `${script}.на-время`);
+    await shown("в первой папке инструментов нет", (r) => /Поставь инструменты/.test(r.note ?? ""));
+    fs.copyFileSync(path.join(env.SYMPHYSIS_E2E_FORK!, "вторая-папка.json"), scenario);
+    await folders(1, 0, env.SYMPHYSIS_E2E_SECOND!);
+    const added = await shown("новая папка с активным изменением", (r) => r.name === "новое" && r.current);
+    assert.equal(added.panel, "справка");
+    await folders(1, 1);
+    await shown("ушедшая папка", (r) => r.name === "" && /Поставь инструменты/.test(r.note ?? ""));
+    assert.deepEqual(ext.exports.changes.getChildren(), []);
   },
 };
 

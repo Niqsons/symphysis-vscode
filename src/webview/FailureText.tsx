@@ -1,9 +1,9 @@
-// Что сказать человеку, когда журнал показать нельзя или нельзя вносить.
-import type { CoreFailure } from "../shared/protocol";
+// Что сказать человеку, когда журнал показать нельзя или нельзя вносить, а справку нельзя посчитать.
+import type { HelpFailure } from "../shared/protocol";
 
 const INSTALL = "symphysis install --project . --force";
 
-export function FailureText({ failure, openPythonSetting }: { failure: CoreFailure; openPythonSetting(): void }) {
+export function FailureText({ failure, openPythonSetting }: { failure: HelpFailure; openPythonSetting(): void }) {
   switch (failure.kind) {
     case "no-journal":
       return <>У этого изменения ещё нет <code>decisions.json</code>.</>;
@@ -30,5 +30,9 @@ export function FailureText({ failure, openPythonSetting }: { failure: CoreFailu
       return <>Python не ответил за отведённое время.</>;
     case "crash":
       return <>Ядро не отработало:<pre className="report-lines">{failure.text}</pre></>;
+    case "unreadable":
+      return <>Ответ <code>step_help.py</code> не прочитан. Проверь в терминале, из папки проекта: <code>{failure.command}</code></>;
+    case "no-openspec":
+      return <>В папке <code>{failure.root}</code> нет <code>openspec/</code>: справку считать не для чего.</>;
   }
 }

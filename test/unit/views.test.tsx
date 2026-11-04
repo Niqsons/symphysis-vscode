@@ -256,3 +256,20 @@ test("«Путь мимо инструментов»: отказ называе�
   assert.ok(text.includes(reason), text);
   assert.ok(text.includes("symphysis install --project ."), text);
 });
+
+test("«Вывод не JSON»: отказ говорит, что ответ не прочитан, и называет команду для терминала", () => {
+  const command = 'python "D:/установка/tools/step_help.py" --change имя';
+  const text = renderToStaticMarkup(<FailureText failure={{ kind: "unreadable", command }} openPythonSetting={noop} />);
+  assert.match(text, /не прочитан/);
+  assert.ok(text.includes(`<code>${command.replaceAll('"', "&quot;")}</code>`), text);
+});
+
+test("«Папка без `openspec/`»: отказ говорит, что в этой папке его нет", () => {
+  const text = renderToStaticMarkup(<FailureText failure={{ kind: "no-openspec", root: "D:/папка" }} openPythonSetting={noop} />);
+  assert.ok(text.includes("D:/папка"), text);
+  assert.ok(text.includes("<code>openspec/</code>"), text);
+});
+
+test("Python снят по пределу: прежний текст", () => {
+  assert.equal(renderToStaticMarkup(<FailureText failure={{ kind: "timeout" }} openPythonSetting={noop} />), "Python не ответил за отведённое время.");
+});

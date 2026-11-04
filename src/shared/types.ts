@@ -65,6 +65,44 @@ export interface AttackFile {
   error?: string;
 }
 
+/** Страница шага в выводе `step_help.py`. `state` бывает `null` без графа: нет изменения или форк упал. */
+export interface StepHelpPage {
+  id: string;
+  state: string | null;
+  turn: "human" | "model";
+  optional: boolean;
+  blocks: string[];
+  stops_apply: boolean;
+  waits_for: string[];
+  files: { path: string; exists: boolean }[];
+  file_note: string | null;
+  texts: { title: string; why: string; mechanics: string; if_skipped: string; what_to_check: string; command: string; how_to_prepare: string };
+  text_note: string | null;
+  prev: string | null;
+  next: string | null;
+  /** `base` — где найден файл, `path` от этого каталога; не найден — оба `null`. */
+  skills: { name: string; path: string | null; base: "project" | "install" | null }[];
+}
+
+/** Вывод `step_help.py`: поля в `test_output_shape` ядра, исходы и коды в `step_help.py --help`. Сбой идёт полем `error`, тексты шагов при этом на месте. */
+export interface StepHelpOutput {
+  contract: number;
+  taken_at: string;
+  versions: { openspec: string | null; symphysis: string | null };
+  change: string | null;
+  changes: string[] | null;
+  error: string | null;
+  current_step: string | null;
+  current_text: string | null;
+  turn: "human" | "model" | null;
+  next_by_status: string | null;
+  /** Журнал не читается — слова вместо чисел. */
+  forks: { open: number | string; parked: number | string } | null;
+  tasks: { state: string; total: number; complete: number; remaining: number } | null;
+  steps: StepHelpPage[];
+  file_links: Record<string, string>;
+}
+
 export interface ViewPayload {
   /** Номер контракта с ядром; сверяет `viewJson`, дальше по страницам он не нужен. */
   contract?: number;

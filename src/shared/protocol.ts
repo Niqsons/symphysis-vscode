@@ -14,6 +14,9 @@ export type CoreFailure =
   | { kind: "timeout" }
   | { kind: "crash"; text: string };
 
+/** Отказы справки сверх отказов журнала: `command` — что запустить в терминале, `root` — папка без `openspec/`. */
+export type HelpFailure = CoreFailure | { kind: "unreadable"; command: string } | { kind: "no-openspec"; root: string };
+
 export interface Colors {
   signal: string;
   accent: string;

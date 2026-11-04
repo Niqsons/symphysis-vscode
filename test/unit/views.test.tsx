@@ -1,23 +1,42 @@
 // Состав режимов «проверка» и «атака» по SKILL просмотрщика: рендер в HTML без браузера.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
+import { viewJson } from "../../src/host/core";
+import { tasksFor } from "../../src/host/helpTasks";
+import { changeRef, findTools } from "../../src/host/project";
 import { attackAnchor, lensAnchor, rowAnchor } from "../../src/shared/attack";
 import { buildPrompt, emptyDraft } from "../../src/shared/logic";
 import { search } from "../../src/shared/search";
-import type { AttackFile, AttackRow, Draft, ViewPayload } from "../../src/shared/types";
+import type { HelpView } from "../../src/shared/protocol";
+import type { AttackFile, AttackRow, Draft, StepHelpOutput, ViewPayload } from "../../src/shared/types";
 import { AttackView, LensFilter } from "../../src/webview/AttackView";
 import { CheckView } from "../../src/webview/CheckView";
 import { FailureText } from "../../src/webview/FailureText";
+import { HelpBody } from "../../src/webview/HelpBody";
 import { SearchResults } from "../../src/webview/SearchResults";
+import { TasksPart } from "../../src/webview/Tasks";
 import { Segmented } from "../../src/webview/Segmented";
+import { tempDir } from "../temp-dir.mjs";
+import { makeProject, noCoreReason } from "./fixture-project";
 import { fact, fork, option, payload } from "./helpers";
 
+const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
 const DATE = "2026-11-01";
 const SHA = "a".repeat(64);
 const noop = () => {};
 
 const check = (p: ViewPayload) => renderToStaticMarkup(<CheckView payload={p} />);
+
+/** Вывод `step_help.py` со страницами шагов: поля те же, что у ядра, лишнего тесту не нужно. */
+function helpOutput(over: Partial<StepHelpOutput> = {}): StepHelpOutput {
+  const page = (id: string) => ({ id, state: null, turn: "human", optional: false, blocks: [], stops_apply: false, waits_for: [], files: [], file_note: null, texts: { title: "", why: "", mechanics: "", if_skipped: "", what_to_check: "", command: "", how_to_prepare: "" }, text_note: null, prev: null, next: null, skills: [] } as StepHelpOutput["steps"][number]);
+  return { contract: 2, taken_at: "", versions: { openspec: null, symphysis: null }, change: null, changes: [], error: null, current_step: "intent", current_text: "Активных изменений нет: следующий шаг по файлам — `intent`, ход человека.", turn: "human", next_by_status: null, forks: null, tasks: null, steps: [page("intent"), page("specs")], file_links: {}, ...over };
+}
+const help = (view: Partial<HelpView>) => renderToStaticMarkup(<HelpBody view={{ panel: "help", name: null, outcome: null, pluginVersion: "0.2.0", key: null, ...view }} choose={noop} openPythonSetting={noop} />);
 
 function attack(p: ViewPayload, lens = "all", draft: Draft = emptyDraft()): string {
   return renderToStaticMarkup(<AttackView payload={p} draft={draft} flags={buildPrompt(p, draft, DATE)} lens={lens} update={noop} />);
@@ -31,6 +50,23 @@ const row = (over: Partial<AttackRow> = {}): AttackRow =>
 const file = (rows: AttackRow[], sha = SHA, status = "gaps_found"): AttackFile =>
   ({ path: "openspec/changes/x/attack/decisions.md", frontmatter: { status, targets: [{ path: "decisions.json", sha256: sha }] }, rows });
 const withAttack = (rows: AttackRow[], records = [fork("F-02")], sha = SHA) => payload(records, { attacks: [file(rows, sha)] });
+
+test("«Прежний плагин и новое ядро»: в выводе `view-json` неизвестные поля: номер совпал, журнал показан, поле не мешает", { skip: noCoreReason }, async () => {
+  const { project, tools, change } = makeProject();
+  const env = { python, tools, cwd: project };
+  const ref = changeRef(project, path.basename(change));
+  const real = await viewJson(env, ref);
+  assert.ok(real.ok, JSON.stringify(real));
+  const mark = "ПОЛЕ-НОВОГО-ЯДРА";
+  fs.writeFileSync(path.join(tools, "вывод.json"), JSON.stringify({ ...real.payload, новое_поле: mark, records: real.payload.records.map((r) => ({ ...r, новое_поле: mark })) }), "utf8");
+  fs.writeFileSync(path.join(tools, "journal.py"), 'import pathlib, sys\nsys.stdout.buffer.write(pathlib.Path(__file__).with_name("вывод.json").read_bytes())\n', "utf8");
+  const read = await viewJson(env, ref);
+  assert.ok(read.ok, JSON.stringify(read));
+  assert.equal(read.payload.records.length, real.payload.records.length);
+  const shown = check(read.payload);
+  assert.ok(shown.includes(real.payload.records[0].question), "записи журнала нет на странице");
+  assert.ok(!shown.includes(mark), "неизвестное поле попало на страницу");
+});
 
 test("проверка: только чтение — ни одного поля, переключателя и кнопки", () => {
   const out = check(payload([fork("F-01"), fact("F-02")]));
@@ -248,4 +284,136 @@ test("Прежних данных нет: просмотрщик говорит,
   assert.match(text("tools"), /symphysis install --project \. --force/);
   assert.match(text("vsix"), /D:\/проект/);
   assert.match(text("vsix"), /поставь новый \.vsix/);
+});
+
+test("«Путь мимо инструментов»: отказ называет причину с настройкой и путём, команда установки только запасной ход", () => {
+  const reason = "в настройке symphysis.toolsPath нужен абсолютный путь, а там «tools»";
+  const text = renderToStaticMarkup(<FailureText failure={{ kind: "tools-path", reason }} openPythonSetting={noop} />);
+  assert.ok(text.includes(reason), text);
+  assert.ok(text.includes("symphysis install --project ."), text);
+});
+
+test("«Вывод не JSON»: отказ говорит, что ответ не прочитан, и называет команду для терминала", () => {
+  const command = 'python "D:/установка/tools/step_help.py" --change имя';
+  const text = renderToStaticMarkup(<FailureText failure={{ kind: "unreadable", command }} openPythonSetting={noop} />);
+  assert.match(text, /не прочитан/);
+  assert.ok(text.includes(`<code>${command.replaceAll('"', "&quot;")}</code>`), text);
+});
+
+test("«Папка без `openspec/`»: отказ говорит, что в этой папке его нет", () => {
+  const text = renderToStaticMarkup(<FailureText failure={{ kind: "no-openspec", root: "D:/папка" }} openPythonSetting={noop} />);
+  assert.ok(text.includes("D:/папка"), text);
+  assert.ok(text.includes("<code>openspec/</code>"), text);
+});
+
+test("«Команда палитры»: изменений нет: текущий шаг `intent`, ход человека, пункт отмечен текущим", () => {
+  const html = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput() } });
+  assert.ok(html.includes('<div class="help-current"><b>intent</b> · ход человека</div>'), html);
+  assert.ok(html.includes('<li class="current shown" aria-current="step"><button type="button" class="step">intent</button></li>'), html);
+  assert.ok(html.includes('<li><button type="button" class="step">specs</button></li>'), html);
+});
+
+test("«Сбой форка»: шага нет, `error` дословно, список шагов остаётся", () => {
+  const html = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput({ current_step: null, turn: null, current_text: null, error: "openspec не найден" }) } });
+  assert.ok(html.includes("openspec не найден"), html);
+  assert.ok(!html.includes("help-current"), html);
+  assert.ok(html.includes('<li class="shown"><button type="button" class="step">intent</button></li>'), html);
+});
+
+test("«Несколько активных»: список имён без папки; «Две папки рабочей области»: с именем папки", () => {
+  const one = help({ outcome: { kind: "choice", choices: [{ key: "к1", change: "а", folder: null }, { key: "к2", change: "б", folder: null }] } });
+  assert.ok(one.includes(">а</button>") && one.includes(">б</button>"), one);
+  const two = help({ outcome: { kind: "choice", choices: [{ key: "к1", change: "а", folder: "первая" }, { key: "к2", change: "а", folder: "вторая" }] } });
+  assert.ok(two.includes(">а · первая</button>") && two.includes(">а · вторая</button>"), two);
+});
+
+test("«Схема без изменения»: говорит, что изменение не выбрано, и предлагает выбрать его в списке, ответ расчёта не показан", () => {
+  const html = help({ panel: "scheme", outcome: { kind: "output", root: "D:/п", output: helpOutput() } });
+  assert.match(html, /Изменение не выбрано/);
+  assert.match(html, /в списке/);
+  assert.ok(!html.includes("help-steps"), html);
+});
+
+test("отказ и ожидание: отказ через те же тексты, что у журнала; ответа ещё нет — так и сказано", () => {
+  assert.ok(help({ outcome: { kind: "failure", failure: { kind: "no-tools", root: "D:/п" } } }).includes("symphysis install --project ."));
+  assert.match(help({}), /Считается/);
+});
+
+test("Python снят по пределу: прежний текст", () => {
+  assert.equal(renderToStaticMarkup(<FailureText failure={{ kind: "timeout" }} openPythonSetting={noop} />), "Python не ответил за отведённое время.");
+});
+
+test("«Нет инструментов»: справка называет `symphysis install --project .`, как просмотрщик, настройки нет", () => {
+  const html = help({ outcome: { kind: "failure", failure: { kind: "no-tools", root: "D:/пустая" } } });
+  assert.ok(html.includes("<code>symphysis install --project .</code>"), html);
+  assert.doesNotMatch(html, /toolsPath/);
+  assert.ok(html.includes("<code>.symphysis/tools/journal.py</code>"), html);
+});
+
+test("справка при настройке мимо инструментов называет настройку и путь; `error` дословно, «Как готовить intent.md?» остаётся", () => {
+  const reason = "в каталоге D:/установка из настройки symphysis.toolsPath нет journal.py";
+  const refused = help({ outcome: { kind: "failure", failure: { kind: "tools-path", reason } } });
+  assert.ok(refused.includes(reason), refused);
+  const verbatim = "openspec: не найден <b>как есть</b> `код`";
+  const out = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput({ error: verbatim }) } });
+  assert.ok(out.includes("openspec: не найден &lt;b&gt;как есть&lt;/b&gt; `код`"), out);
+});
+
+test("настоящий `findTools` с настройкой мимо инструментов: причина в справке называет настройку и путь", () => {
+  const project = tempDir("symphysis-проект без инструментов-");
+  const install = tempDir("symphysis-установка с пробелом-");
+  for (const toolsPath of [install, "tools"]) {
+    const found = findTools(project, toolsPath);
+    assert.ok("kind" in found && found.kind === "tools-path", JSON.stringify(found));
+    const html = help({ outcome: { kind: "failure", failure: found as Extract<typeof found, { kind: "tools-path" }> } });
+    const text = html.replace(/<[^>]+>/g, "");
+    assert.ok(text.includes("symphysis.toolsPath"), text);
+    assert.ok(text.includes(toolsPath), text);
+  }
+  assert.ok(path.isAbsolute(install));
+});
+
+// Строка «Задач закрыто N из N» (13.1): числа только из ответа расчёта для изменения открытого журнала.
+const flatText = (html: string) => html.replace(/<[^>]+>/g, "");
+const answer = (change: string, over: Partial<StepHelpOutput> = {}, root = "D:/п") => ({
+  target: { root, change }, outcome: { kind: "output" as const, root, output: helpOutput({ change, tasks: { state: "ready", total: 5, complete: 2, remaining: 3 }, ...over }) },
+});
+const JOURNAL_A = path.join("D:/п", "openspec", "changes", "а");
+const JOURNAL_B = path.join("D:/п", "openspec", "changes", "б");
+
+test("«Задачи идут»: в строке счётчиков «Задач закрыто 2 из 5»", () => {
+  const tasks = tasksFor(JOURNAL_A, answer("а"));
+  assert.deepEqual(tasks, { complete: 2, total: 5 });
+  assert.match(flatText(renderToStaticMarkup(<TasksPart tasks={tasks} />)), /Задач закрыто 2 из 5/);
+});
+
+test("«Все закрыты»: «Задач закрыто 5 из 5»", () => {
+  const tasks = tasksFor(JOURNAL_A, answer("а", { tasks: { state: "all_done", total: 5, complete: 5, remaining: 0 } }));
+  assert.match(flatText(renderToStaticMarkup(<TasksPart tasks={tasks} />)), /Задач закрыто 5 из 5/);
+});
+
+test("«Задач нет»: total 0 или чисел нет — части о задачах нет", () => {
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={tasksFor(JOURNAL_A, answer("а", { tasks: { state: "no_tasks", total: 0, complete: 0, remaining: 0 } }))} />), "");
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={tasksFor(JOURNAL_A, answer("а", { tasks: null }))} />), "");
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={null} />), "");
+  assert.equal(renderToStaticMarkup(<TasksPart tasks={{ complete: 1, total: 0 }} />), "");
+});
+
+test("«Журнал сменился»: числа А журналу Б не достаются, после ответа Б показаны его числа", () => {
+  const forA = answer("а");
+  assert.deepEqual(tasksFor(JOURNAL_A, forA), { complete: 2, total: 5 });
+  assert.equal(tasksFor(JOURNAL_B, forA), null, "до ответа Б части нет");
+  const forB = answer("б", { tasks: { state: "ready", total: 7, complete: 1, remaining: 6 } });
+  assert.deepEqual(tasksFor(JOURNAL_B, forB), { complete: 1, total: 7 });
+});
+
+test("«Журнал сменился»: одноимённое изменение в другой папке — другой журнал, числа не переходят", () => {
+  assert.equal(tasksFor(path.join("D:/вторая", "openspec", "changes", "а"), answer("а")), null);
+});
+
+test("«Сбой расчёта»: `error`, отказ, список на выбор, нет ответа — части о задачах нет", () => {
+  assert.equal(tasksFor(JOURNAL_A, answer("а", { error: "сбой форка" })), null);
+  assert.equal(tasksFor(JOURNAL_A, { target: { root: "D:/п", change: "а" }, outcome: { kind: "failure", failure: { kind: "timeout" } } }), null);
+  assert.equal(tasksFor(JOURNAL_A, { target: { roots: ["D:/п"] }, outcome: { kind: "choice", choices: [] } }), null);
+  assert.equal(tasksFor(JOURNAL_A, null), null);
 });

@@ -3,8 +3,9 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { FORK_APPLY, forkScenario, forkStatus, forkStatusAll, installForkShim } from "../fork-shim.mjs";
 import { tempDir } from "../temp-dir.mjs";
-import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report } from "./harness.mjs";
+import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 
 const STAGE_LIMIT_MS = 60000;
 
@@ -14,13 +15,21 @@ projectWithTools(project);
 const change = addChange(project, "со-схемой");
 fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(change, "decisions.json"));
 fs.writeFileSync(path.join(change, "scheme.md"), "```mermaid\nflowchart TD\n  A --> B\n```\n", "utf8");
+fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(addChange(project, "другое"), "decisions.json"));
 
 const results = path.join(repo, "out", "e2e", "reload-results.json");
 const state = path.join(work, "state.json");
 fs.rmSync(results, { force: true });
-fs.writeFileSync(path.join(project, "reload-probe.json"), JSON.stringify({ results, state }), "utf8");
+
+// Форк шимом: `step_help.py` настоящий, а форка в этой среде может не быть. Ответы меняет этап вместе с каталогами изменений.
+const forkDir = path.join(work, "шим форка");
+const active = (...names) => ({ status_all: forkStatusAll(...names), status: forkStatus(project, names[0] ?? "нет"), apply: FORK_APPLY });
+const fork = installForkShim(SYMPHYSIS, forkDir, active("со-схемой", "другое"));
+const scenarios = { "другое": forkScenario(active("другое")), "пусто": forkScenario(active()) };
+fs.writeFileSync(path.join(project, "reload-probe.json"), JSON.stringify({ results, state, fork: forkDir, scenarios }), "utf8");
 
 cleanEnv();
+Object.assign(process.env, fork.env);
 const launch = () => spawn(CODE, [project, `--extensionDevelopmentPath=${repo}`, `--extensionDevelopmentPath=${path.join(repo, "test", "e2e", "reload-host")}`, "--disable-extensions",
   "--user-data-dir", path.join(work, "profile"), "--extensions-dir", path.join(work, "extensions"), "--skip-welcome", "--skip-release-notes", "--disable-workspace-trust"], { stdio: "ignore" });
 const phase = () => (fs.existsSync(state) ? JSON.parse(fs.readFileSync(state, "utf8")) : { stage: 0 });

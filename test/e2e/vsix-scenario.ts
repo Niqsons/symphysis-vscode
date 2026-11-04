@@ -4,11 +4,13 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { assertReadme, readReadme } from "../package-readme";
 import { results, sleep, step, until } from "./steps";
 
 const ID = "symphysis.symphysis-vscode";
 /** Белый список .vscodeignore: забытый файл молча даёт пустую панель, лишний — утечку исходников. */
-const PACKAGE = [".vsixmanifest", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json"];
+/** vsce кладёт README.md в установленное расширение под именем readme.md. */
+const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/help.js", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json", "readme.md"];
 
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;
@@ -24,6 +26,11 @@ export async function run(): Promise<void> {
       .map((f) => f.replace(/\\/g, "/"))
       .sort();
     assert.deepEqual(files, PACKAGE);
+  });
+
+  await step("описание в пакете: README.md называет записи хука, настройку и ручную уборку; недоверенные папки не поддерживаются", async () => {
+    assertReadme(readReadme(path.join(ext!.extensionPath, "readme.md")));
+    assert.equal(ext!.packageJSON.capabilities.untrustedWorkspaces.supported, false);
   });
 
   await step("версия установленного: версия пакета и хеш коммита, как в имени файла", async () => {
@@ -50,6 +57,12 @@ export async function run(): Promise<void> {
   await step("вкладка схемы: кнопка и команда объявлены пакетом, открывается рядом с просмотрщиком", async () => {
     await vscode.commands.executeCommand("symphysis.openScheme", change("с-атакой"));
     await until("вкладка схемы", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Схема: с-атакой"));
+  });
+
+  await step("справка: команда объявлена пакетом, вкладка та же, заголовок называет показанное", async () => {
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("заголовок справки", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Справка: с-атакой"));
+    assert.ok(!vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Схема: с-атакой"), "вторая вкладка");
   });
 
   await step("поиск и оглавления объявлены пакетом и открываются", async () => {

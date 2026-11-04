@@ -5,7 +5,8 @@ import { isHumanOption } from "../shared/ops";
 import { NOTES_ANCHOR } from "../shared/search";
 import { ADDRESSEES, type JournalRecord, type ViewPayload } from "../shared/types";
 import { PickedOption, ShaChip, VerdictBadge } from "./AttackView";
-import { EvidenceLine, Text } from "./Card";
+import { EvidenceLine } from "./Card";
+import { Text } from "./Text";
 
 function Record({ rec, anchor }: { rec: JournalRecord; anchor: boolean }) {
   const isFact = rec.kind === "факт";

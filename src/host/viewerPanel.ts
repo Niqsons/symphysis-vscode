@@ -3,8 +3,11 @@
 import * as vscode from "vscode";
 import { applyFlow } from "./apply";
 import type { CoreEnv } from "./core";
+import { sameTasks } from "./helpTasks";
+import { lineOf, resolveLink } from "./links";
+import { openBeside } from "./openFile";
 import { pageHtml } from "./page";
-import { deleteDraft, readDraft, readScheme, writeDraft, type ChangeRef } from "./project";
+import { deleteDraft, readDraft, readScheme, writeDraft } from "./project";
 import type { ChangeState, JournalStore } from "./store";
 import { asleepTab } from "./tabs";
 import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState, type ViewMode } from "../shared/protocol";
@@ -18,25 +21,31 @@ const SHOWN_KEY = "symphysis.shownJournal";
 export interface ViewerDeps {
   context: vscode.ExtensionContext;
   store: JournalStore;
-  coreEnv(ref: ChangeRef): CoreEnv | CoreFailure;
+  coreEnv(root: string): CoreEnv | CoreFailure;
   colors(): Colors;
   onShown(key: string | null): void;
   onDraft(key: string, draft: Draft): void;
   openScheme(key: string): void;
+  /** Числа задач из последнего ответа расчёта справки для этого журнала (13.1). */
+  tasksOf(key: string): JournalView["tasks"];
 }
 
 const isFailure = (v: CoreEnv | CoreFailure): v is CoreFailure => "kind" in v;
 
-function toView(state: ChangeState): JournalView {
-  return { key: state.ref.dir, name: state.ref.name, payload: state.payload, failure: state.failure, loading: state.loading, scheme: readScheme(state.ref.dir).text };
-}
 
 export class ViewerPanel {
+  private toView(state: ChangeState): JournalView {
+    this.sentTasks = this.deps.tasksOf(state.ref.dir);
+    return { key: state.ref.dir, name: state.ref.name, payload: state.payload, failure: state.failure, loading: state.loading, scheme: readScheme(state.ref.dir).text, tasks: this.sentTasks };
+  }
+
   private panel: vscode.WebviewPanel | null = null;
   private ready = false;
   private key: string | null = null;
   private applying = false;
   private pendingNode: string | null = null;
+  /** Числа задач в последних данных, ушедших странице. */
+  private sentTasks: JournalView["tasks"] = null;
 
   constructor(private readonly deps: ViewerDeps) {}
 
@@ -78,7 +87,14 @@ export class ViewerPanel {
   /** Журнал обновился: страница получает новые данные, черновик у неё остаётся. */
   journalUpdated(key: string): void {
     const state = this.deps.store.get(key);
-    if (this.panel && this.ready && key === this.key && state) void this.post({ type: "journal", view: toView(state) });
+    if (this.panel && this.ready && key === this.key && state) void this.post({ type: "journal", view: this.toView(state) });
+  }
+
+  /** Пришёл ответ расчёта справки: числа задач обновляются, просмотрщик ничего не ждал. Числа те же — сообщения нет: оно перерисовало бы все карточки, пока человек пишет слово (F-42). */
+  tasksChanged(): void {
+    const state = this.key ? this.deps.store.get(this.key) : undefined;
+    if (!this.panel || !this.ready || !state) return;
+    if (!sameTasks(this.deps.tasksOf(state.ref.dir), this.sentTasks)) void this.post({ type: "journal", view: this.toView(state) });
   }
 
   colorsChanged(): void {
@@ -154,7 +170,7 @@ export class ViewerPanel {
     this.panel.title = `Журнал: ${state.ref.name}`;
     const { draft, damaged } = readDraft(state.ref.root, state.ref.name);
     this.deps.onDraft(state.ref.dir, draft);
-    void this.post({ type: "show", view: toView(state), draft, damagedDraft: damaged, colors: this.deps.colors(), ui: this.ui() });
+    void this.post({ type: "show", view: this.toView(state), draft, damagedDraft: damaged, colors: this.deps.colors(), ui: this.ui() });
     if (this.pendingNode) {
       void this.post({ type: "node", id: this.pendingNode });
       this.pendingNode = null;
@@ -193,10 +209,20 @@ export class ViewerPanel {
       case "openScheme":
         this.deps.openScheme(m.key);
         return;
+      case "openFile":
+        await this.openFile(m.link, m.line);
+        return;
       case "openPythonSetting":
         await vscode.commands.executeCommand("workbench.action.openSettings", "symphysis.python");
         return;
     }
+  }
+
+  /** Путь берётся из карты показанного вывода, из сообщения страницы он не приходит никогда (F-44, F-54). */
+  private async openFile(link: unknown, line: unknown): Promise<void> {
+    const state = this.key ? this.deps.store.get(this.key) : undefined;
+    const file = resolveLink(state?.payload?.file_links, link, state?.ref.root);
+    if (file) await openBeside(file, lineOf(line));
   }
 
   private async reset(key: string): Promise<void> {
@@ -211,9 +237,11 @@ export class ViewerPanel {
   private async apply(m: Extract<PageMessage, { type: "apply" }>): Promise<void> {
     const report = (result: ApplyReport) => this.post({ type: "applied", key: m.key, result });
     if (this.applying) return;
+    // Дата приходит со страницы и становится именем файла в `answers/`. На хосте её не считать: при удалённом хосте сменится пояс.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(m.date)) return void report({ stage: "error", text: "дата не в форме ГГГГ-ММ-ДД" });
     const state = this.deps.store.get(m.key);
     if (!state) return void report({ stage: "error", text: "изменение не найдено" });
-    const env = this.deps.coreEnv(state.ref);
+    const env = this.deps.coreEnv(state.ref.root);
     if (isFailure(env)) return void report({ stage: "error", text: `ядро недоступно (${env.kind})` });
     this.applying = true;
     try {

@@ -8,6 +8,12 @@ const api = acquireVsCodeApi();
 const violations: string[] = [];
 document.addEventListener("securitypolicyviolation", (e) => violations.push(`${e.violatedDirective}: ${e.blockedURI}`));
 
+// Сколько раз хост прислал новые данные журнала: каждый раз перерисовываются все карточки.
+let journalMessages = 0;
+window.addEventListener("message", (ev) => {
+  if (ev.data?.type === "journal") journalMessages++;
+});
+
 const setValue = (el: HTMLTextAreaElement | HTMLInputElement, value: string) => {
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, value);
@@ -53,6 +59,7 @@ function snapshot() {
     violations: [...violations],
     scrollTop: document.querySelector("main")?.scrollTop ?? 0,
     overflowX: overflowX(),
+    journalMessages,
   };
 }
 
@@ -89,6 +96,7 @@ function schemeSnapshot() {
   }
   return {
     state: stage?.dataset.state ?? "",
+    panel: document.querySelector(".panel-switch .active")?.textContent ?? "",
     plates: [...document.querySelectorAll<HTMLElement>("#plates .note")].map((n) => n.textContent ?? ""),
     openButton: !!buttonByText(document, "Открыть scheme.md"),
     source: source && !source.hidden ? source.textContent : null,
@@ -102,6 +110,27 @@ function schemeSnapshot() {
     jsLinks: svg ? [...svg.querySelectorAll("a")].filter((a) => /javascript:/i.test(a.getAttribute("href") ?? a.getAttribute("xlink:href") ?? "")).length : 0,
     violations: [...violations],
     stageWidth: stage?.clientWidth ?? 0,
+  };
+}
+
+/** Страница справки на той же вкладке. */
+function helpSnapshot() {
+  const body = document.querySelector<HTMLElement>(".help-body");
+  return {
+    isHelp: !!body,
+    panel: document.querySelector(".panel-switch .active")?.textContent ?? "",
+    name: document.querySelector(".scheme-name")?.textContent ?? "",
+    current: document.querySelector(".help-current")?.textContent ?? null,
+    steps: [...document.querySelectorAll<HTMLElement>(".help-steps li")].map((l) => l.textContent ?? ""),
+    currentInList: document.querySelector('.help-steps [aria-current="step"]')?.textContent ?? null,
+    page: document.querySelector(".help-page")?.getAttribute("data-step") ?? null,
+    rules: !!document.querySelector(".help-page[data-rules]"),
+    versions: document.querySelector(".help-versions")?.textContent ?? null,
+    nextDisabled: [...document.querySelectorAll<HTMLButtonElement>(".help-nav button")].find((b) => b.textContent === "следующий")?.disabled ?? null,
+    choices: [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].map((b) => b.textContent ?? ""),
+    note: document.querySelector(".help-body .note")?.textContent ?? null,
+    text: body?.textContent ?? "",
+    violations: [...violations],
   };
 }
 
@@ -122,6 +151,45 @@ async function drive(m: any): Promise<unknown> {
       return snapshot();
     case "schemeSnapshot":
       return schemeSnapshot();
+    case "helpSnapshot":
+      return helpSnapshot();
+    case "panelSwitch": {
+      // Ответ без ожидания: хост заменит страницу, и позже отвечать будет некому.
+      const b = buttonByText(document.querySelector(".panel-switch")!, m.text);
+      if (!b) throw new Error(`нет положения «${m.text}»`);
+      b.click();
+      return null;
+    }
+    case "post":
+      // Страница может прислать что угодно: хост не должен этому верить.
+      api.postMessage(m.message);
+      return null;
+    case "helpClick": {
+      // Кнопка справки по тексту: шаг в списке, «предыдущий», «следующий», «Как готовить intent.md?».
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".help-body button, .scheme-bar button")].find((x) => x.textContent === m.text);
+      if (!b) throw new Error(`нет кнопки «${m.text}»`);
+      b.click();
+      await settle();
+      return helpSnapshot();
+    }
+    case "helpLinks":
+      return [...document.querySelectorAll<HTMLElement>(".help-page [data-file-link]")].map((x) => x.dataset.fileLink);
+    case "helpFileLink": {
+      // Настоящий клик по ссылке на файл шага.
+      const links = [...document.querySelectorAll<HTMLElement>(".help-page [data-file-link]")];
+      const link = m.key ? links.find((x) => x.dataset.fileLink === m.key) : links[0];
+      if (!link) throw new Error(`нет ссылки на файл шага ${m.key ?? ""}`);
+      link.click();
+      await settle();
+      return { key: link.dataset.fileLink, links: links.map((x) => x.dataset.fileLink) };
+    }
+    case "helpChoose": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].find((x) => x.textContent === m.text);
+      if (!b) throw new Error(`нет строки «${m.text}»`);
+      b.click();
+      await settle();
+      return helpSnapshot();
+    }
     case "schemeNode": {
       const node = [...document.querySelectorAll("#canvas g.node")].find((n) => n.id.includes(`-${m.id}-`));
       if (!node) throw new Error(`нет узла ${m.id}`);
@@ -141,6 +209,15 @@ async function drive(m: any): Promise<unknown> {
       await settle();
       return schemeSnapshot();
     }
+    case "link": {
+      const b = card!.querySelector<HTMLElement>(`[data-file-link="${m.key}"]`);
+      if (!b) throw new Error(`нет ссылки ${m.key} в ${m.id}`);
+      b.click();
+      break;
+    }
+    case "checkedLetter":
+      // Выбор живёт в свойстве радиокнопки, в атрибуте `checked` его нет.
+      return card!.querySelector<HTMLInputElement>("input[type=radio]:checked")?.value ?? null;
     case "cardHtml":
       return card?.outerHTML ?? null;
     case "choose": {

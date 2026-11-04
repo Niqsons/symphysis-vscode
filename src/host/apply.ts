@@ -1,7 +1,8 @@
 // «Внести»: только этим путём слово человека идёт в журнал, и только по клику в странице — иначе внесёт агент.
 import fs from "node:fs";
+import path from "node:path";
 import { applyAnswers, rebuild, viewJson, type CoreEnv } from "./core";
-import { saveAnswers, sha256File, type ChangeRef } from "./project";
+import { appendEvent, hasSessionCursors, hookAcceptsChange, saveAnswers, sha256File, type ChangeRef } from "./project";
 
 export interface ApplyInput {
   env: CoreEnv;
@@ -15,7 +16,11 @@ export type ApplyOutcome =
   | { stage: "stale" }
   | { stage: "refused"; report: string[] }
   | { stage: "error"; text: string }
-  | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string };
+  | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string | null };
+
+const eventLost = (reason: string) => `[!!] Журнал внесён, но событие для агента не записалось (${reason}): агенту надо сказать самому.`;
+const NAME_HIDDEN = "[!!] Журнал внесён, но хук такое имя изменения не покажет: агенту надо сказать самому.";
+const NO_SESSIONS = "[!!] Ни одна сессия агента ещё не обращалась через хук в этом проекте, агенту в другом каталоге надо сказать самому.";
 
 function currentSha(file: string): string | null {
   try {
@@ -23,6 +28,22 @@ function currentSha(file: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Событие для хука. Журнал уже внесён, поэтому сбой здесь не отказ, а предупреждение к отчёту (F-70, F-99). Возвращает строки предупреждений. */
+function tellAgent(ref: ChangeRef, answers: string, before: string, after: string | null, report: string[]): string[] {
+  const warnings: string[] = [];
+  if (!hookAcceptsChange(ref.name)) {
+    // Строку скрипт отбросил бы молча: человек считал бы, что агент узнает.
+    warnings.push(NAME_HIDDEN);
+  } else if (after === null) {
+    warnings.push(eventLost("журнал не прочитать"));
+  } else {
+    const written = appendEvent(ref.root, { change: ref.name, answers: path.relative(ref.root, answers).split(path.sep).join("/"), sha256_before: before, sha256_after: after, report });
+    if (!written.ok) warnings.push(eventLost(written.reason));
+  }
+  if (!hasSessionCursors(ref.root)) warnings.push(NO_SESSIONS);
+  return warnings;
 }
 
 export async function applyFlow({ env, ref, text, shownSha, date }: ApplyInput): Promise<ApplyOutcome> {
@@ -39,6 +60,9 @@ export async function applyFlow({ env, ref, text, shownSha, date }: ApplyInput):
     fs.unlinkSync(answers);
     return { stage: "refused", report: applied.report };
   }
+  // Событие до сборки: журнал уже внесён, упавшая сборка этого не отменяет.
+  const sha256After = currentSha(ref.journal);
+  const warnings = tellAgent(ref, answers, shownSha, sha256After, applied.report);
   const rebuilt = await rebuild(env, ref);
-  return { stage: "applied", answers, report: applied.report, rebuildOk: rebuilt.ok, rebuildReport: rebuilt.report, sha256After: sha256File(ref.journal) };
+  return { stage: "applied", answers, report: [...applied.report, ...warnings], rebuildOk: rebuilt.ok, rebuildReport: rebuilt.report, sha256After };
 }

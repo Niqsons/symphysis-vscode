@@ -10,12 +10,14 @@ import { nodeInScheme } from "../shared/scheme";
 import { NOTES_ANCHOR } from "../shared/search";
 import type { Draft, JournalRecord, ViewPayload } from "../shared/types";
 import { AttackView, LensFilter } from "./AttackView";
-import { Card, Text, type CardContext } from "./Card";
+import { Card, type CardContext } from "./Card";
+import { LinksContext, Text, type LinksValue } from "./Text";
 import { CheckView } from "./CheckView";
 import { FailureText } from "./FailureText";
 import { applyColors } from "./colors";
 import { ReturnPanel } from "./ReturnPanel";
 import { Segmented } from "./Segmented";
+import { TasksPart } from "./Tasks";
 
 const MODES: { mode: ViewMode; label: string; title: string }[] = [
   { mode: "decisions", label: "решения", title: "круг просмотрщика: варианты, слово, парковка, промпт возврата" },
@@ -224,7 +226,7 @@ export function App() {
         onNode(m.id);
       } else if (m.type === "applied") {
         if (m.key !== keyRef.current) return;
-        if (m.result.stage === "applied") ownShas.current.add(m.result.sha256After);
+        if (m.result.stage === "applied" && m.result.sha256After) ownShas.current.add(m.result.sha256After);
         applyingRef.current = false;
         setApplying(false);
         setResult(m.result);
@@ -241,6 +243,8 @@ export function App() {
   const prompt = useMemo(() => (payload ? buildPrompt(payload, draft, localDate()) : null), [payload, draft]);
   const counts = useMemo(() => (payload ? stats(payload, draft) : null), [payload, draft]);
   const attackRows = useMemo(() => (payload ? lensFilters(payload.attacks).total : 0), [payload]);
+
+  const linksValue = useMemo<LinksValue>(() => ({ links: payload?.file_links, open: (link, line) => post({ type: "openFile", link, line }) }), [payload?.file_links]);
 
   const onApply = () => {
     if (!prompt || !payload || !keyRef.current) return;
@@ -274,6 +278,7 @@ export function App() {
   };
 
   return (
+    <LinksContext.Provider value={linksValue}>
     <div className="page">
       <header className="top">
         <div className="top-row">
@@ -282,7 +287,7 @@ export function App() {
             className="modes" value={ui.mode} onChange={(mode) => setMode(mode)}
             items={MODES.map(({ mode, label, title }) => ({ value: mode, title, label: `${label}${mode === "attack" && attackRows > 0 ? ` · ${attackRows}` : ""}` }))}
           />
-          <button type="button" className="small" onClick={() => post({ type: "openScheme", key: view.key })} title="схема решения рядом: scheme.md этого изменения">схема</button>
+          <button type="button" className="small" onClick={() => post({ type: "openScheme", key: view.key })} title="рядом с карточками: схема решения из scheme.md или справка о шаге конвейера">схема · справка</button>
           <span className="spacer" />
           {view.loading && ui.mode !== "decisions" && <span className="muted">перечитывается…</span>}
           {ui.mode !== "check" && <button type="button" className="small" onClick={() => post({ type: "reset", key: view.key })} title="убрать весь черновик этого журнала">Сбросить</button>}
@@ -311,6 +316,7 @@ export function App() {
             {" "}· открыто <b className={counts.open ? "accent" : ""}>{counts.open}</b>{hiddenOpen > 0 && <> · из них скрыто условием <b className="accent">{hiddenOpen}</b></>} · с парковкой <b>{counts.parked}</b> · фактов <b>{counts.facts}</b>
             {counts.disputed > 0 && <> · оспорено <b>{counts.disputed}</b></>}
             {counts.newForks > 0 && <> · новых развилок <b>{counts.newForks}</b></>}
+            <TasksPart tasks={view.tasks} />
             {" "}· <span className="muted">улик сверено {payload.stats.evidence_found} из {payload.stats.evidence_total}</span>
             {counts.quoteMissing > 0 && <> · <b className="signal">цитат не найдено: {counts.quoteMissing}</b></>}
             {view.loading && <span className="muted"> · перечитывается…</span>}
@@ -360,5 +366,6 @@ export function App() {
         />
       )}
     </div>
+    </LinksContext.Provider>
   );
 }

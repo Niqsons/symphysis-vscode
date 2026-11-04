@@ -1,9 +1,10 @@
-// Файлы проекта: где ядро, какие изменения, ответы человека, черновики. Расширение пишет только в `.symphysis/viewer/` (Р4)
-// и в `answers/` изменения (Р8).
+// Файлы проекта: где ядро, какие изменения, ответы человека, черновики, события для хука. Расширение пишет только в `.symphysis/viewer/` (Р4),
+// в `answers/` изменения (Р8) и для хука в `.claude/settings.local.json`, `.opencode/plugins/`, `.git/info/exclude` (F-47).
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { emptyDraft, normalizeDraft } from "../shared/logic";
+import type { CoreFailure } from "../shared/protocol";
 import { parseScheme, type ParsedScheme } from "../shared/scheme";
 import type { Draft } from "../shared/types";
 
@@ -19,16 +20,41 @@ export interface ChangeRef {
 const CHANGES = path.join("openspec", "changes");
 const VIEWER = path.join(".symphysis", "viewer");
 
+/** Где ядро или почему его нет. `installDir` — каталог установки по настройке, есть только у инструментов по ней. */
+export type ToolsLookup = { dir: string; installDir?: string } | Extract<CoreFailure, { kind: "no-tools" | "tools-path" }>;
+
 /** Установленное ядро важнее `tools/`: у репозитория symphysis есть оба, и работает он как установленный проект. */
-export function findTools(root: string): string | null {
-  for (const dir of [path.join(root, ".symphysis", "tools"), path.join(root, "tools")]) {
-    if (fs.existsSync(path.join(dir, "journal.py"))) return dir;
-  }
-  return null;
+const toolsDirs = (root: string) => [path.join(root, ".symphysis", "tools"), path.join(root, "tools")];
+const withJournal = (dirs: string[]) => dirs.find((dir) => fs.existsSync(path.join(dir, "journal.py")));
+
+/**
+ * Проект важнее настройки `symphysis.toolsPath` (F-62): она смотрится, только если в проекте инструментов нет.
+ * Разбор как у `symphysis.python`: относительный путь считался бы от случайного каталога и отвергается с причиной. Настройка мимо инструментов называется, а не выдаётся за их отсутствие.
+ */
+export function findTools(root: string, toolsPath?: string): ToolsLookup {
+  const own = withJournal(toolsDirs(root));
+  if (own) return { dir: own };
+  if (!toolsPath) return { kind: "no-tools", root };
+  if (!path.isAbsolute(toolsPath)) return { kind: "tools-path", reason: `в настройке symphysis.toolsPath нужен абсолютный путь, а там «${toolsPath}»` };
+  const dir = withJournal([...toolsDirs(toolsPath), toolsPath]);
+  return dir ? { dir, installDir: installDirOf(toolsPath) } : { kind: "tools-path", reason: `в каталоге ${toolsPath} из настройки symphysis.toolsPath нет journal.py: ни в .symphysis/tools, ни в tools, ни в нём самом` };
 }
 
+/**
+ * Каталог установки по настройке `symphysis.toolsPath`: в нём ядро ищет скиллы, от него их открывает плагин (F-91). Настройка бывает и на сам каталог инструментов:
+ * `<x>/tools` и `<x>/.symphysis/tools` дают `<x>`. Каталог, в котором инструменты лежат глубже, остаётся собой, как бы он ни назывался.
+ */
+export function installDirOf(toolsPath: string): string {
+  const dir = path.resolve(toolsPath);
+  if (path.basename(dir) !== "tools" || withJournal(toolsDirs(dir))) return dir;
+  const up = path.dirname(dir);
+  return path.basename(up) === ".symphysis" ? path.dirname(up) : up;
+}
+
+export const changeDir = (root: string, name: string) => path.join(root, CHANGES, name);
+
 export function changeRef(root: string, name: string): ChangeRef {
-  const dir = path.join(root, CHANGES, name);
+  const dir = changeDir(root, name);
   const journal = path.join(dir, "decisions.json");
   let attacks: string[] = [];
   try {
@@ -97,16 +123,84 @@ export function readDraft(root: string, name: string): { draft: Draft; damaged: 
   }
 }
 
-/** Запись через временный файл и переименование: обрыв не оставит половину черновика. Каталог сам себя исключает из git. */
-export function writeDraft(root: string, name: string, draft: Draft): void {
+export type WriteResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Проверка перед записью без действия человека: реальный путь каталога назначения лежит внутри проекта, сам файл не ссылка (`security.md`).
+ * `.claude` или `.symphysis/viewer` в чужом репозитории могут быть ссылкой, и запись ушла бы наружу. Возвращает причину отказа или `null`.
+ */
+export function writeRefusal(root: string, file: string): string | null {
+  const shown = (p: string) => path.relative(root, p).split(path.sep).join("/");
+  try {
+    let dir = path.dirname(file);
+    while (!fs.lstatSync(dir, { throwIfNoEntry: false }) && path.dirname(dir) !== dir) dir = path.dirname(dir);
+    const rel = path.relative(fs.realpathSync(root), fs.realpathSync(dir));
+    if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return `${shown(dir)} ведёт за пределы проекта: плагин туда не пишет`;
+    if (fs.lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) return `${shown(file)} это ссылка: плагин через неё не пишет`;
+    return null;
+  } catch (e) {
+    return `${shown(file)}: не проверить, куда ведёт путь (${String(e)})`;
+  }
+}
+
+/** То же для файла в `.symphysis/viewer/`. Проверяется и `.gitignore`: его напишет `viewerDir`. */
+export function viewerRefusal(root: string, name: string): string | null {
+  const dir = path.join(root, VIEWER);
+  return writeRefusal(root, path.join(dir, name)) ?? writeRefusal(root, path.join(dir, ".gitignore"));
+}
+
+/** Каталог для записи: черновик, событие и файлы хука идут через эту функцию, поэтому каталог всегда сам себя исключает из git. */
+export function viewerDir(root: string): string {
   const dir = path.join(root, VIEWER);
   fs.mkdirSync(dir, { recursive: true });
   const ignore = path.join(dir, ".gitignore");
   if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, "*\n", "utf8");
+  return dir;
+}
+
+/** Запись через временный файл и переименование: обрыв не оставит половину черновика. */
+export function writeDraft(root: string, name: string, draft: Draft): void {
+  viewerDir(root);
   const file = draftFile(root, name);
   const temp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temp, JSON.stringify(draft, null, 1), "utf8");
   fs.renameSync(temp, file);
+}
+
+/**
+ * Покажет ли хук событие этого изменения: та же форма, что `valid_name` в `hook/hook.py` (`security.md`). Длина в знаках, как `len` в Python, а не в единицах UTF-16.
+ * Обе стороны сверяет `test/unit/hook-script.test.ts`.
+ */
+export const hookAcceptsChange = (name: string): boolean => [...name].length <= 100 && /^[\p{L}\p{N}_][\p{L}\p{N}_.-]*$/u.test(name);
+
+/** Строка `events.jsonl`. Поля читает `hook/hook.py`. */
+export interface JournalEvent {
+  change: string;
+  answers: string;
+  sha256_before: string;
+  sha256_after: string;
+  report: string[];
+}
+
+/** Один вызов на строку: хук читает файл параллельно, а неполную последнюю строку оставляет на следующее обращение. */
+export function appendEvent(root: string, event: JournalEvent): WriteResult {
+  const refusal = viewerRefusal(root, "events.jsonl");
+  if (refusal) return { ok: false, reason: refusal };
+  try {
+    fs.appendFileSync(path.join(viewerDir(root), "events.jsonl"), `${JSON.stringify(event)}\n`, "utf8");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
+}
+
+/** Курсор появляется при первом срабатывании хука: нет ни одного — хук в этом проекте ни разу не срабатывал (F-99). */
+export function hasSessionCursors(root: string): boolean {
+  try {
+    return fs.readdirSync(path.join(root, VIEWER, "sessions")).some((f) => f.endsWith(".json"));
+  } catch {
+    return false;
+  }
 }
 
 /** `unlinkSync`, не `rmSync`: `rmSync` в Node 24 на Windows молча не удаляет файл, если в пути кириллица. */

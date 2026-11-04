@@ -182,3 +182,20 @@ mark { color: inherit; background: var(--vscode-editor-findMatchHighlightBackgro
 #canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 #canvas g.node { cursor: pointer; }
 #source { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: 8px 10px; font-family: var(--vscode-editor-font-family, monospace); }
+/* справка на той же вкладке */
+.help-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px; }
+.help-current { font-size: 1.1em; margin-bottom: 6px; }
+.help-steps { margin: 8px 0; padding-left: 22px; }
+.help-steps .current { font-weight: 600; color: var(--vscode-textLink-foreground); }
+.help-choices { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+a.filelink { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; }
+a.filelink:hover { color: var(--vscode-textLink-activeForeground); }
+a.filelink code { color: inherit; }
+.help-steps button.step { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.help-steps .shown button.step { text-decoration: underline; }
+.help-nav { display: flex; gap: 6px; margin: 8px 0; }
+.help-page h2 { margin: 6px 0; font-size: 1.1em; }
+.help-section { margin: 8px 0; }
+.help-text { white-space: pre-wrap; }
+.help-files ul, .help-skills ul { margin: 2px 0 8px; padding-left: 20px; }
+.help-versions { margin-top: 18px; font-size: .85em; }

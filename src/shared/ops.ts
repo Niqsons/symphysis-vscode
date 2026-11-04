@@ -1,7 +1,7 @@
 // Правки черновика человеком и счётчики: чистые функции, прежний объект не меняется — React сравнивает записи по ссылке.
-import { ADDED_MARK, chosen, nextLetter } from "./logic";
+import { chosen, isHumanOption, nextLetter } from "./logic";
 import type { RecordFilter } from "./protocol";
-import type { DecisionDraft, Draft, Evidence, JournalOption, JournalRecord, ViewPayload } from "./types";
+import type { DecisionDraft, Draft, Evidence, JournalRecord, ViewPayload } from "./types";
 
 const decision = (d: Draft, id: string): DecisionDraft => d.decisions[id] ?? { choice: null, word: "", parked: [] };
 const withDecision = (d: Draft, id: string, patch: Partial<DecisionDraft>): Draft =>
@@ -70,7 +70,7 @@ export function addNewFork(d: Draft, question: string, options: string, word: st
 
 export const removeNewFork = (d: Draft, id: string): Draft => ({ ...d, newForks: d.newForks.filter((f) => f.id !== id) });
 
-export const isHumanOption = (o: JournalOption): boolean => o.added || o.text.includes(ADDED_MARK);
+export { isHumanOption };
 
 /** Уровень цвета улики (Р21). «Корня нет» — особенность запуска, не находка; «не проверить» — файл не текст. */
 export function evidenceLevel(ev: Evidence): "muted" | "signal" {

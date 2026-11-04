@@ -1,15 +1,14 @@
 // Карточка записи в режиме «решения». Показано всё: варианты с «маловероятно» и причиной, рекомендация под списком,
 // антиподы, зависимости, парковки, улики — убрать вариант значило бы решить за человека.
-import { memo, useState } from "react";
-import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps } from "../shared/logic";
+import { memo, useContext, useState } from "react";
+import { ownLink } from "../shared/links";
+import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps, WORD_NEEDED_TEXT, wordMissing } from "../shared/logic";
 import { addDep, addOption, choose, clearChoice, evidenceLevel, isHumanOption, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
 import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type JournalRecord, type ViewPayload } from "../shared/types";
+import { FileLink, LinksContext, Text } from "./Text";
 
 const ONE_WAY = "в одну сторону";
 const PARK_HINT = "Парковка — дополнительный вопрос, который нельзя закрыть сейчас: он уходит адресату. «материалы» — ответ ищет агент, в файлах или пробой (исследование), «человек» — нужно решение человека, «ИБ» — проверка по чек-листу безопасности. Решение по самой развилке парковка не снимает.";
-
-/** Единственная разметка данных журнала — пары backticks; остальное React показывает текстом. */
-export const Text = ({ s }: { s: string }) => <>{String(s ?? "").split(/`([^`]+)`/).map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part))}</>;
 
 function verdictText(ev: Evidence): string {
   if (ev.found === true) return "сверено";
@@ -17,11 +16,15 @@ function verdictText(ev: Evidence): string {
   return /^не проверить/.test(ev.verdict ?? "") ? ev.verdict! : `не проверить: ${ev.verdict ?? "файл не текст"}`;
 }
 
-export const EvidenceLine = ({ ev }: { ev: Evidence }) => (
-  <span className="ev">
-    улика: <code>{ev.line ? `${ev.path}:${ev.line}` : ev.path}</code> «{ev.quote}» <b className={evidenceLevel(ev)}>{verdictText(ev)}</b>
-  </span>
-);
+export const EvidenceLine = ({ ev }: { ev: Evidence }) => {
+  const { links } = useContext(LinksContext);
+  const shown = <code>{ev.line ? `${ev.path}:${ev.line}` : ev.path}</code>;
+  return (
+    <span className="ev">
+      улика: {ownLink(links, ev.path) !== null ? <FileLink link={{ key: ev.path, line: ev.line ?? null }}>{shown}</FileLink> : shown} «{ev.quote}» <b className={evidenceLevel(ev)}>{verdictText(ev)}</b>
+    </span>
+  );
+};
 
 export interface CardContext {
   payload: ViewPayload;
@@ -180,6 +183,7 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
       )}
       {rec.decision?.word && <div className="note"><b>слово в журнале ({rec.decision.date}):</b> «<Text s={rec.decision.word} />»</div>}
       {msg && <div className="note signal">{msg}</div>}
+      {wordMissing(ctx.payload, draft, rec) && <div className="note signal" data-word-needed={rec.id}>{WORD_NEEDED_TEXT}</div>}
       <div className="row">
         <textarea rows={2} placeholder="слово человека дословно — почему так (или что изменить в решении из журнала)" value={entry?.word ?? ""} onChange={(e) => ctx.update((d) => setWord(d, rec.id, e.target.value))} />
       </div>

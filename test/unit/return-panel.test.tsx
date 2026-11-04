@@ -26,6 +26,13 @@ test("запомненная высота применяется к полю п�
   assert.match(html({ height: 320 }), /<textarea[^>]*style="height:320px"/);
 });
 
+test("предупреждение к отчёту видно сразу: сигналом и не в свёрнутой пересборке", () => {
+  const out = html({ result: { stage: "applied", answers: "a.md", report: ["[ok] F-02: решено A", "[!!] агенту надо сказать самому"], rebuildOk: true, rebuildReport: [], sha256After: null } });
+  const at = out.indexOf('<div class="signal">[!!] агенту надо сказать самому</div>');
+  assert.ok(at >= 0, out);
+  assert.ok(at < out.indexOf("<details"), out);
+});
+
 test("ручка есть, пока промпт открыт; свёрнут — тянуть нечего", () => {
   assert.ok(html({}).includes('class="return-handle"'));
   assert.ok(!html({ open: false }).includes('class="return-handle"'));

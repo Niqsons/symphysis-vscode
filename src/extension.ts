@@ -1,15 +1,19 @@
-// Точка входа: Python и ядро, данные журналов, слежение за файлами (Р5), боковая панель, вкладка просмотрщика.
+// Точка входа: Python и ядро, данные журналов, слежение за файлами (Р5), боковая панель, вкладка просмотрщика, запуски хука клиента.
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { viewJson, type CoreEnv, type ViewResult } from "./host/core";
-import { findTools, listChanges, type ChangeRef } from "./host/project";
+import { resolveGit } from "./host/hookGit";
+import { HookRunner } from "./host/hookRunner";
+import { tasksFor } from "./host/helpTasks";
+import { findTools, installDirOf, listChanges, type ChangeRef } from "./host/project";
 import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
 import { AttackTocProvider, ChangesProvider, TocProvider } from "./host/sidebar";
 import { SCHEME_TYPE, SchemePanel } from "./host/schemePanel";
+import { computeHelp, StepHelpRunner, type HelpTarget } from "./host/stepHelp";
 import { JournalStore, keyOf } from "./host/store";
 import { VIEWER_TYPE, ViewerPanel } from "./host/viewerPanel";
-import type { Colors, CoreFailure } from "./shared/protocol";
+import type { Colors, CoreFailure, HelpOutcome } from "./shared/protocol";
 
 const REFRESH_DELAY_MS = 150;
 const CONCURRENT_RUNS = 2;
@@ -24,17 +28,23 @@ export function activate(context: vscode.ExtensionContext) {
     return python;
   };
 
-  const coreEnv = (ref: ChangeRef): CoreEnv | CoreFailure => {
-    const tools = findTools(ref.root);
-    if (!tools) return { kind: "no-tools", root: ref.root };
+  // Уровень машины: значение из файла настроек проекта сюда не доходит, иначе проект выбирал бы запускаемый код (`security.md`).
+  const toolsPath = () => vscode.workspace.getConfiguration("symphysis").get<string>("toolsPath") || undefined;
+
+  const coreEnv = (root: string): CoreEnv | CoreFailure => {
+    const tools = findTools(root, toolsPath());
+    if ("kind" in tools) return tools;
     const py = pythonNow();
     if (!py.ok) return { kind: "no-python", reason: py.reason, tried: py.tried };
-    return { python: py.path, tools, cwd: ref.root };
+    return { python: py.path, tools: tools.dir, cwd: root, installDir: tools.installDir };
   };
 
+  // Для сквозных тестов: сколько раз считался `view-json`.
+  let viewRuns = 0;
   const run = async (ref: ChangeRef): Promise<ViewResult> => {
+    viewRuns++;
     if (!ref.hasJournal) return { ok: false, failure: { kind: "no-journal" } };
-    const env = coreEnv(ref);
+    const env = coreEnv(ref.root);
     return "kind" in env ? { ok: false, failure: env } : viewJson(env, ref);
   };
 
@@ -75,15 +85,54 @@ export function activate(context: vscode.ExtensionContext) {
       tocView.description = name;
       attackView.description = name;
       attackView.message = attackToc.message();
-      if (key) scheme.follow(key);
+      // Открытый журнал считает свой шаг сразу: числа задач в шапке приходят из этого расчёта (13.1).
+      if (key) { scheme.follow(key); recalcHelp(); }
     },
     onDraft: (key, draft) => {
       toc.setDraft(key, draft);
       search.setDraft(key, draft);
     },
     openScheme: (key) => scheme.open(key),
+    tasksOf: (key) => tasksFor(key, lastHelp),
   });
-  const scheme = new SchemePanel({ context, store, showNode: (key, id) => viewer.showNode(key, id), currentKey: () => viewer.currentKey });
+  // Одна точка, куда приходит ответ расчёта справки: вкладка показывает его, а считается и при закрытой вкладке, пока открыт журнал.
+  // Последний ответ хранится для строки счётчиков просмотрщика (следующая единица).
+  let lastHelp: { target: HelpTarget; outcome: HelpOutcome } | null = null;
+  const help = new StepHelpRunner({
+    compute: (target) => computeHelp(target, coreEnv),
+    onResult: (target, outcome) => { lastHelp = { target, outcome }; scheme.helpAnswered(target, outcome); viewer.tasksChanged(); },
+  });
+  // Справка считается, только пока её видно или открыт журнал (F-42). Файлы менялись, а смотреть было некому: пересчёт при следующем показе.
+  let helpStale = false;
+  let helpTimer: NodeJS.Timeout | undefined;
+  const helpWanted = () => scheme.helpVisible() || viewer.currentKey !== null;
+  const recalcHelp = () => {
+    if (helpWanted()) {
+      helpStale = false;
+      help.request(scheme.helpTarget());
+    } else {
+      helpStale = true;
+    }
+  };
+  // Склейка записей: агент пишет файлы сериями. Таймер только для склейки, опроса нет (F-25).
+  const helpSoon = () => {
+    clearTimeout(helpTimer);
+    helpTimer = setTimeout(recalcHelp, REFRESH_DELAY_MS);
+  };
+  const helpIfStale = () => { if (helpStale && helpWanted()) recalcHelp(); };
+  const scheme: SchemePanel = new SchemePanel({
+    context,
+    showNode: (key, id) => viewer.showNode(key, id),
+    currentKey: () => viewer.currentKey,
+    activeChanges: () => workspaceDirs().flatMap(listChanges),
+    workspaceRoots: workspaceDirs,
+    requestHelp: (target) => help.request(target),
+    helpShown: helpIfStale,
+    installDir: () => {
+      const value = toolsPath();
+      return value ? installDirOf(value) : undefined;
+    },
+  });
 
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.
   const timers = new Map<string, NodeJS.Timeout>();
@@ -102,6 +151,18 @@ export function activate(context: vscode.ExtensionContext) {
     refreshSoon(path.join(root, CHANGES, name));
   };
 
+  // Хук клиента: активация этого не ждёт. Настройка по папке, чтобы её можно было выключить в одном проекте (F-106).
+  const hook = new HookRunner({
+    extensionPath: context.extensionPath,
+    enabled: (root) => vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).get("enabled", true),
+    python: pythonNow,
+    toolsPath,
+    git: () => resolveGit(process.env, workspaceDirs()),
+    window: vscode.window,
+    memory: context.workspaceState,
+  });
+  const hookAll = () => workspaceDirs().forEach((root) => hook.request(root));
+
   let watchers: vscode.Disposable[] = [];
   const watch = () => {
     watchers.forEach((w) => w.dispose());
@@ -112,13 +173,23 @@ export function activate(context: vscode.ExtensionContext) {
         const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, glob));
         return [w, w.onDidChange(on), w.onDidCreate(on), w.onDidDelete(on)];
       });
+      // Всё, что лежит в каталоге изменения, даёт только пересчёт справки: новый артефакт появляется без правки списка в плагине (F-26). Журнал по этому не считается.
+      const helpWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/changes/*/**"));
+      const onHelpFile = (uri: vscode.Uri) => {
+        const name = path.relative(path.join(root, CHANGES), uri.fsPath).split(path.sep)[0];
+        if (name && name !== "archive" && !name.startsWith("..")) helpSoon();
+      };
+      journalWatchers.push([helpWatcher, helpWatcher.onDidChange(onHelpFile), helpWatcher.onDidCreate(onHelpFile), helpWatcher.onDidDelete(onHelpFile)]);
       // Схема: вкладка рисует сразу, просмотрщик узнаёт через обычное перечитывание журнала (подсказка «узел не найден»).
       const schemeWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/changes/*/scheme.md"));
       const onScheme = (uri: vscode.Uri) => { scheme.fileChanged(path.dirname(uri.fsPath)); on(uri); };
       journalWatchers.push([schemeWatcher, schemeWatcher.onDidChange(onScheme), schemeWatcher.onDidCreate(onScheme), schemeWatcher.onDidDelete(onScheme)]);
       const tools = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, ".symphysis/tools/journal.py"));
-      const all = () => { store.refreshAll(); changes.refresh(); };
-      return [...journalWatchers.flat(), tools, tools.onDidChange(all), tools.onDidCreate(all), tools.onDidDelete(all)];
+      const recheck = () => hook.request(root);
+      const all = () => { store.refreshAll(); changes.refresh(); recheck(); helpSoon(); };
+      // Файл настроек только перепроверяет условие хука: журнал по нему не считается.
+      const config = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/config.yaml"));
+      return [...journalWatchers.flat(), tools, tools.onDidChange(all), tools.onDidCreate(all), tools.onDidDelete(all), config, config.onDidChange(recheck), config.onDidCreate(recheck), config.onDidDelete(recheck)];
     });
   };
   watch();
@@ -133,26 +204,33 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider("symphysis.search", search),
     vscode.window.registerWebviewPanelSerializer(VIEWER_TYPE, { deserializeWebviewPanel: async (panel) => viewer.restore(panel) }),
     vscode.window.registerWebviewPanelSerializer(SCHEME_TYPE, { deserializeWebviewPanel: async (panel) => scheme.restore(panel) }),
-    vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); }),
+    vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }),
     vscode.commands.registerCommand("symphysis.openChange", (key?: string) => {
       const target = key ?? store.list()[0]?.ref.dir;
       if (target) viewer.open(target);
     }),
     vscode.commands.registerCommand("symphysis.openScheme", (key?: string) => {
       const target = key ?? viewer.currentKey ?? store.list()[0]?.ref.dir;
-      if (target) scheme.open(target);
+      if (target) scheme.open(target, "scheme");
     }),
+    // Без журнала и без изменений тоже: вкладка открывается всегда, какое изменение показать, решает она сама (F-40, F-41).
+    vscode.commands.registerCommand("symphysis.openHelp", () => scheme.open(viewer.currentKey, "help")),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); }),
+    // Окружение справки сменилось: отказ на вкладке не должен пережить свою причину. Расчёт, шедший в этот момент, отброшен сверкой цели, новый его заменяет.
+    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("symphysis.colors")) { viewer.colorsChanged(); search.refresh(); }
-      if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); }
+      if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }
+      if (e.affectsConfiguration("symphysis.toolsPath")) { store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }
+      if (e.affectsConfiguration("symphysis.hook.enabled")) hookAll();
     }),
-    { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); } },
+    { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); clearTimeout(helpTimer); } },
   );
 
-  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf };
+  hookAll();
+
+  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf, hookIdle: () => hook.whenIdle(), viewRuns: () => viewRuns, helpAnswer: () => lastHelp };
   return undefined;
 }
 

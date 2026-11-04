@@ -239,3 +239,16 @@ export function buildPrompt(p: ViewPayload, d: Draft, date: string): Prompt {
   if (empty) lines.push(EMPTY_LINE);
   return { text: lines.join("\n"), empty, conflictKeys, undecidedKeys };
 }
+
+/** Просьба слова при выборе мимо рекомендации; текст тот же, что в шаблоне страницы ядра (F-29). */
+export const WORD_NEEDED_TEXT = "Выбран не рекомендованный вариант: напиши, почему. Так выбор поймёт читатель журнала; внести можно и без слова.";
+
+/** Условие страницы целиком (F-97): выбор мимо рекомендации, не вариант человека, слова нет ни в черновике, ни в журнале. Только сигнал, выбор не запирает. */
+export function wordMissing(p: ViewPayload, d: Draft, rec: JournalRecord): boolean {
+  const rc = rec.recommendation?.option;
+  const cur = chosen(p, d, rec.id);
+  if (!rc || !cur || cur === rc) return false;
+  if (allOptions(rec, d).some((o) => o.letter === cur && o.added)) return false;
+  const saved = rec.decision?.option === cur ? rec.decision.word : "";
+  return !norm(d.decisions[rec.id]?.word) && !norm(saved);
+}

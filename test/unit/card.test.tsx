@@ -154,3 +154,50 @@ test("вариант человека из журнала помечен; лок
   assert.ok(out.includes("ещё"));
   assert.ok(out.includes(">убрать<"));
 });
+
+const ASK = "Выбран не рекомендованный вариант";
+const withChoice = (letter: string, word = ""): Draft => ({ ...emptyDraft(), decisions: { "F-01": { choice: letter, word, parked: [] } } });
+const askRec = () => fork("F-01", { options: [option("A"), option("B")], recommendation: { option: "A", why: "причина" } });
+
+test("«Выбор мимо рекомендации»: просьба видна, выбор и «Внести» не заперты", () => {
+  const rec = askRec();
+  const out = html(rec, payload([rec]), withChoice("B"));
+  assert.ok(out.includes(ASK));
+  assert.doesNotMatch(out, /disabled/);
+  assert.equal((out.match(/type="radio"/g) ?? []).length, 2);
+});
+
+test("«Слово написано»: просьбы нет", () => {
+  const rec = askRec();
+  assert.ok(!html(rec, payload([rec]), withChoice("B", "потому что")).includes(ASK));
+});
+
+test("«Одни пробелы»: просьба на месте", () => {
+  const rec = askRec();
+  assert.ok(html(rec, payload([rec]), withChoice("B", " \n\t ")).includes(ASK));
+});
+
+test("«Рекомендованный вариант»: просьбы нет", () => {
+  const rec = askRec();
+  assert.ok(!html(rec, payload([rec]), withChoice("A")).includes(ASK));
+});
+
+test("«Вариант человека»: просьбы нет ни у варианта из журнала, ни у локального", () => {
+  const rec = fork("F-01", { options: [option("A"), option("B", { added: true })], recommendation: { option: "A", why: "причина" } });
+  assert.ok(!html(rec, payload([rec]), withChoice("B")).includes(ASK));
+  const own = askRec();
+  const d: Draft = { ...withChoice("C"), added: { "F-01": [{ letter: "C", text: "свой" }] } };
+  assert.ok(!html(own, payload([own]), d).includes(ASK));
+});
+
+test("«Слово уже в журнале»: просьбы нет; слово журнала другого варианта не считается", () => {
+  const rec = fork("F-01", { options: [option("A"), option("B"), option("C")], recommendation: { option: "A", why: "причина" }, decision: { option: "B", word: "так решил", date: DATE } });
+  assert.ok(!html(rec, payload([rec]), emptyDraft()).includes(ASK));
+  assert.ok(!html(rec, payload([rec]), withChoice("B")).includes(ASK));
+  assert.ok(html(rec, payload([rec]), withChoice("C")).includes(ASK));
+});
+
+test("запись без рекомендации: просьбы нет", () => {
+  const rec = fork("F-01", { options: [option("A"), option("B")] });
+  assert.ok(!html(rec, payload([rec]), withChoice("B")).includes(ASK));
+});

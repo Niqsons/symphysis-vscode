@@ -1,7 +1,7 @@
 // Карточка записи в режиме «решения». Показано всё: варианты с «маловероятно» и причиной, рекомендация под списком,
 // антиподы, зависимости, парковки, улики — убрать вариант значило бы решить за человека.
 import { memo, useState } from "react";
-import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps } from "../shared/logic";
+import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps, WORD_NEEDED_TEXT, wordMissing } from "../shared/logic";
 import { addDep, addOption, choose, clearChoice, evidenceLevel, isHumanOption, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
 import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type JournalRecord, type ViewPayload } from "../shared/types";
 
@@ -180,6 +180,7 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
       )}
       {rec.decision?.word && <div className="note"><b>слово в журнале ({rec.decision.date}):</b> «<Text s={rec.decision.word} />»</div>}
       {msg && <div className="note signal">{msg}</div>}
+      {wordMissing(ctx.payload, draft, rec) && <div className="note signal" data-word-needed={rec.id}>{WORD_NEEDED_TEXT}</div>}
       <div className="row">
         <textarea rows={2} placeholder="слово человека дословно — почему так (или что изменить в решении из журнала)" value={entry?.word ?? ""} onChange={(e) => ctx.update((d) => setWord(d, rec.id, e.target.value))} />
       </div>

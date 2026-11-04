@@ -16,8 +16,12 @@ export interface ReturnPanelProps {
   onToggle(): void;
   onApply(): void;
   onCopy(): void;
+  onCopyAnswer(text: string): void;
   onDismiss(): void;
 }
+
+/** Строка отчёта, как её видит человек: её и кладёт в буфер кнопка, чтобы передать агенту файл ответа. */
+export const savedAnswerLine = (answers: string) => `Внесено, ответ сохранён: ${answers}`;
 
 const Lines = ({ lines }: { lines: string[] }) => (
   <pre className="report-lines">
@@ -25,26 +29,34 @@ const Lines = ({ lines }: { lines: string[] }) => (
   </pre>
 );
 
-function Report({ result, onDismiss }: { result: ApplyReport; onDismiss(): void }) {
+function Report({ result, onCopyAnswer, onDismiss }: { result: ApplyReport; onCopyAnswer(text: string): void; onDismiss(): void }) {
+  // Поле с файлом ответа стоит над логом и не прокручивается с ним: кнопка всегда под рукой.
+  if (result.stage === "applied") {
+    return (
+      <>
+        <div className="report-saved">
+          <span className="report-saved-text">Внесено, ответ сохранён: <code>{result.answers}</code></span>
+          <button type="button" className="small" onClick={() => onCopyAnswer(savedAnswerLine(result.answers))} title="скопировать текст поля вместе с путём">Копировать</button>
+          <button type="button" className="small" onClick={onDismiss} title="убрать отчёт">×</button>
+        </div>
+        <div className="report">
+          <Lines lines={result.report} />
+          {!result.rebuildOk && <div className="signal">Журнал внесён, но производные файлы собраны не все:</div>}
+          <details open={!result.rebuildOk}>
+            <summary>пересборка: check, render-md, render-html</summary>
+            <Lines lines={result.rebuildReport} />
+          </details>
+        </div>
+      </>
+    );
+  }
   let body;
   if (result.stage === "stale") {
     body = <div className="signal">Журнал изменён после показа. Ничего не внесено: посмотри обновлённые записи и нажми «Внести» ещё раз.</div>;
   } else if (result.stage === "error") {
     body = <div className="signal">Внесение не выполнено: {result.text}</div>;
-  } else if (result.stage === "refused") {
-    body = <><div className="signal">apply отказал, журнал не тронут. Поправь выбор в карточке и нажми «Внести» ещё раз.</div><Lines lines={result.report} /></>;
   } else {
-    body = (
-      <>
-        <div>Внесено, ответ сохранён: <code>{result.answers}</code></div>
-        <Lines lines={result.report} />
-        {!result.rebuildOk && <div className="signal">Журнал внесён, но производные файлы собраны не все:</div>}
-        <details open={!result.rebuildOk}>
-          <summary>пересборка: check, render-md, render-html</summary>
-          <Lines lines={result.rebuildReport} />
-        </details>
-      </>
-    );
+    body = <><div className="signal">apply отказал, журнал не тронут. Поправь выбор в карточке и нажми «Внести» ещё раз.</div><Lines lines={result.report} /></>;
   }
   return (
     <div className="report">
@@ -54,7 +66,7 @@ function Report({ result, onDismiss }: { result: ApplyReport; onDismiss(): void 
   );
 }
 
-export function ReturnPanel({ prompt, open, applying, blockedReason, result, copied, height, onHeight, onToggle, onApply, onCopy, onDismiss }: ReturnPanelProps) {
+export function ReturnPanel({ prompt, open, applying, blockedReason, result, copied, height, onHeight, onToggle, onApply, onCopy, onCopyAnswer, onDismiss }: ReturnPanelProps) {
   const count = prompt.empty ? 0 : prompt.text.split("\n").filter((l) => /^(- F-|Замечания к схеме:)/.test(l)).length;
   const area = useRef<HTMLTextAreaElement>(null);
   const drag = useRef<{ startY: number; startHeight: number; last: number | null } | null>(null);
@@ -89,7 +101,7 @@ export function ReturnPanel({ prompt, open, applying, blockedReason, result, cop
           onPointerDown={onHandleDown} onPointerMove={onHandleMove} onPointerUp={onHandleUp} onDoubleClick={() => onHeight(null)}
         />
       )}
-      {result && <Report result={result} onDismiss={onDismiss} />}
+      {result && <Report result={result} onCopyAnswer={onCopyAnswer} onDismiss={onDismiss} />}
       <div className="return-bar">
         <button type="button" className="small" onClick={onToggle} title={open ? "свернуть промпт" : "показать промпт"}>{open ? "▾" : "▸"}</button>
         <b>Возврат решений</b>

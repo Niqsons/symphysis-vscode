@@ -337,6 +337,14 @@ function opencodeScenarios() {
   removeTree(viewerOf(root));
   r = openCodeAsk("Сбой в оболочке opencode: файла скрипта нет", root);
   check("«Сбой в оболочке opencode»: файла скрипта нет, плагин загружен, запрос доходит до модели", r.ok && r.loaded, `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
+  // Скрипт спит дольше предела запуска клиента: ответ модели значит, что запрос дождался не скрипта, а предела оболочки.
+  must(installHookScript(root, repo), "скрипт хука");
+  const hungMark = path.join(viewerOf(root), "скрипт-начал.txt");
+  fs.writeFileSync(path.join(viewerOf(root), "hook.py"), 'import pathlib, time\npathlib.Path(__file__).with_name("скрипт-начал.txt").write_text("да", encoding="utf-8")\ntime.sleep(300)\n', "utf8");
+  const hungFrom = Date.now();
+  r = openCodeAsk("Сбой в оболочке opencode: скрипт завис", root);
+  const hungMs = Date.now() - hungFrom;
+  check("«Сбой в оболочке opencode»: скрипт завис, снят по пределу 5 с, плагин загружен, запрос доходит до модели", r.ok && r.loaded && fs.existsSync(hungMark) && hungMs >= 5000, `код ${r.code}, начал ${fs.existsSync(hungMark)}, шло ${hungMs} мс, ответ: ${r.text.slice(0, 200)}`, { started: fs.existsSync(hungMark), at_least_limit: hungMs >= 5000 });
 }
 
 function cleanClaudeSessions() {

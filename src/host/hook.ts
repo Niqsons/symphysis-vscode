@@ -179,10 +179,12 @@ export const isOwnOpencodeFile = (text: string): boolean => text.split(/\r?\n/, 
 /**
  * Оболочка над тем же скриптом (F-68). Подстановка одна, путь к Python через JSON; остальное постоянный текст, путь к скрипту от своего файла.
  * Необработанное исключение в хуке `prompt` останавливает запрос человека, поэтому ловится всё (F-69). `remove` без записи ничего не делает.
+ * Вызов асинхронный: плагин встроен в чужой процесс на каждый запрос, и зависший Python не должен останавливать его таймеры и сеть на время предела.
+ * Обработчик ошибки входа обязателен: Python мог выйти, не прочитав вход, а необработанная ошибка потока остановила бы запрос.
  */
 const opencodeText = (python: string) => [
   OPENCODE_MARK,
-  'import { execFileSync } from "node:child_process";',
+  'import { execFile } from "node:child_process";',
   'import path from "node:path";',
   'import { fileURLToPath } from "node:url";',
   "",
@@ -191,7 +193,11 @@ const opencodeText = (python: string) => [
   "",
   "function read(sessionID) {",
   '  const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", ".symphysis", "viewer", "hook.py");',
-  '  return execFileSync(PYTHON, ["-I", "-X", "utf8", script], { input: JSON.stringify({ session_id: sessionID }), encoding: "utf8", timeout: 5000, windowsHide: true, stdio: "pipe" }).trim();',
+  "  return new Promise((resolve, reject) => {",
+  '    const child = execFile(PYTHON, ["-I", "-X", "utf8", script], { encoding: "utf8", timeout: 5000, windowsHide: true }, (err, out) => (err ? reject(err) : resolve(out.trim())));',
+  '    child.stdin.on("error", () => {});',
+  "    child.stdin.end(JSON.stringify({ session_id: sessionID }));",
+  "  });",
   "}",
   "",
   "export default {",
@@ -201,7 +207,7 @@ const opencodeText = (python: string) => [
   "      const entry = ctx.session.instructions.entry;",
   '      await ctx.session.hook("prompt", async (event) => {',
   "        try {",
-  "          const value = read(event.sessionID);",
+  "          const value = await read(event.sessionID);",
   "          if (value) await entry.put({ sessionID: event.sessionID, key: KEY, value });",
   "          else await entry.remove({ sessionID: event.sessionID, key: KEY });",
   "        } catch {",

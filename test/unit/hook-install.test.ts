@@ -830,15 +830,27 @@ for (const [name, prepare] of [
   });
 }
 
-test("«Сбой в оболочке opencode»: скрипт завис, предел вызова 5 с, запрос идёт дальше, запись снята", async () => {
+test("«Сбой в оболочке opencode»: скрипт завис, предел вызова 5 с, процесс клиента на это время не встаёт, запрос идёт дальше, запись снята", async () => {
   const root = pluginProject();
   fs.writeFileSync(scriptOf(root), "import time\ntime.sleep(60)\n", "utf8");
   const { calls, prompt } = await plug(root);
+  let ticks = 0;
+  const timer = setInterval(() => ticks++, 100);
   const t0 = Date.now();
   await prompt({ sessionID: "с" });
   const ms = Date.now() - t0;
+  clearInterval(timer);
   assert.ok(ms >= 4500 && ms < 9000, `вызов шёл ${ms} мс`);
+  assert.ok(ticks >= 30, `за вызов таймер сработал ${ticks} раз: процесс стоял`);
   assert.deepEqual(calls, [REMOVED("с")]);
+});
+
+test("«Сбой в оболочке opencode»: скрипт вышел, не прочитав вход: ошибка записи во вход не становится необработанной", async () => {
+  const root = pluginProject();
+  fs.writeFileSync(scriptOf(root), "import os\nos._exit(0)\n", "utf8");
+  const { calls, prompt } = await plug(root);
+  for (let i = 0; i < 5; i++) await prompt({ sessionID: "с" });
+  assert.deepEqual(calls, Array(5).fill(REMOVED("с")));
 });
 
 test("«Сбой в оболочке opencode»: `put` бросает, запрос не останавливается, запись снимается", async () => {

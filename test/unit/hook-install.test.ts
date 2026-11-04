@@ -480,6 +480,66 @@ test("своя запись узнаётся по пути скрипта в `ar
   ]) assert.equal(isOwnClaudeHandler(foreign), false, JSON.stringify(foreign));
 });
 
+// --- права файла при перезаписи: новый файл иначе получит их по umask, и `0600` у настроек с токенами станет `0644` ---
+
+const OPENCODE_FILE = (root: string) => path.join(root, ".opencode", "plugins", "symphysis-hook.js");
+for (const [name, install, fileOf, tamper] of [
+  ["настройки Claude Code", (root: string) => installClaudeHook(root, PY), settingsOf, () => "{}\n"],
+  ["файл opencode", (root: string) => installOpencodeHook(root, PY), OPENCODE_FILE, (text: string) => `${text.split("\n")[0]}\nправка\n`],
+  ["скрипт", (root: string) => installHookScript(root, EXTENSION), scriptOf, () => "# правка\n"],
+] as const) {
+  test(`права при перезаписи: ${name}, файл с \`0600\` остаётся с \`0600\` (режим сверяется вне Windows)`, () => {
+    const root = tmp();
+    const file = fileOf(root);
+    assert.deepEqual(install(root), { ok: true });
+    const tampered = tamper(fs.readFileSync(file, "utf8"));
+    fs.writeFileSync(file, tampered, "utf8");
+    fs.chmodSync(file, 0o600);
+    assert.deepEqual(install(root), { ok: true });
+    assert.notEqual(fs.readFileSync(file, "utf8"), tampered, "файл не перезаписан, проверять нечего");
+    // На Windows `chmod` управляет только признаком «только чтение», режима `0600` там нет.
+    if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  });
+}
+
+test("права при перезаписи: временный файл создан с правами прежнего, на Windows это видно на «только чтение»", () => {
+  const root = make(tmp(), ".claude/");
+  const file = settingsOf(root);
+  fs.writeFileSync(file, "{}\n", "utf8");
+  fs.chmodSync(file, 0o444);
+  let seen: number | null = null;
+  const rename = fs.renameSync;
+  // Только наблюдение: файл и переименование настоящие. Иначе в режим временного файла до переименования не заглянуть.
+  fs.renameSync = ((from: fs.PathLike, to: fs.PathLike) => {
+    seen = fs.statSync(from).mode & 0o777;
+    rename(from, to);
+  }) as typeof fs.renameSync;
+  let r;
+  try {
+    r = installClaudeHook(root, PY);
+  } finally {
+    fs.renameSync = rename;
+  }
+  assert.equal(seen, 0o444);
+  if (process.platform === "win32") {
+    // Windows не даёт заменить файл «только чтение»: отказ значением, файл цел.
+    assert.equal(r.ok, false);
+    assert.equal(fs.readFileSync(file, "utf8"), "{}\n");
+  } else {
+    assert.deepEqual(r, { ok: true });
+    assert.equal(fs.statSync(file).mode & 0o777, 0o444);
+  }
+  assert.deepEqual(fs.readdirSync(path.dirname(file)), ["settings.local.json"], "временный файл не снят");
+});
+
+test("права при перезаписи: новый файл создаётся как обычно", () => {
+  const root = make(tmp(), ".claude/");
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  const usual = path.join(root, "обычный файл");
+  fs.writeFileSync(usual, "");
+  assert.equal(fs.statSync(settingsOf(root)).mode & 0o777, fs.statSync(usual).mode & 0o777);
+});
+
 /** `command` и `args` записи как есть, без оболочки: `${CLAUDE_PROJECT_DIR}` подставляет клиент. */
 function runRecord(root: string, session = "сессия") {
   const [own] = ownHandlers(root);

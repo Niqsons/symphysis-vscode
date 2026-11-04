@@ -52,11 +52,15 @@ export function hookCondition(root: string, python: PythonResolution, toolsPath?
   return { met: true, python: python.path, claude, opencode };
 }
 
-/** Через временный файл: обрыв не оставит половину. `wx`: чужой файл или ссылка с именем временного не сработают. */
+/**
+ * Через временный файл: обрыв не оставит половину. `wx`: чужой файл или ссылка с именем временного не сработают.
+ * Права прежнего файла: иначе новый получит их по umask, и `0600` у настроек с токенами станет `0644`.
+ */
 function replaceFile(file: string, data: string | Buffer): void {
+  const previous = fs.statSync(file, { throwIfNoEntry: false });
   const temp = `${file}.${process.pid}.tmp`;
   try {
-    fs.writeFileSync(temp, data, { flag: "wx" });
+    fs.writeFileSync(temp, data, { flag: "wx", mode: previous && previous.mode & 0o777 });
     fs.renameSync(temp, file);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EEXIST") {

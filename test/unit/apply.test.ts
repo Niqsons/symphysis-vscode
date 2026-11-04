@@ -7,6 +7,7 @@ import path from "node:path";
 import { EXPECTED_CONTRACT } from "../../src/host/core";
 import { applyFlow } from "../../src/host/apply";
 import { changeRef, sha256File } from "../../src/host/project";
+import { tempDir } from "../temp-dir.mjs";
 import { addAttack, makeProject, noCoreReason } from "./fixture-project";
 
 const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
@@ -200,6 +201,18 @@ test("«Событие не записалось»: запись упала, ж�
   assert.ok(r.report.some((l) => EVENT_LOST.test(l)), r.report.join("\n"));
   // Хука нет: и сессий нет, обе строки на месте.
   assert.ok(r.report.some((l) => NO_SESSIONS.test(l)), r.report.join("\n"));
+});
+
+test("«Событие не записалось»: `.symphysis/viewer` ведёт за пределы проекта, снаружи пусто, журнал внесён, причина названа", opts, async () => {
+  const { env, ref, sha } = setup(SHOWN);
+  const target = tempDir("снаружи-");
+  fs.symlinkSync(target, viewerPath(ref.root), "junction");
+  const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
+  assert.equal(r.stage, "applied");
+  if (r.stage !== "applied") return;
+  assert.equal(JSON.parse(fs.readFileSync(ref.journal, "utf8")).records[1].decision.option, "A");
+  assert.ok(r.report.some((l) => EVENT_LOST.test(l) && l.includes(".symphysis/viewer")), r.report.join("\n"));
+  assert.deepEqual(fs.readdirSync(target), []);
 });
 
 test("«Событие не записалось»: хеш после внесения не прочитать, внесённое не называется отказом, строки нет", opts, async () => {

@@ -39,11 +39,8 @@ function tellAgent(ref: ChangeRef, answers: string, before: string, after: strin
   } else if (after === null) {
     warnings.push(eventLost("журнал не прочитать"));
   } else {
-    try {
-      appendEvent(ref.root, { change: ref.name, answers: path.relative(ref.root, answers).split(path.sep).join("/"), sha256_before: before, sha256_after: after, report });
-    } catch (e) {
-      warnings.push(eventLost(String(e)));
-    }
+    const written = appendEvent(ref.root, { change: ref.name, answers: path.relative(ref.root, answers).split(path.sep).join("/"), sha256_before: before, sha256_after: after, report });
+    if (!written.ok) warnings.push(eventLost(written.reason));
   }
   if (!hasSessionCursors(ref.root)) warnings.push(NO_SESSIONS);
   return warnings;

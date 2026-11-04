@@ -8,7 +8,7 @@ import { results, sleep, step, until } from "./steps";
 
 const ID = "symphysis.symphysis-vscode";
 /** Белый список .vscodeignore: забытый файл молча даёт пустую панель, лишний — утечку исходников. */
-const PACKAGE = [".vsixmanifest", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json"];
+const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json"];
 
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;

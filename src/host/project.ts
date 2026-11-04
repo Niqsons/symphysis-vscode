@@ -97,6 +97,32 @@ export function readDraft(root: string, name: string): { draft: Draft; damaged: 
   }
 }
 
+export type WriteResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Проверка перед записью без действия человека: реальный путь каталога назначения лежит внутри проекта, сам файл не ссылка (`security.md`).
+ * `.claude` или `.symphysis/viewer` в чужом репозитории могут быть ссылкой, и запись ушла бы наружу. Возвращает причину отказа или `null`.
+ */
+export function writeRefusal(root: string, file: string): string | null {
+  const shown = (p: string) => path.relative(root, p).split(path.sep).join("/");
+  try {
+    let dir = path.dirname(file);
+    while (!fs.lstatSync(dir, { throwIfNoEntry: false }) && path.dirname(dir) !== dir) dir = path.dirname(dir);
+    const rel = path.relative(fs.realpathSync(root), fs.realpathSync(dir));
+    if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return `${shown(dir)} ведёт за пределы проекта: плагин туда не пишет`;
+    if (fs.lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) return `${shown(file)} это ссылка: плагин через неё не пишет`;
+    return null;
+  } catch (e) {
+    return `${shown(file)}: не проверить, куда ведёт путь (${String(e)})`;
+  }
+}
+
+/** То же для файла в `.symphysis/viewer/`. Проверяется и `.gitignore`: его напишет `viewerDir`. */
+export function viewerRefusal(root: string, name: string): string | null {
+  const dir = path.join(root, VIEWER);
+  return writeRefusal(root, path.join(dir, name)) ?? writeRefusal(root, path.join(dir, ".gitignore"));
+}
+
 /** Каталог для записи: черновик, событие и файлы хука идут через эту функцию, поэтому каталог всегда сам себя исключает из git. */
 export function viewerDir(root: string): string {
   const dir = path.join(root, VIEWER);
@@ -131,8 +157,15 @@ export interface JournalEvent {
 }
 
 /** Один вызов на строку: хук читает файл параллельно, а неполную последнюю строку оставляет на следующее обращение. */
-export function appendEvent(root: string, event: JournalEvent): void {
-  fs.appendFileSync(path.join(viewerDir(root), "events.jsonl"), `${JSON.stringify(event)}\n`, "utf8");
+export function appendEvent(root: string, event: JournalEvent): WriteResult {
+  const refusal = viewerRefusal(root, "events.jsonl");
+  if (refusal) return { ok: false, reason: refusal };
+  try {
+    fs.appendFileSync(path.join(viewerDir(root), "events.jsonl"), `${JSON.stringify(event)}\n`, "utf8");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
 }
 
 /** Курсор появляется при первом срабатывании хука: нет ни одного — хук в этом проекте ни разу не срабатывал (F-99). */

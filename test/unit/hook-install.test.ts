@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { hookCondition, installClaudeHook, installHookScript, installOpencodeHook, isOwnClaudeHandler, isOwnOpencodeFile, writeProjectFile } from "../../src/host/hook";
 import { installClient, removeHook, resolveGit } from "../../src/host/hookGit";
 import { HookRunner, syncHook, type HookDeps } from "../../src/host/hookRunner";
-import { appendEvent } from "../../src/host/project";
+import { appendEvent, findTools } from "../../src/host/project";
 import { resolvePython } from "../../src/host/python";
 import { tempDir } from "../temp-dir.mjs";
 
@@ -69,20 +69,39 @@ for (const layout of [".symphysis/tools/journal.py", "tools/journal.py", "journa
   });
 }
 
-test("«Инструменты по настройке»: настройка мимо инструментов и относительный путь инструментами не считаются", () => {
+test("«Инструменты по настройке»: настройка мимо инструментов и относительный путь инструментами не считаются, причина та же, что у общего поиска", () => {
   const root = make(tmp(), "openspec/", ".claude/");
   config(root, "schema: symphysis\n");
-  assert.deepEqual(hookCondition(root, PYTHON, tmp()), NOT_MET);
-  assert.deepEqual(hookCondition(root, PYTHON, path.join(tmp(), "нет-такого")), NOT_MET);
+  const refused = (toolsPath: string) => {
+    const found = findTools(root, toolsPath);
+    assert.ok("kind" in found && found.kind === "tools-path", JSON.stringify(found));
+    assert.deepEqual(hookCondition(root, PYTHON, toolsPath), { met: false, reason: found.reason });
+  };
+  refused(tmp());
+  refused(path.join(tmp(), "нет-такого"));
   // Относительный путь нашёл бы инструменты от текущего каталога, а настройка требует абсолютный.
   const install = make(tmp(), "journal.py");
   const cwd = process.cwd();
   process.chdir(path.dirname(install));
   try {
-    assert.deepEqual(hookCondition(root, PYTHON, path.basename(install)), NOT_MET);
+    refused(path.basename(install));
   } finally {
     process.chdir(cwd);
   }
+});
+
+test("«Инструменты по настройке»: проект важнее, настройка мимо инструментов установленному ядру не мешает", () => {
+  const root = make(tmp(), "openspec/", INSTALLED, ".claude/");
+  assert.deepEqual(hookCondition(root, PYTHON, "относительный"), met(true, false));
+  assert.deepEqual(hookCondition(root, PYTHON, tmp()), met(true, false));
+});
+
+test("настройка мимо инструментов там, где хук и так не нужен: причины нет", () => {
+  assert.deepEqual(hookCondition(make(tmp(), "openspec/", ".claude/"), PYTHON, tmp()), NOT_MET, "схемы symphysis нет");
+  const noTrace = make(tmp(), "openspec/");
+  config(noTrace, "schema: symphysis\n");
+  assert.deepEqual(hookCondition(noTrace, PYTHON, tmp()), NOT_MET, "следа клиента нет");
+  assert.deepEqual(hookCondition(make(tmp(), ".claude/"), PYTHON, tmp()), NOT_MET, "`openspec/` нет");
 });
 
 test("«Python не найден»: условие не выполнено, причина та, что дал поиск Python", () => {
@@ -1089,6 +1108,7 @@ function hookDeps(over: Partial<HookDeps> = {}, answer?: Promise<unknown>) {
     extensionPath: EXTENSION,
     enabled: () => true,
     python: () => PYTHON,
+    toolsPath: () => undefined,
     git: () => GIT,
     window: { showWarningMessage: (...args: unknown[]) => { shown.push(args); return answer; } },
     memory: { get: (key: string) => memory.get(key) as any, update: (key: string, value: unknown) => { memory.set(key, value); return Promise.resolve(); } },
@@ -1105,6 +1125,27 @@ test("запуск: условие выполнено, запись и скри�
   assert.deepEqual(ownHandlers(root), [handler(PY)]);
   assert.ok(fs.readFileSync(scriptOf(root)).equals(PACKAGED));
   assert.equal(fs.existsSync(pluginOf(root)), false);
+  assert.deepEqual(shown, []);
+});
+
+test("запуск: настройка `symphysis.toolsPath` идёт в условие (F-65): инструменты только по ней, запись и скрипт на месте", async () => {
+  const root = make(tmp(), "openspec/", ".claude/");
+  config(root, "schema: symphysis\n");
+  assert.deepEqual(await syncHook(root, hookDeps().deps), []);
+  assert.equal(fs.existsSync(settingsOf(root)), false, "без настройки инструментов нет");
+  const { deps, shown } = hookDeps({ toolsPath: () => make(tmp(), "tools/journal.py") });
+  assert.deepEqual(await syncHook(root, deps), []);
+  assert.deepEqual(ownHandlers(root), [handler(PY)]);
+  assert.ok(fs.readFileSync(scriptOf(root)).equals(PACKAGED));
+  assert.deepEqual(shown, []);
+});
+
+test("запуск: настройка мимо инструментов предупреждением не идёт, её называет просмотрщик; записи нет", async () => {
+  const root = make(tmp(), "openspec/", ".claude/");
+  config(root, "schema: symphysis\n");
+  const { deps, shown } = hookDeps({ toolsPath: () => "относительный" });
+  assert.deepEqual(await syncHook(root, deps), []);
+  assert.equal(fs.existsSync(settingsOf(root)), false);
   assert.deepEqual(shown, []);
 });
 

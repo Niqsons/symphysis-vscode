@@ -9,7 +9,8 @@ import { runPython, type RunResult } from "./python";
 export const EXPECTED_CONTRACT = 2;
 
 export type ViewResult = { ok: true; payload: ViewPayload } | { ok: false; failure: CoreFailure };
-export interface CoreEnv { python: string; tools: string; cwd: string }
+/** `installDir` — настройка `symphysis.toolsPath`, если инструменты нашлись по ней; `cwd` и тогда папка проекта. */
+export interface CoreEnv { python: string; tools: string; cwd: string; installDir?: string }
 export interface Report { ok: boolean; report: string[] }
 
 const rel = (env: CoreEnv, file: string) => path.relative(env.cwd, file);
@@ -23,6 +24,13 @@ function failed(r: RunResult): string[] {
   return [];
 }
 
+/** Сверка номера одна на `view-json` и `step_help.py`: число у них одно. Просьба называет, где инструменты: при настройке это не проект. */
+export function contractFailure(contract: unknown, env: CoreEnv): CoreFailure | null {
+  if (contract === EXPECTED_CONTRACT) return null;
+  const newer = typeof contract === "number" && Number.isInteger(contract) && contract > EXPECTED_CONTRACT;
+  return { kind: "contract", need: newer ? "vsix" : "tools", root: env.installDir ?? env.cwd };
+}
+
 export async function viewJson(env: CoreEnv, ref: ChangeRef): Promise<ViewResult> {
   if (!ref.hasJournal) return { ok: false, failure: { kind: "no-journal" } };
   const r = await runPython(env.python, [journalPy(env), "view-json", rel(env, ref.journal), ...attackArgs(env, ref)], env.cwd);
@@ -33,11 +41,8 @@ export async function viewJson(env: CoreEnv, ref: ChangeRef): Promise<ViewResult
   try {
     const payload = JSON.parse(r.stdout) as ViewPayload;
     // Новый вывод при расхождении не показывается: прежние данные держит хранилище, «Внести» закрыта отказом.
-    const contract: unknown = payload.contract;
-    if (contract !== EXPECTED_CONTRACT) {
-      const newer = typeof contract === "number" && Number.isInteger(contract) && contract > EXPECTED_CONTRACT;
-      return { ok: false, failure: { kind: "contract", need: newer ? "vsix" : "tools", root: env.cwd } };
-    }
+    const mismatch = contractFailure(payload.contract, env);
+    if (mismatch) return { ok: false, failure: mismatch };
     // Ядро номера 2 отдаёт путь от корня с `/`; замена оставлена страховкой: путь входит в ключ спора и в текст промпта.
     payload.attacks = payload.attacks.map((a) => ({ ...a, path: a.path.replaceAll("\\", "/") }));
     return { ok: true, payload };

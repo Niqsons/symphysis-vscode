@@ -249,3 +249,10 @@ test("Прежних данных нет: просмотрщик говорит,
   assert.match(text("vsix"), /D:\/проект/);
   assert.match(text("vsix"), /поставь новый \.vsix/);
 });
+
+test("«Путь мимо инструментов»: отказ называет причину с настройкой и путём, команда установки только запасной ход", () => {
+  const reason = "в настройке symphysis.toolsPath нужен абсолютный путь, а там «tools»";
+  const text = renderToStaticMarkup(<FailureText failure={{ kind: "tools-path", reason }} openPythonSetting={noop} />);
+  assert.ok(text.includes(reason), text);
+  assert.ok(text.includes("symphysis install --project ."), text);
+});

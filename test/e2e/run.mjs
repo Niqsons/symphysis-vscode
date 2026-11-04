@@ -13,8 +13,11 @@ projectWithTools(project);
 // Проект недоверенного происхождения: подложенный python.exe в корне и настройка проекта, указывающая на него.
 fs.writeFileSync(path.join(project, "python.exe"), "не исполняемый файл", "utf8");
 fs.mkdirSync(path.join(project, ".vscode"), { recursive: true });
+// Настоящая установка вне проекта: настройка проекта на неё указывает и действовать не должна (`security.md`), настройка машины действует.
+const install = path.join(work, "установка с пробелами");
+projectWithTools(install);
 // Хук в этом проекте выключен, а старая запись на месте: первая активация обязана её снять, шаги хука в конце сценария его включают.
-fs.writeFileSync(path.join(project, ".vscode", "settings.json"), JSON.stringify({ "symphysis.python": path.join(project, "python.exe"), "symphysis.hook.enabled": false }), "utf8");
+fs.writeFileSync(path.join(project, ".vscode", "settings.json"), JSON.stringify({ "symphysis.python": path.join(project, "python.exe"), "symphysis.toolsPath": install, "symphysis.hook.enabled": false }), "utf8");
 fs.mkdirSync(path.join(project, ".claude"), { recursive: true });
 fs.writeFileSync(path.join(project, ".claude", "settings.local.json"), JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: path.join(project, "старый", "python.exe"), args: ["${CLAUDE_PROJECT_DIR}/.symphysis/viewer/hook.py"], timeout: 5 }] }] } }), "utf8");
 
@@ -71,7 +74,7 @@ try {
     extensionDevelopmentPath: repo,
     extensionTestsPath: path.join(repo, "out", "e2e", "scenario.js"),
     extensionTestsEnv: {
-      SYMPHYSIS_E2E_RESULTS: results, SYMPHYSIS_E2E_PAUSE_MS: process.env.SYMPHYSIS_E2E_PAUSE_MS ?? "",
+      SYMPHYSIS_E2E_RESULTS: results, SYMPHYSIS_E2E_INSTALL: install, SYMPHYSIS_E2E_PAUSE_MS: process.env.SYMPHYSIS_E2E_PAUSE_MS ?? "",
       SYMPHYSIS_E2E_THEME: process.env.SYMPHYSIS_E2E_THEME ?? "", SYMPHYSIS_E2E_SHOW: process.env.SYMPHYSIS_E2E_SHOW ?? "", SYMPHYSIS_E2E_NODE: process.env.SYMPHYSIS_E2E_NODE ?? "",
       SYMPHYSIS_E2E_STRETCH: process.env.SYMPHYSIS_E2E_STRETCH ?? "", SYMPHYSIS_E2E_MODE: process.env.SYMPHYSIS_E2E_MODE ?? "",
       SYMPHYSIS_E2E_LENS: process.env.SYMPHYSIS_E2E_LENS ?? "", SYMPHYSIS_E2E_FILTER: process.env.SYMPHYSIS_E2E_FILTER ?? "",

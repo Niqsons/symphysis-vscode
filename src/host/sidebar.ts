@@ -11,6 +11,7 @@ function failureLine(f: CoreFailure): string {
   switch (f.kind) {
     case "no-journal": return "журнала нет";
     case "no-tools": return "нет инструментов symphysis";
+    case "tools-path": return "symphysis.toolsPath мимо инструментов";
     case "no-python": return "Python не найден";
     case "old-core": return "старые инструменты: обнови symphysis";
     case "contract": return f.need === "vsix" ? "инструменты новее плагина: поставь новый .vsix" : "старые инструменты: обнови symphysis";

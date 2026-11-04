@@ -22,15 +22,65 @@ function change(root: string, name: string, files: Record<string, string> = {}):
   return dir;
 }
 
-test("ядро: установленное важнее tools/ репозитория, нет обоих — null", () => {
+/** Кладёт `journal.py` в подкаталог `at` каталога `root`. */
+function tools(root: string, at: string): string {
+  const dir = path.join(root, at);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "journal.py"), "");
+  return root;
+}
+
+test("ядро: установленное важнее tools/ репозитория, нет обоих и настройки нет — просьба поставить", () => {
   const root = tmp();
-  assert.equal(findTools(root), null);
-  fs.mkdirSync(path.join(root, "tools"));
-  fs.writeFileSync(path.join(root, "tools", "journal.py"), "");
-  assert.equal(findTools(root), path.join(root, "tools"));
-  fs.mkdirSync(path.join(root, ".symphysis", "tools"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".symphysis", "tools", "journal.py"), "");
-  assert.equal(findTools(root), path.join(root, ".symphysis", "tools"));
+  assert.deepEqual(findTools(root), { kind: "no-tools", root });
+  assert.deepEqual(findTools(root, ""), { kind: "no-tools", root }, "пустая настройка считается незаданной");
+  tools(root, "tools");
+  assert.deepEqual(findTools(root), { dir: path.join(root, "tools") });
+  tools(root, ".symphysis/tools");
+  assert.deepEqual(findTools(root), { dir: path.join(root, ".symphysis", "tools") });
+});
+
+for (const own of [".symphysis/tools", "tools"]) {
+  test(`«Инструменты в проекте важнее»: ${own} в проекте, настройка не смотрится, какой бы она ни была`, () => {
+    const root = tools(tmp(), own);
+    const found = { dir: path.join(root, own) };
+    assert.deepEqual(findTools(root, tools(tmp(), "")), found);
+    assert.deepEqual(findTools(root, "относительный"), found);
+    assert.deepEqual(findTools(root, tmp()), found);
+  });
+}
+
+test("настройка: в каталоге инструменты ищутся как в проекте и в нём самом, в этом порядке; значение идёт в ответ для `--install-dir`", () => {
+  const install = tmp();
+  tools(install, "");
+  assert.deepEqual(findTools(tmp(), install), { dir: install, installDir: install });
+  tools(install, "tools");
+  assert.deepEqual(findTools(tmp(), install), { dir: path.join(install, "tools"), installDir: install });
+  tools(install, ".symphysis/tools");
+  assert.deepEqual(findTools(tmp(), install), { dir: path.join(install, ".symphysis", "tools"), installDir: install });
+});
+
+test("«Относительный путь»: настройка отвергнута с причиной, как `symphysis.python`; от текущего каталога инструменты не ищутся", () => {
+  const install = tools(tmp(), "");
+  const cwd = process.cwd();
+  process.chdir(path.dirname(install));
+  try {
+    const name = path.basename(install);
+    assert.deepEqual(findTools(tmp(), name), { kind: "tools-path", reason: `в настройке symphysis.toolsPath нужен абсолютный путь, а там «${name}»` });
+  } finally {
+    process.chdir(cwd);
+  }
+});
+
+test("«Путь мимо инструментов»: отказ называет настройку и путь, это не «нет инструментов»", () => {
+  const empty = tmp();
+  for (const miss of [empty, path.join(empty, "нет такого")]) {
+    const found = findTools(tmp(), miss);
+    assert.ok("kind" in found && found.kind === "tools-path", JSON.stringify(found));
+    assert.ok(found.reason.includes("symphysis.toolsPath"), found.reason);
+    assert.ok(found.reason.includes(miss), found.reason);
+    assert.ok(found.reason.includes("journal.py"), found.reason);
+  }
 });
 
 test("изменения: по имени, архив не входит, журнала может не быть, атаки перечислены", () => {

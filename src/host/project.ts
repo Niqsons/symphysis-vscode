@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { emptyDraft, normalizeDraft } from "../shared/logic";
+import type { CoreFailure } from "../shared/protocol";
 import { parseScheme, type ParsedScheme } from "../shared/scheme";
 import type { Draft } from "../shared/types";
 
@@ -19,12 +20,24 @@ export interface ChangeRef {
 const CHANGES = path.join("openspec", "changes");
 const VIEWER = path.join(".symphysis", "viewer");
 
+/** Где ядро или почему его нет. `installDir` — значение настройки, есть только у инструментов по ней. */
+export type ToolsLookup = { dir: string; installDir?: string } | Extract<CoreFailure, { kind: "no-tools" | "tools-path" }>;
+
 /** Установленное ядро важнее `tools/`: у репозитория symphysis есть оба, и работает он как установленный проект. */
-export function findTools(root: string): string | null {
-  for (const dir of [path.join(root, ".symphysis", "tools"), path.join(root, "tools")]) {
-    if (fs.existsSync(path.join(dir, "journal.py"))) return dir;
-  }
-  return null;
+const toolsDirs = (root: string) => [path.join(root, ".symphysis", "tools"), path.join(root, "tools")];
+const withJournal = (dirs: string[]) => dirs.find((dir) => fs.existsSync(path.join(dir, "journal.py")));
+
+/**
+ * Проект важнее настройки `symphysis.toolsPath` (F-62): она смотрится, только если в проекте инструментов нет.
+ * Разбор как у `symphysis.python`: относительный путь считался бы от случайного каталога и отвергается с причиной. Настройка мимо инструментов называется, а не выдаётся за их отсутствие.
+ */
+export function findTools(root: string, toolsPath?: string): ToolsLookup {
+  const own = withJournal(toolsDirs(root));
+  if (own) return { dir: own };
+  if (!toolsPath) return { kind: "no-tools", root };
+  if (!path.isAbsolute(toolsPath)) return { kind: "tools-path", reason: `в настройке symphysis.toolsPath нужен абсолютный путь, а там «${toolsPath}»` };
+  const dir = withJournal([...toolsDirs(toolsPath), toolsPath]);
+  return dir ? { dir, installDir: toolsPath } : { kind: "tools-path", reason: `в каталоге ${toolsPath} из настройки symphysis.toolsPath нет journal.py: ни в .symphysis/tools, ни в tools, ни в нём самом` };
 }
 
 export function changeRef(root: string, name: string): ChangeRef {

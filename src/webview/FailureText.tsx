@@ -9,6 +9,8 @@ export function FailureText({ failure, openPythonSetting }: { failure: CoreFailu
       return <>У этого изменения ещё нет <code>decisions.json</code>.</>;
     case "no-tools":
       return <>В проекте нет <code>.symphysis/tools/journal.py</code>. Поставь инструменты: <code>symphysis install --project .</code></>;
+    case "tools-path":
+      return <>Инструментов symphysis нет: {failure.reason}. Поправь настройку или поставь инструменты в проект: <code>symphysis install --project .</code></>;
     case "no-python":
       return (
         <>

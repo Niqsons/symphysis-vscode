@@ -6,6 +6,7 @@ import type { Draft, ViewPayload } from "./types";
 export type CoreFailure =
   | { kind: "no-journal" }
   | { kind: "no-tools"; root: string }
+  | { kind: "tools-path"; reason: string }
   | { kind: "no-python"; reason: string; tried: string[] }
   | { kind: "old-core"; tools: string }
   | { kind: "contract"; need: "tools" | "vsix"; root: string }

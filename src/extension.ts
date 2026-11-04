@@ -26,12 +26,15 @@ export function activate(context: vscode.ExtensionContext) {
     return python;
   };
 
+  // Уровень машины: значение из файла настроек проекта сюда не доходит, иначе проект выбирал бы запускаемый код (`security.md`).
+  const toolsPath = () => vscode.workspace.getConfiguration("symphysis").get<string>("toolsPath") || undefined;
+
   const coreEnv = (ref: ChangeRef): CoreEnv | CoreFailure => {
-    const tools = findTools(ref.root);
-    if (!tools) return { kind: "no-tools", root: ref.root };
+    const tools = findTools(ref.root, toolsPath());
+    if ("kind" in tools) return tools;
     const py = pythonNow();
     if (!py.ok) return { kind: "no-python", reason: py.reason, tried: py.tried };
-    return { python: py.path, tools, cwd: ref.root };
+    return { python: py.path, tools: tools.dir, cwd: ref.root, installDir: tools.installDir };
   };
 
   const run = async (ref: ChangeRef): Promise<ViewResult> => {
@@ -109,6 +112,7 @@ export function activate(context: vscode.ExtensionContext) {
     extensionPath: context.extensionPath,
     enabled: (root) => vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).get("enabled", true),
     python: pythonNow,
+    toolsPath,
     git: () => resolveGit(process.env, workspaceDirs()),
     window: vscode.window,
     memory: context.workspaceState,
@@ -164,6 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("symphysis.colors")) { viewer.colorsChanged(); search.refresh(); }
       if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); }
+      if (e.affectsConfiguration("symphysis.toolsPath")) { store.refreshAll(); changes.refresh(); hookAll(); }
       if (e.affectsConfiguration("symphysis.hook.enabled")) hookAll();
     }),
     { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); } },

@@ -7,7 +7,7 @@ import type { PythonResolution } from "./python";
 
 const SCRIPT = "hook.py";
 
-/** `reason` только у ненайденного Python: остальное значит, что хук здесь не нужен, и говорить не о чем. */
+/** `reason` только у ненайденного Python и настройки инструментов мимо них: остальное значит, что хук здесь не нужен, и говорить не о чем. */
 export type HookCondition =
   | { met: true; python: string; claude: boolean; opencode: boolean }
   | { met: false; reason?: string };
@@ -31,23 +31,19 @@ function hasSymphysisSchema(root: string): boolean {
   }
 }
 
-/** Настройка — абсолютный путь к каталогу установки: инструменты ищутся в нём как в проекте и в нём самом. */
-const toolsPathHasTools = (toolsPath: string | undefined) =>
-  !!toolsPath && path.isAbsolute(toolsPath) && (findTools(toolsPath) !== null || fs.existsSync(path.join(toolsPath, "journal.py")));
-
-/** `.symphysis/tools/` ставит только symphysis. `tools/` и настройка на всю машину могут оказаться чужими, поэтому нужна схема (F-65, F-75, F-98). */
-function hasTools(root: string, toolsPath: string | undefined): boolean {
-  const found = findTools(root);
-  if (found === path.join(root, ".symphysis", "tools")) return true;
-  return (found !== null || toolsPathHasTools(toolsPath)) && hasSymphysisSchema(root);
-}
-
-/** Условие установки по папке: след клиента говорит отдельно про каждого (F-60). */
+/**
+ * Условие установки по папке: след клиента говорит отдельно про каждого (F-60).
+ * `.symphysis/tools/` ставит только symphysis. `tools/` и настройка на всю машину могут оказаться чужими, поэтому нужна схема (F-65, F-75, F-98).
+ */
 export function hookCondition(root: string, python: PythonResolution, toolsPath?: string): HookCondition {
-  if (!isDir(path.join(root, "openspec")) || !hasTools(root, toolsPath)) return { met: false };
+  if (!isDir(path.join(root, "openspec"))) return { met: false };
+  const tools = findTools(root, toolsPath);
+  const installed = !("kind" in tools) && tools.dir === path.join(root, ".symphysis", "tools");
+  if (!installed && !hasSymphysisSchema(root)) return { met: false };
   const claude = isDir(path.join(root, ".claude"));
   const opencode = isDir(path.join(root, ".opencode")) || isFile(path.join(root, "opencode.json")) || isFile(path.join(root, "opencode.jsonc"));
   if (!claude && !opencode) return { met: false };
+  if ("kind" in tools) return tools.kind === "tools-path" ? { met: false, reason: tools.reason } : { met: false };
   if (!python.ok) return { met: false, reason: python.reason };
   return { met: true, python: python.path, claude, opencode };
 }

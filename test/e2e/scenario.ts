@@ -1108,6 +1108,40 @@ export async function run(): Promise<void> {
     await hookStands("запись после появления инструментов");
   });
 
+  const toolsScript = path.join(root, ".symphysis", "tools", "journal.py");
+  const toolsAway = `${toolsScript}.на-время`;
+  const configFile = path.join(root, "openspec", "config.yaml");
+  const setToolsPath = (value: string | undefined) => vscode.workspace.getConfiguration("symphysis").update("toolsPath", value, vscode.ConfigurationTarget.Global);
+
+  await step("«Настройка в рабочей области»: значение только в `.vscode/settings.json` не действует: журнал говорит, что инструментов нет, записи хука нет", async () => {
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, ".vscode", "settings.json"), "utf8"))["symphysis.toolsPath"], process.env.SYMPHYSIS_E2E_INSTALL);
+    assert.equal(vscode.workspace.getConfiguration("symphysis").get("toolsPath"), "");
+    fs.renameSync(toolsScript, toolsAway);
+    fs.unlinkSync(hookSettings);
+    fs.unlinkSync(hookScript);
+    // Схема на месте: если бы значение действовало, хук встал бы по нему.
+    fs.writeFileSync(configFile, "schema: symphysis\n", "utf8");
+    await until("журнал без инструментов", () => api.store.get(one).failure?.kind === "no-tools");
+    await sleep(500);
+    await api.hookIdle();
+    assert.equal(fs.existsSync(hookSettings), false, "значение из настроек проекта подействовало");
+  });
+
+  await step("настоящая настройка на машине: запись хука и журнал идут через установку; мимо инструментов — отказ с настройкой и путём; снята — снова инструменты проекта", async () => {
+    await setToolsPath(process.env.SYMPHYSIS_E2E_INSTALL);
+    await hookStands("запись по настройке");
+    await until("журнал через установку", () => { const s = api.store.get(one); return !s.failure && !s.loading; });
+    const miss = path.join(process.env.SYMPHYSIS_E2E_INSTALL!, "нет такого");
+    await setToolsPath(miss);
+    const refused = await until("отказ настройки", () => { const f = api.store.get(one).failure; return f?.kind === "tools-path" ? f : null; });
+    assert.ok(refused.reason.includes("symphysis.toolsPath") && refused.reason.includes(miss), refused.reason);
+    await setToolsPath(undefined);
+    fs.renameSync(toolsAway, toolsScript);
+    fs.unlinkSync(configFile);
+    await until("журнал через инструменты проекта", () => { const s = api.store.get(one); return !s.failure && !s.loading; });
+    await hookStands("запись на инструментах проекта");
+  });
+
   await step("«Выключение»: настройка выключена в открытом окне, запись и скрипт сняты сразу", async () => {
     await vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).update("enabled", false, vscode.ConfigurationTarget.WorkspaceFolder);
     await until("снятие после выключения", () => !fs.existsSync(hookSettings) && !fs.existsSync(hookScript));

@@ -8,6 +8,7 @@ export interface HookDeps {
   extensionPath: string;
   enabled(root: string): boolean;
   python(): PythonResolution;
+  toolsPath(): string | undefined;
   git(): string | null;
   window: { showWarningMessage(message: string): unknown };
   memory: { get<T>(key: string): T | undefined; update(key: string, value: unknown): unknown };
@@ -17,11 +18,11 @@ const CLIENTS: HookClient[] = ["claude", "opencode"];
 
 /**
  * Один запуск для папки, возвращает причины отказов. Выключено: снятие, Python не нужен и не проверяется. Условия нет: ничего не пишется и не снимается, снять насовсем можно только настройкой.
- * «Python не найден» причиной не считается: её называет просмотрщик. Скрипт идёт после клиентов: все отказали — файлов хука нет.
+ * «Python не найден» и настройка мимо инструментов причинами не считаются: их называет просмотрщик. Скрипт идёт после клиентов: все отказали — файлов хука нет.
  */
 export async function syncHook(root: string, deps: HookDeps): Promise<string[]> {
   if (!deps.enabled(root)) return removeHook(root, deps.git());
-  const condition = hookCondition(root, deps.python());
+  const condition = hookCondition(root, deps.python(), deps.toolsPath());
   if (!condition.met) return [];
   const git = deps.git();
   const reasons: string[] = [];

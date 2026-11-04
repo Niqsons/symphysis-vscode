@@ -40,6 +40,18 @@ fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(withAttack, "de
 fs.mkdirSync(path.join(withAttack, "attack"));
 fs.copyFileSync(path.join(fixtures, "attack-rich.md"), path.join(withAttack, "attack", "decisions.md"));
 fs.writeFileSync(path.join(withAttack, "attack", "artifacts.md"), "не файл атаки\n", "utf8");
+// Журнал со ссылками: файлы лежат в проекте, ядро кладёт их в карту; PNG открывается не как текст, `constructor` ссылкой не становится.
+fs.mkdirSync(path.join(project, "ссылки"), { recursive: true });
+fs.writeFileSync(path.join(project, "ссылки", "a.md"), "первая строка\nвторая строка\nтретья строка\n", "utf8");
+fs.writeFileSync(path.join(project, "ссылки", "b.md"), "файл б\n", "utf8");
+fs.writeFileSync(path.join(project, "ссылки", "лого.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==", "base64"));
+const withLinks = change("со-ссылками");
+const linksJournal = JSON.parse(fs.readFileSync(path.join(fixtures, "decisions.json"), "utf8"));
+const rec = (id) => linksJournal.records.find((r) => r.id === id);
+rec("F-01").question += " Смотри `ссылки/a.md:2`.";
+rec("F-02").options[0].text += " Файл `ссылки/b.md` и `constructor`.";
+rec("F-03").options[0].text += " Картинка `ссылки/лого.png`.";
+fs.writeFileSync(path.join(withLinks, "decisions.json"), JSON.stringify(linksJournal, null, 1), "utf8");
 const big = bigJournal(SYMPHYSIS).dir;
 const bigCopy = change("большой-журнал");
 fs.copyFileSync(path.join(big, "decisions.json"), path.join(bigCopy, "decisions.json"));

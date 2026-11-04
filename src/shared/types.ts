@@ -82,6 +82,8 @@ export interface ViewPayload {
     evidence_found: number;
   };
   records: JournalRecord[];
+  /** Карта «текст без хвоста `:строка` — путь от корня проекта»; у старого ядра её нет. */
+  file_links?: Record<string, string>;
   notes: { date: string; text: string }[];
   attacks: AttackFile[];
 }

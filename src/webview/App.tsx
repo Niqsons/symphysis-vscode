@@ -10,7 +10,7 @@ import { nodeInScheme } from "../shared/scheme";
 import { NOTES_ANCHOR } from "../shared/search";
 import type { Draft, JournalRecord, ViewPayload } from "../shared/types";
 import { AttackView, LensFilter } from "./AttackView";
-import { Card, Text, type CardContext } from "./Card";
+import { Card, LinksContext, Text, type CardContext, type LinksValue } from "./Card";
 import { CheckView } from "./CheckView";
 import { FailureText } from "./FailureText";
 import { applyColors } from "./colors";
@@ -242,6 +242,8 @@ export function App() {
   const counts = useMemo(() => (payload ? stats(payload, draft) : null), [payload, draft]);
   const attackRows = useMemo(() => (payload ? lensFilters(payload.attacks).total : 0), [payload]);
 
+  const linksValue = useMemo<LinksValue>(() => ({ links: payload?.file_links, open: (link, line) => post({ type: "openFile", link, line }) }), [payload?.file_links]);
+
   const onApply = () => {
     if (!prompt || !payload || !keyRef.current) return;
     flush();
@@ -274,6 +276,7 @@ export function App() {
   };
 
   return (
+    <LinksContext.Provider value={linksValue}>
     <div className="page">
       <header className="top">
         <div className="top-row">
@@ -360,5 +363,6 @@ export function App() {
         />
       )}
     </div>
+    </LinksContext.Provider>
   );
 }

@@ -3,6 +3,7 @@
 import * as vscode from "vscode";
 import { applyFlow } from "./apply";
 import type { CoreEnv } from "./core";
+import { lineOf, resolveLink } from "./links";
 import { pageHtml } from "./page";
 import { deleteDraft, readDraft, readScheme, writeDraft, type ChangeRef } from "./project";
 import type { ChangeState, JournalStore } from "./store";
@@ -193,10 +194,23 @@ export class ViewerPanel {
       case "openScheme":
         this.deps.openScheme(m.key);
         return;
+      case "openFile":
+        await this.openFile(m.link, m.line);
+        return;
       case "openPythonSetting":
         await vscode.commands.executeCommand("workbench.action.openSettings", "symphysis.python");
         return;
     }
+  }
+
+  /** Путь берётся из карты показанного вывода, из сообщения страницы он не приходит никогда (F-44, F-54). Рядом, предпросмотром, фокус остаётся в просмотрщике (F-45). */
+  private async openFile(link: unknown, line: unknown): Promise<void> {
+    const state = this.key ? this.deps.store.get(this.key) : undefined;
+    const file = resolveLink(state?.payload?.file_links, link, state?.ref.root);
+    if (!file) return;
+    const at = lineOf(line);
+    const selection = at ? new vscode.Range(at - 1, 0, at - 1, 0) : undefined;
+    await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(file), { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true, selection });
   }
 
   private async reset(key: string): Promise<void> {

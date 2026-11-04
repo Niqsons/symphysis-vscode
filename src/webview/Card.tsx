@@ -1,6 +1,7 @@
 // Карточка записи в режиме «решения». Показано всё: варианты с «маловероятно» и причиной, рекомендация под списком,
 // антиподы, зависимости, парковки, улики — убрать вариант значило бы решить за человека.
-import { memo, useState } from "react";
+import { createContext, memo, useContext, useState, type MouseEvent } from "react";
+import { linkOf, ownLink, type FileLinks } from "../shared/links";
 import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps, WORD_NEEDED_TEXT, wordMissing } from "../shared/logic";
 import { addDep, addOption, choose, clearChoice, evidenceLevel, isHumanOption, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
 import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type JournalRecord, type ViewPayload } from "../shared/types";
@@ -8,8 +9,38 @@ import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type Journal
 const ONE_WAY = "в одну сторону";
 const PARK_HINT = "Парковка — дополнительный вопрос, который нельзя закрыть сейчас: он уходит адресату. «материалы» — ответ ищет агент, в файлах или пробой (исследование), «человек» — нужно решение человека, «ИБ» — проверка по чек-листу безопасности. Решение по самой развилке парковка не снимает.";
 
-/** Единственная разметка данных журнала — пары backticks; остальное React показывает текстом. */
-export const Text = ({ s }: { s: string }) => <>{String(s ?? "").split(/`([^`]+)`/).map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part))}</>;
+/** Карта ссылок последнего показанного вывода и открытие файла: страница даёт их сверху, без карты всё остаётся кодом (F-44). */
+export interface LinksValue {
+  links: FileLinks | undefined;
+  open(key: string, line: number | null): void;
+}
+export const LinksContext = createContext<LinksValue>({ links: undefined, open: () => {} });
+
+/** Нажатие ссылки открывает файл и не доходит ни до метки варианта, ни до якорей страницы. */
+export function clickLink(e: Pick<MouseEvent, "preventDefault" | "stopPropagation">, open: LinksValue["open"], key: string, line: number | null): void {
+  e.preventDefault();
+  e.stopPropagation();
+  open(key, line);
+}
+
+const FileLink = ({ link, children }: { link: { key: string; line: number | null }; children: React.ReactNode }) => {
+  const { open } = useContext(LinksContext);
+  return (
+    <a className="filelink" role="link" tabIndex={0} data-file-link={link.key} data-file-line={link.line ?? undefined} onClick={(e) => clickLink(e, open, link.key, link.line)} onKeyDown={(e) => { if (e.key === "Enter") clickLink(e, open, link.key, link.line); }}>
+      {children}
+    </a>
+  );
+};
+
+/** Единственная разметка данных журнала — пары backticks; остальное React показывает текстом. Ссылкой становится только текст из карты. */
+export const Text = ({ s }: { s: string }) => {
+  const { links } = useContext(LinksContext);
+  return <>{String(s ?? "").split(/`([^`]+)`/).map((part, i) => {
+    if (i % 2 === 0) return part;
+    const link = linkOf(links, part);
+    return link ? <FileLink key={i} link={link}><code>{part}</code></FileLink> : <code key={i}>{part}</code>;
+  })}</>;
+};
 
 function verdictText(ev: Evidence): string {
   if (ev.found === true) return "сверено";
@@ -17,11 +48,15 @@ function verdictText(ev: Evidence): string {
   return /^не проверить/.test(ev.verdict ?? "") ? ev.verdict! : `не проверить: ${ev.verdict ?? "файл не текст"}`;
 }
 
-export const EvidenceLine = ({ ev }: { ev: Evidence }) => (
-  <span className="ev">
-    улика: <code>{ev.line ? `${ev.path}:${ev.line}` : ev.path}</code> «{ev.quote}» <b className={evidenceLevel(ev)}>{verdictText(ev)}</b>
-  </span>
-);
+export const EvidenceLine = ({ ev }: { ev: Evidence }) => {
+  const { links } = useContext(LinksContext);
+  const shown = <code>{ev.line ? `${ev.path}:${ev.line}` : ev.path}</code>;
+  return (
+    <span className="ev">
+      улика: {ownLink(links, ev.path) !== null ? <FileLink link={{ key: ev.path, line: ev.line ?? null }}>{shown}</FileLink> : shown} «{ev.quote}» <b className={evidenceLevel(ev)}>{verdictText(ev)}</b>
+    </span>
+  );
+};
 
 export interface CardContext {
   payload: ViewPayload;

@@ -74,6 +74,7 @@ export type PageMessage =
   | { type: "apply"; key: string; text: string; shownSha: string | undefined; date: string }
   | { type: "reset"; key: string }
   | { type: "openScheme"; key: string }
+  | { type: "openFile"; link: string; line: number | null }
   | { type: "openPythonSetting" };
 
 /** Вкладка схемы. */

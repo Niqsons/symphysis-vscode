@@ -1006,6 +1006,10 @@ export async function run(): Promise<void> {
     assert.equal(broken.openButton, true);
     await schemeDrive("schemeClickText", { text: "Открыть scheme.md" });
     await until("файл открыт", () => vscode.window.visibleTextEditors.some((e) => e.document.fileName.endsWith("scheme.md")));
+    // «Кнопка «Открыть scheme.md»»: правка файла, поэтому не предпросмотр, как и прежде.
+    const schemeTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputText && t.input.uri.fsPath.endsWith("scheme.md"));
+    assert.ok(schemeTab, "вкладки scheme.md нет");
+    assert.equal(schemeTab!.isPreview, false);
     await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
   });
 
@@ -1108,6 +1112,47 @@ export async function run(): Promise<void> {
     await vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).update("enabled", false, vscode.ConfigurationTarget.WorkspaceFolder);
     await until("снятие после выключения", () => !fs.existsSync(hookSettings) && !fs.existsSync(hookScript));
     await api.hookIdle();
+  });
+
+  // Ссылки на файлы: журнал «со-ссылками», просмотрщик в единственной колонке.
+  const tabsOf = (column: number) => vscode.window.tabGroups.all.find((g) => g.viewColumn === column)?.tabs ?? [];
+  const nameOf = (t: vscode.Tab) => (t.input as { uri?: vscode.Uri } | undefined)?.uri?.fsPath ?? "";
+  const viewerColumn = () => vscode.window.tabGroups.all.find((g) => g.tabs.some((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("symphysis.viewer")))?.viewColumn;
+
+  await step("«Клик из просмотрщика» и «Ссылка внутри варианта»: файл открыт в соседней колонке, фокус и выбор остались", async () => {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await vscode.commands.executeCommand("symphysis.openChange", key("со-ссылками"));
+    await until("карточки", async () => (await drive("snapshot").catch(() => null))?.cards.length === 4);
+    const html = await drive("cardHtml", { id: "F-02" });
+    assert.ok(!html.includes('data-file-link="constructor"'), "constructor стал ссылкой");
+    assert.ok(html.includes("<code>constructor</code>"));
+    assert.equal(vscode.window.tabGroups.all.length, 1);
+    await drive("link", { id: "F-02", key: "ссылки/b.md" });
+    await until("b.md открыт", () => vscode.window.visibleTextEditors.some((e) => e.document.fileName.endsWith("b.md")));
+    const group = vscode.window.tabGroups.activeTabGroup;
+    assert.ok(group.activeTab?.input instanceof vscode.TabInputWebview, "фокус ушёл из просмотрщика");
+    const beside = vscode.window.tabGroups.all.find((g) => g.viewColumn !== group.viewColumn)!;
+    assert.ok(beside.tabs.some((t) => nameOf(t).endsWith("b.md") && t.isPreview), "b.md не в соседней колонке предпросмотром");
+    assert.doesNotMatch(await drive("cardHtml", { id: "F-02" }), /checked=""/, "ссылка выбрала вариант");
+  });
+
+  await step("«Следующий клик» и «Ссылка со строкой»: новый файл заменил предпросмотр на строке 2, новых вкладок нет", async () => {
+    await drive("link", { id: "F-01", key: "ссылки/a.md" });
+    const editor = await until("a.md открыт", () => vscode.window.visibleTextEditors.find((e) => e.document.fileName.endsWith("a.md")));
+    assert.equal(editor!.selection.active.line, 1);
+    const all = vscode.window.tabGroups.all.flatMap((g) => g.tabs);
+    assert.ok(!all.some((t) => nameOf(t).endsWith("b.md")), "b.md остался вкладкой");
+    assert.equal(vscode.window.tabGroups.all.length, 2);
+    assert.equal(tabsOf(viewerColumn() === 1 ? 2 : 1).length, 1);
+    assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputWebview);
+  });
+
+  await step("ссылка на PNG открывается без ошибки, не как текст", async () => {
+    await drive("link", { id: "F-03", key: "ссылки/лого.png" });
+    // Без встроенных расширений у вкладки картинки нет uri во входе: ищем по подписи.
+    await until("png открыт", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "лого.png") || null);
+    assert.ok(!vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => nameOf(t).endsWith("a.md")), "a.md остался вкладкой");
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures }, null, 1), "utf8");

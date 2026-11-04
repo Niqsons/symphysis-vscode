@@ -141,6 +141,12 @@ async function drive(m: any): Promise<unknown> {
       await settle();
       return schemeSnapshot();
     }
+    case "link": {
+      const b = card!.querySelector<HTMLElement>(`[data-file-link="${m.key}"]`);
+      if (!b) throw new Error(`нет ссылки ${m.key} в ${m.id}`);
+      b.click();
+      break;
+    }
     case "cardHtml":
       return card?.outerHTML ?? null;
     case "choose": {

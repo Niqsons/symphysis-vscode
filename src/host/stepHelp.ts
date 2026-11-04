@@ -55,9 +55,13 @@ export async function computeHelp(target: HelpTarget, envOf: (root: string) => C
 const isDir = (p: string) => !!fs.statSync(p, { throwIfNoEntry: false })?.isDirectory();
 const quoted = (arg: string) => (/\s/.test(arg) ? `"${arg}"` : arg);
 
-/** Что запустить в папке проекта, чтобы увидеть то же своими глазами. Инструменты вне проекта называются полным путём: относительный ничего не скажет. */
+/**
+ * Что запустить в папке проекта, чтобы увидеть то же своими глазами: тем же Python, что считал справку. Инструменты вне проекта называются полным путём: относительный ничего не скажет.
+ * Первое слово в кавычках PowerShell, терминал VS Code на Windows по умолчанию, считает строкой, а не командой, поэтому перед ним `&`.
+ */
 function terminalCommand(env: CoreEnv, script: string, args: string[]): string {
-  return ["python", env.installDir ? script : path.relative(env.cwd, script), ...args].map(quoted).join(" ");
+  const line = [env.python, env.installDir ? script : path.relative(env.cwd, script), ...args].map(quoted).join(" ");
+  return process.platform === "win32" && /\s/.test(env.python) ? `& ${line}` : line;
 }
 
 export async function stepHelp(env: CoreEnv, change: string | null, opts: { timeoutMs?: number } = {}): Promise<HelpResult> {

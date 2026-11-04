@@ -233,9 +233,25 @@ for (const [name, script] of UNREADABLE) {
     const project = bareProject();
     const env = { python, tools: path.join(project, ".symphysis", "tools"), cwd: project };
     write(project, ".symphysis/tools/step_help.py", script);
-    assert.deepEqual(failure(await stepHelp(env, CHANGE)), { kind: "unreadable", command: `python ${path.join(".symphysis", "tools", "step_help.py")} --change ${CHANGE}` });
+    assert.deepEqual(failure(await stepHelp(env, CHANGE)), { kind: "unreadable", command: `${python} ${path.join(".symphysis", "tools", "step_help.py")} --change ${CHANGE}` });
   });
 }
+
+test("«Вывод не JSON»: Python с пробелом в пути: команда называет его в кавычках и в PowerShell запускается через `&`", async () => {
+  const project = bareProject();
+  const link = path.join(home("symphysis-питон-", "каталог с пробелом"), "ссылка");
+  fs.symlinkSync(path.dirname(python), link, "junction");
+  try {
+    const spaced = path.join(link, path.basename(python));
+    const env = { python: spaced, tools: path.join(project, ".symphysis", "tools"), cwd: project };
+    write(project, ".symphysis/tools/step_help.py", 'print("не json")\n');
+    const call = `"${spaced}" ${path.join(".symphysis", "tools", "step_help.py")} --change ${CHANGE}`;
+    assert.deepEqual(failure(await stepHelp(env, CHANGE)), { kind: "unreadable", command: process.platform === "win32" ? `& ${call}` : call });
+  } finally {
+    // Ссылка ведёт в настоящий каталог Python: снимается сразу, общая уборка временных каталогов её не видит.
+    fs.unlinkSync(link);
+  }
+});
 
 test("«Вывод не JSON»: старое ядро не знает `--install-dir`, код 2, команда называет и аргумент, и установку в кавычках", async () => {
   const project = bareProject();
@@ -244,7 +260,7 @@ test("«Вывод не JSON»: старое ядро не знает `--install
   write(install, "tools/step_help.py", 'import argparse\nap = argparse.ArgumentParser()\nap.add_argument("--change")\nap.parse_args()\n');
   const env = envOf(project, install);
   const script = path.join(install, "tools", "step_help.py");
-  assert.deepEqual(failure(await stepHelp(env, CHANGE)), { kind: "unreadable", command: `python "${script}" --change ${CHANGE} --install-dir "${install}"` });
+  assert.deepEqual(failure(await stepHelp(env, CHANGE)), { kind: "unreadable", command: `${python} "${script}" --change ${CHANGE} --install-dir "${install}"` });
 });
 
 test("Python снят по пределу: отказ `timeout`, тот же, что у журнала", async () => {

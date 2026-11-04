@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { tempDir } from "../temp-dir.mjs";
+import { hookAcceptsChange } from "../../src/host/project";
 
 const SCRIPT = path.resolve("hook", "hook.py");
 const H1 = "a".repeat(64);
@@ -444,4 +445,31 @@ test("корень проекта берётся от файла скрипта,
   const r = run(p, { session_id: "s1", prompt: "q", cwd: sub });
   assert.match(r.out, /demo/);
   assert.ok(!fs.existsSync(path.join(sub, ".symphysis")));
+});
+
+// Форма имени живёт в двух языках: разойдись они, событие потеряется молча, как в F-70, поэтому имена идут через настоящий скрипт.
+const ASTRAL = "\u{1D400}"; // буква вне BMP: в Python один знак, в UTF-16 два
+const NAMES: [string, boolean][] = [
+  ["demo", true], ["изменение-один", true], ["a", true], ["_x", true], ["1.0-rc.2", true], ["a_b.c-d", true], ["demo.", true], ["demo-", true],
+  ["ёжик", true], ["名前", true], ["٣٤", true], ["x²", true],
+  ["a".repeat(100), true], ["я".repeat(100), true], [ASTRAL.repeat(100), true],
+  ["", false], [" ", false], ["изменение один", false], [" demo", false], ["demo ", false], ["a\tb", false], ["demo\n", false], ["a\nb", false],
+  [".hidden", false], ["-x", false], ["a/b", false], ["a\\b", false], ["../x", false], ["a+b", false],
+  ["a b", false], ["a​b", false], ["й", false], ["a\ud800b", false],
+  ["a".repeat(101), false], ["я".repeat(101), false], [ASTRAL.repeat(101), false],
+];
+
+test("имя изменения: проверка «Внести» и настоящий hook.py решают одинаково", () => {
+  const p = makeProject();
+  call(p, "s");
+  for (const [name, good] of NAMES) {
+    const label = JSON.stringify(name);
+    append(p, ev(name));
+    const r = call(p, "s");
+    // Отброшенная строка и упавший скрипт дают одинаково пустой вывод: падение здесь не считается ответом.
+    assert.equal(r.err, "", label);
+    const shown = r.out !== "";
+    assert.equal(shown, good, `hook.py: ${label}`);
+    assert.equal(hookAcceptsChange(name), shown, `проверка «Внести» расходится с hook.py: ${label}`);
+  }
 });

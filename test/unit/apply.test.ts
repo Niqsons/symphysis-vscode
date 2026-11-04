@@ -13,8 +13,8 @@ const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], {
 const opts = { skip: noCoreReason };
 const DATE = "2026-11-01";
 
-function setup() {
-  const { project, tools, change } = makeProject();
+function setup(name?: string) {
+  const { project, tools, change } = makeProject(name);
   const ref = changeRef(project, path.basename(change));
   return { env: { python, tools, cwd: project }, ref, change, sha: sha256File(ref.journal) };
 }
@@ -97,9 +97,25 @@ function addCursor(project: string, name = `${"c".repeat(64)}.json`) {
 }
 const NO_SESSIONS = /Ни одна сессия агента ещё не обращалась через хук в этом проекте, агенту в другом каталоге надо сказать самому/;
 const EVENT_LOST = /Журнал внесён, но событие для агента не записалось.*: агенту надо сказать самому/;
+const NAME_HIDDEN = /^\[!!\] Журнал внесён, но хук такое имя изменения не покажет: агенту надо сказать самому/;
+// Имя, которое хук показывает. Имя по умолчанию из `makeProject` с пробелом, и строки события у него нет.
+const SHOWN = "изменение-один";
+
+test("имя, которое хук отбросит: журнал внесён, строки в events.jsonl нет, к отчёту добавлено предупреждение", opts, async () => {
+  const { env, ref, sha } = setup("изменение один");
+  addCursor(ref.root);
+  const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
+  assert.equal(r.stage, "applied");
+  if (r.stage !== "applied") return;
+  assert.equal(JSON.parse(fs.readFileSync(ref.journal, "utf8")).records[1].decision.option, "A");
+  assert.equal(r.rebuildOk, true);
+  assert.equal(r.sha256After, sha256File(ref.journal));
+  assert.ok(r.report.some((l) => NAME_HIDDEN.test(l)), r.report.join("\n"));
+  assert.deepEqual(eventsOf(ref.root), []);
+});
 
 test("«Внесено»: в events.jsonl новая строка с изменением, файлом answers/ от корня, двумя хешами и отчётом", opts, async () => {
-  const { env, ref, sha } = setup();
+  const { env, ref, sha } = setup(SHOWN);
   addCursor(ref.root);
   const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
   assert.equal(r.stage, "applied");
@@ -115,7 +131,7 @@ test("«Внесено»: в events.jsonl новая строка с измен�
 });
 
 test("«Внесено»: второе внесение дописывает вторую строку, хеш до равен прежнему хешу после", opts, async () => {
-  const { env, ref, sha } = setup();
+  const { env, ref, sha } = setup(SHOWN);
   const first = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
   const after = first.stage === "applied" ? first.sha256After ?? "" : "";
   await applyFlow({ env, ref, text: "- F-04: A — «и так»", shownSha: after, date: DATE });
@@ -127,7 +143,7 @@ test("«Внесено»: второе внесение дописывает в�
 });
 
 test("«Внесено»: сборка упала, журнал уже внесён — строка всё равно есть", opts, async () => {
-  const { env, ref: before, change, sha } = setup();
+  const { env, ref: before, change, sha } = setup(SHOWN);
   addAttack(change, "decisions.md", "не файл атаки");
   const ref = changeRef(before.root, before.name);
   const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
@@ -139,26 +155,24 @@ test("«Внесено»: сборка упала, журнал уже внес�
 });
 
 test("«Внесено»: строку понимает настоящий hook.py, курсор этого хука снимает слова о сессиях", opts, async () => {
-  // Имя без пробела: `valid_name` в hook.py другие не пропускает.
-  const { project, tools, change } = makeProject("изменение-один");
-  const ref = changeRef(project, path.basename(change));
-  const sha = sha256File(ref.journal);
+  const { env, ref, sha } = setup(SHOWN);
+  const project = ref.root;
   fs.mkdirSync(viewerPath(project), { recursive: true });
   fs.copyFileSync(path.resolve("hook", "hook.py"), viewerPath(project, "hook.py"));
   const hook = () => spawnSync("python", ["-I", "-X", "utf8", viewerPath(project, "hook.py")], { input: JSON.stringify({ session_id: "сессия" }), cwd: project, encoding: "utf8" });
   assert.equal(hook().stdout, "");
-  const r = await applyFlow({ env: { python, tools, cwd: project }, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
+  const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
   assert.equal(r.stage, "applied");
   if (r.stage !== "applied") return;
   assert.ok(!r.report.some((l) => NO_SESSIONS.test(l)), r.report.join("\n"));
   const out = hook().stdout;
-  assert.ok(out.includes("openspec/changes/изменение-один/answers/2026-11-01.md"), out);
+  assert.ok(out.includes(`openspec/changes/${SHOWN}/answers/2026-11-01.md`), out);
   assert.ok(out.includes(sha.slice(0, 8)), out);
   assert.ok(out.includes(sha256File(ref.journal).slice(0, 8)), out);
 });
 
 test("«Отказ `apply`»: строки в events.jsonl нет, журнал не тронут", opts, async () => {
-  const { env, ref, sha } = setup();
+  const { env, ref, sha } = setup(SHOWN);
   const r = await applyFlow({ env, ref, text: "- F-02: Z — «так»", shownSha: sha, date: DATE });
   assert.equal(r.stage, "refused");
   assert.deepEqual(eventsOf(ref.root), []);
@@ -166,14 +180,14 @@ test("«Отказ `apply`»: строки в events.jsonl нет, журнал 
 });
 
 test("устаревший журнал строки не даёт", opts, async () => {
-  const { env, ref } = setup();
+  const { env, ref } = setup(SHOWN);
   const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: "0".repeat(64), date: DATE });
   assert.equal(r.stage, "stale");
   assert.deepEqual(eventsOf(ref.root), []);
 });
 
 test("«Событие не записалось»: запись упала, журнал внесён, к отчёту добавлено предупреждение", opts, async () => {
-  const { env, ref, sha } = setup();
+  const { env, ref, sha } = setup(SHOWN);
   // Каталог на месте файла: настоящий отказ записи.
   fs.mkdirSync(viewerPath(ref.root, "events.jsonl"), { recursive: true });
   const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
@@ -189,7 +203,7 @@ test("«Событие не записалось»: запись упала, ж�
 });
 
 test("«Событие не записалось»: хеш после внесения не прочитать, внесённое не называется отказом, строки нет", opts, async () => {
-  const { env, ref, sha } = setup();
+  const { env, ref, sha } = setup(SHOWN);
   // Настоящее ядро в обёртке: `apply` проходит, затем журнал пропадает.
   fs.renameSync(path.join(env.tools, "journal.py"), path.join(env.tools, "journal_real.py"));
   fs.writeFileSync(path.join(env.tools, "journal.py"), [
@@ -216,7 +230,7 @@ for (const [name, prepare] of [
   ["в каталоге только временный файл хука", (p: string) => addCursor(p, `${"c".repeat(64)}.json.1.tmp`)],
 ] as const) {
   test(`«Ни одна сессия не обращалась»: ${name}, к отчёту добавлена строка, событие записано без неё`, opts, async () => {
-    const { env, ref, sha } = setup();
+    const { env, ref, sha } = setup(SHOWN);
     prepare(ref.root);
     const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });
     assert.equal(r.stage, "applied");

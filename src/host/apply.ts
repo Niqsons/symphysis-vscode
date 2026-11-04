@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { applyAnswers, rebuild, viewJson, type CoreEnv } from "./core";
-import { appendEvent, hasSessionCursors, saveAnswers, sha256File, type ChangeRef } from "./project";
+import { appendEvent, hasSessionCursors, hookAcceptsChange, saveAnswers, sha256File, type ChangeRef } from "./project";
 
 export interface ApplyInput {
   env: CoreEnv;
@@ -19,6 +19,7 @@ export type ApplyOutcome =
   | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string | null };
 
 const eventLost = (reason: string) => `[!!] Журнал внесён, но событие для агента не записалось (${reason}): агенту надо сказать самому.`;
+const NAME_HIDDEN = "[!!] Журнал внесён, но хук такое имя изменения не покажет: агенту надо сказать самому.";
 const NO_SESSIONS = "[!!] Ни одна сессия агента ещё не обращалась через хук в этом проекте, агенту в другом каталоге надо сказать самому.";
 
 function currentSha(file: string): string | null {
@@ -32,7 +33,10 @@ function currentSha(file: string): string | null {
 /** Событие для хука. Журнал уже внесён, поэтому сбой здесь не отказ, а предупреждение к отчёту (F-70, F-99). Возвращает строки предупреждений. */
 function tellAgent(ref: ChangeRef, answers: string, before: string, after: string | null, report: string[]): string[] {
   const warnings: string[] = [];
-  if (after === null) {
+  if (!hookAcceptsChange(ref.name)) {
+    // Строку скрипт отбросил бы молча: человек считал бы, что агент узнает.
+    warnings.push(NAME_HIDDEN);
+  } else if (after === null) {
     warnings.push(eventLost("журнал не прочитать"));
   } else {
     try {

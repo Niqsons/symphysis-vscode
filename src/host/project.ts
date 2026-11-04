@@ -115,6 +115,12 @@ export function writeDraft(root: string, name: string, draft: Draft): void {
   fs.renameSync(temp, file);
 }
 
+/**
+ * Покажет ли хук событие этого изменения: та же форма, что `valid_name` в `hook/hook.py` (`security.md`). Длина в знаках, как `len` в Python, а не в единицах UTF-16.
+ * Обе стороны сверяет `test/unit/hook-script.test.ts`.
+ */
+export const hookAcceptsChange = (name: string): boolean => [...name].length <= 100 && /^[\p{L}\p{N}_][\p{L}\p{N}_.-]*$/u.test(name);
+
 /** Строка `events.jsonl`. Поля читает `hook/hook.py`. */
 export interface JournalEvent {
   change: string;

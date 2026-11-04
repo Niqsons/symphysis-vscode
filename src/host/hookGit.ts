@@ -118,7 +118,7 @@ function removeLines(file: string, remove: string[]): void {
  */
 export async function installClient(root: string, client: HookClient, python: string, git: string | null): Promise<WriteResult> {
   const rel = CLIENT_FILE[client];
-  // До git: у пути через ссылку он отказал бы сам, и причина вышла бы не та.
+  // До git и `exclude`: запись через такую ссылку всё равно откажет, и `exclude` незачем трогать ради отката.
   const refusal = writeRefusal(root, path.join(root, rel));
   if (refusal) return fail(refusal);
   const write = () => (client === "claude" ? installClaudeHook(root, python) : installOpencodeHook(root, python));

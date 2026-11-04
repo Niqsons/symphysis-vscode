@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildPrompt, emptyDraft } from "../../src/shared/logic";
 import type { Draft, JournalRecord, ViewPayload } from "../../src/shared/types";
-import { Card, clickLink, LinksContext, type CardContext } from "../../src/webview/Card";
+import { Card, type CardContext } from "../../src/webview/Card";
+import { clickLink, LinksContext } from "../../src/webview/Text";
 import { fact, fork, option, payload } from "./helpers";
 
 const DATE = "2026-11-01";

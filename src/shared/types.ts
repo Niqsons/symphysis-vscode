@@ -65,6 +65,13 @@ export interface AttackFile {
   error?: string;
 }
 
+/** Скилл шага. `base` — где найден файл, `path` от этого каталога; не найден — оба `null`. */
+export interface HelpSkill {
+  name: string;
+  path: string | null;
+  base: "project" | "install" | null;
+}
+
 /** Страница шага в выводе `step_help.py`. `state` бывает `null` без графа: нет изменения или форк упал. */
 export interface StepHelpPage {
   id: string;
@@ -80,8 +87,8 @@ export interface StepHelpPage {
   text_note: string | null;
   prev: string | null;
   next: string | null;
-  /** `base` — где найден файл, `path` от этого каталога; не найден — оба `null`. */
-  skills: { name: string; path: string | null; base: "project" | "install" | null }[];
+  /** Нет поля у старого ядра. */
+  skills?: HelpSkill[];
 }
 
 /** Вывод `step_help.py`: поля в `test_output_shape` ядра, исходы и коды в `step_help.py --help`. Сбой идёт полем `error`, тексты шагов при этом на месте. */
@@ -100,7 +107,8 @@ export interface StepHelpOutput {
   forks: { open: number | string; parked: number | string } | null;
   tasks: { state: string; total: number; complete: number; remaining: number } | null;
   steps: StepHelpPage[];
-  file_links: Record<string, string>;
+  /** Нет поля у старого ядра. */
+  file_links?: Record<string, string>;
 }
 
 export interface ViewPayload {

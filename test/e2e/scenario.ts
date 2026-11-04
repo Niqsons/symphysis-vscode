@@ -793,6 +793,30 @@ export async function run(): Promise<void> {
     await until("заголовок схемы", () => panelLabel() === "Схема: со-схемой");
   });
 
+  await step("«Листание» и «Правила намерения»: страница шага меняется, отметка текущего стоит, версии внизу; чужие сообщения страницы ничего не открывают", async () => {
+    await schemeDrive("panelSwitch", { text: "справка" });
+    const first = await helpShown("страница текущего", (r) => r.current && r.page);
+    assert.equal(first.page, first.currentInList);
+    assert.match(first.versions, /плагин \d+\.\d+\.\d+/);
+    const other = first.steps.find((id: string) => id !== first.currentInList)!;
+    const turned = await schemeDrive("helpClick", { text: other });
+    assert.equal(turned.page, other);
+    assert.equal(turned.currentInList, first.currentInList, "отметка текущего сдвинулась");
+    const rules = await schemeDrive("helpClick", { text: "Как готовить intent.md?" });
+    assert.equal(rules.rules, true);
+    assert.equal(rules.currentInList, first.currentInList);
+    assert.deepEqual(rules.violations, []);
+    const tabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).length;
+    const before = tabs();
+    await schemeDrive("post", { message: { type: "helpOpenFile", link: "../../секрет.txt", line: null } });
+    await schemeDrive("post", { message: { type: "helpOpenFile", link: "constructor", line: 1 } });
+    await schemeDrive("post", { message: { type: "helpOpenSkill", name: "__proto__" } });
+    await sleep(500);
+    assert.equal(tabs(), before, "чужое сообщение открыло вкладку");
+    await schemeDrive("panelSwitch", { text: "схема" });
+    await schemeState("svg");
+  });
+
   await step("«Журнал сменился»: справка следует за просмотрщиком, заголовок и страница называют новое изменение", async () => {
     await schemeDrive("panelSwitch", { text: "справка" });
     await helpShown("первое изменение", (r) => r.name === "со-схемой" && r.current);

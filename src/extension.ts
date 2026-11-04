@@ -100,6 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
     activeChanges: () => workspaceDirs().flatMap(listChanges),
     workspaceRoots: workspaceDirs,
     requestHelp: (target) => help.request(target),
+    toolsPath,
   });
 
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.

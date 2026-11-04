@@ -91,8 +91,8 @@ test("«Инструменты только по настройке»: спра�
   assert.equal(output.current_step, "intent");
   assert.ok(shim.calls().length > 0);
   for (const call of shim.calls()) assert.ok(samePath(call.cwd, project), call.cwd);
-  assert.equal(output.file_links["src/a.py"], "src/a.py");
-  assert.ok(!("src/только-в-установке.py" in output.file_links), "карта считается от установки");
+  assert.equal(output.file_links!["src/a.py"], "src/a.py");
+  assert.ok(!("src/только-в-установке.py" in output.file_links!), "карта считается от установки");
   const intent = output.steps.find((s) => s.id === "intent")!;
   assert.deepEqual(intent.skills, [{ name: "symphysis-проба", path: ".claude/skills/symphysis-проба/SKILL.md", base: "install" }]);
 });

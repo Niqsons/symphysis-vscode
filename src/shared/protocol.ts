@@ -116,6 +116,8 @@ export interface HelpView {
   panel: PanelView;
   name: string | null;
   outcome: HelpOutcome | null;
+  /** Версия плагина для малозаметной строки внизу (F-37). */
+  pluginVersion: string;
 }
 
 export type HelpHostMessage = { type: "help"; view: HelpView };
@@ -124,6 +126,8 @@ export type HelpPageMessage =
   | { type: "helpReady" }
   | { type: "panelView"; view: PanelView }
   | { type: "helpChoose"; key: string }
+  | { type: "helpOpenFile"; link: string; line: number | null }
+  | { type: "helpOpenSkill"; name: string }
   | { type: "openPythonSetting" };
 
 /** Страница поиска в боковой панели. `scope` — открытое изменение; `null` — журнал не открыт, искать негде. */

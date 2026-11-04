@@ -26,7 +26,7 @@ function helpOutput(over: Partial<StepHelpOutput> = {}): StepHelpOutput {
   const page = (id: string) => ({ id, state: null, turn: "human", optional: false, blocks: [], stops_apply: false, waits_for: [], files: [], file_note: null, texts: { title: "", why: "", mechanics: "", if_skipped: "", what_to_check: "", command: "", how_to_prepare: "" }, text_note: null, prev: null, next: null, skills: [] } as StepHelpOutput["steps"][number]);
   return { contract: 2, taken_at: "", versions: { openspec: null, symphysis: null }, change: null, changes: [], error: null, current_step: "intent", current_text: "Активных изменений нет: следующий шаг по файлам — `intent`, ход человека.", turn: "human", next_by_status: null, forks: null, tasks: null, steps: [page("intent"), page("specs")], file_links: {}, ...over };
 }
-const help = (view: Partial<HelpView>) => renderToStaticMarkup(<HelpBody view={{ panel: "help", name: null, outcome: null, ...view }} choose={noop} openPythonSetting={noop} />);
+const help = (view: Partial<HelpView>) => renderToStaticMarkup(<HelpBody view={{ panel: "help", name: null, outcome: null, pluginVersion: "0.2.0", ...view }} choose={noop} openPythonSetting={noop} />);
 
 function attack(p: ViewPayload, lens = "all", draft: Draft = emptyDraft()): string {
   return renderToStaticMarkup(<AttackView payload={p} draft={draft} flags={buildPrompt(p, draft, DATE)} lens={lens} update={noop} />);
@@ -282,15 +282,15 @@ test("«Папка без `openspec/`»: отказ говорит, что в э
 test("«Команда палитры»: изменений нет: текущий шаг `intent`, ход человека, пункт отмечен текущим", () => {
   const html = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput() } });
   assert.ok(html.includes('<div class="help-current"><b>intent</b> · ход человека</div>'), html);
-  assert.ok(html.includes('<li class="current" aria-current="step">intent</li>'), html);
-  assert.ok(html.includes("<li>specs</li>"), html);
+  assert.ok(html.includes('<li class="current shown" aria-current="step"><button type="button" class="step">intent</button></li>'), html);
+  assert.ok(html.includes('<li><button type="button" class="step">specs</button></li>'), html);
 });
 
 test("«Сбой форка»: шага нет, `error` дословно, список шагов остаётся", () => {
   const html = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput({ current_step: null, turn: null, current_text: null, error: "openspec не найден" }) } });
   assert.ok(html.includes("openspec не найден"), html);
   assert.ok(!html.includes("help-current"), html);
-  assert.ok(html.includes("<li>intent</li>"), html);
+  assert.ok(html.includes('<li class="shown"><button type="button" class="step">intent</button></li>'), html);
 });
 
 test("«Несколько активных»: список имён без папки; «Две папки рабочей области»: с именем папки", () => {

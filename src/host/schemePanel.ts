@@ -2,6 +2,8 @@
 // Страниц две, у схемы mermaid, у справки React: переключатель заменяет страницу. `scheme.md` читает плагин и следит за ним, сам в него не пишет (F-25, F-26, F-103).
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { lineOf, resolveLink, resolveSkill } from "./links";
+import { openBeside } from "./openFile";
 import { pageHtml } from "./page";
 import { changeDir, readScheme, schemeFile, type ChangeRef } from "./project";
 import { chooseTarget, sameTarget, type HelpTarget } from "./stepHelp";
@@ -22,6 +24,8 @@ export interface SchemeDeps {
   activeChanges(): ChangeRef[];
   workspaceRoots(): string[];
   requestHelp(target: HelpTarget): void;
+  /** Настройка `symphysis.toolsPath`: от неё открываются скиллы из каталога установки (F-91). */
+  toolsPath(): string | undefined;
 }
 
 const SCHEME_PAGE = "scheme.js";
@@ -200,7 +204,7 @@ export class SchemePanel {
       const m: SchemeHostMessage = { type: "scheme", view: { name, ...readScheme(this.key) } };
       void this.panel.webview.postMessage(m);
     } else {
-      const m: HelpHostMessage = { type: "help", view: { panel: this.view, name, outcome: this.outcome } };
+      const m: HelpHostMessage = { type: "help", view: { panel: this.view, name, outcome: this.outcome, pluginVersion: String(this.deps.context.extension.packageJSON.version) } };
       void this.panel.webview.postMessage(m);
     }
   }
@@ -226,6 +230,20 @@ export class SchemePanel {
         this.remember(m.key);
         this.show();
         return;
+      case "helpOpenFile": {
+        // Ключ приходит со страницы: путь берётся из карты показанного вывода, остального не открывается (F-44, F-54).
+        const shown = this.outcome?.kind === "output" ? this.outcome : null;
+        const file = shown ? resolveLink(shown.output.file_links, m.link, shown.root) : null;
+        if (file) await openBeside(file, lineOf(m.line));
+        return;
+      }
+      case "helpOpenSkill": {
+        // Страница называет скилл по имени; файл ищется в поле `skills` показанного вывода и только внутри каталога установки (F-91).
+        const shown = this.outcome?.kind === "output" ? this.outcome : null;
+        const file = shown ? resolveSkill(shown.output.steps.flatMap((p) => p.skills ?? []), m.name, this.deps.toolsPath()) : null;
+        if (file) await openBeside(file, null);
+        return;
+      }
       case "openPythonSetting":
         await vscode.commands.executeCommand("workbench.action.openSettings", "symphysis.python");
         return;

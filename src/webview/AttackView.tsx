@@ -4,7 +4,7 @@ import { ALL_LENSES, attackAnchor, attackKind, demotion, effectiveLens, fileGrou
 import { disputeKey, type Prompt } from "../shared/logic";
 import { isHumanOption } from "../shared/ops";
 import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../shared/types";
-import { Text } from "./Card";
+import { Text } from "./Text";
 import { Segmented } from "./Segmented";
 
 const HINT = "Строки атаки apply не меняет — их закрывает правка цели (журнала или артефакта) и повторная атака. Спор по строке (почему опора есть, почему не блокер) уходит в промпт возврата одной строкой «Замечания к схеме:» и ложится в notes[] журнала; ответ на строку с закрытием «вопрос человеку» и разделом «F-NN, decision» уходит словом к решению. Фильтр по линзе прячет группы, но не счётчики тяжести в шапке файла.";

@@ -1,46 +1,14 @@
 // Карточка записи в режиме «решения». Показано всё: варианты с «маловероятно» и причиной, рекомендация под списком,
 // антиподы, зависимости, парковки, улики — убрать вариант значило бы решить за человека.
-import { createContext, memo, useContext, useState, type MouseEvent } from "react";
-import { linkOf, ownLink, type FileLinks } from "../shared/links";
+import { memo, useContext, useState } from "react";
+import { ownLink } from "../shared/links";
 import { allOptions, antipodesOf, chosen, chosenAntipodes, effectiveDeps, WORD_NEEDED_TEXT, wordMissing } from "../shared/logic";
 import { addDep, addOption, choose, clearChoice, evidenceLevel, isHumanOption, park, removeAddedOption, removeDep, restoreDep, setDispute, setWord, unpark } from "../shared/ops";
 import { ADDRESSEES, type DecisionDraft, type Draft, type Evidence, type JournalRecord, type ViewPayload } from "../shared/types";
+import { FileLink, LinksContext, Text } from "./Text";
 
 const ONE_WAY = "в одну сторону";
 const PARK_HINT = "Парковка — дополнительный вопрос, который нельзя закрыть сейчас: он уходит адресату. «материалы» — ответ ищет агент, в файлах или пробой (исследование), «человек» — нужно решение человека, «ИБ» — проверка по чек-листу безопасности. Решение по самой развилке парковка не снимает.";
-
-/** Карта ссылок последнего показанного вывода и открытие файла: страница даёт их сверху, без карты всё остаётся кодом (F-44). */
-export interface LinksValue {
-  links: FileLinks | undefined;
-  open(key: string, line: number | null): void;
-}
-export const LinksContext = createContext<LinksValue>({ links: undefined, open: () => {} });
-
-/** Нажатие ссылки открывает файл и не доходит ни до метки варианта, ни до якорей страницы. */
-export function clickLink(e: Pick<MouseEvent, "preventDefault" | "stopPropagation">, open: LinksValue["open"], key: string, line: number | null): void {
-  e.preventDefault();
-  e.stopPropagation();
-  open(key, line);
-}
-
-const FileLink = ({ link, children }: { link: { key: string; line: number | null }; children: React.ReactNode }) => {
-  const { open } = useContext(LinksContext);
-  return (
-    <a className="filelink" role="link" tabIndex={0} data-file-link={link.key} data-file-line={link.line ?? undefined} onClick={(e) => clickLink(e, open, link.key, link.line)} onKeyDown={(e) => { if (e.key === "Enter") clickLink(e, open, link.key, link.line); }}>
-      {children}
-    </a>
-  );
-};
-
-/** Единственная разметка данных журнала — пары backticks; остальное React показывает текстом. Ссылкой становится только текст из карты. */
-export const Text = ({ s }: { s: string }) => {
-  const { links } = useContext(LinksContext);
-  return <>{String(s ?? "").split(/`([^`]+)`/).map((part, i) => {
-    if (i % 2 === 0) return part;
-    const link = linkOf(links, part);
-    return link ? <FileLink key={i} link={link}><code>{part}</code></FileLink> : <code key={i}>{part}</code>;
-  })}</>;
-};
 
 function verdictText(ev: Evidence): string {
   if (ev.found === true) return "сверено";

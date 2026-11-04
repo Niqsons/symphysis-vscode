@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { applyFlow } from "./apply";
 import type { CoreEnv } from "./core";
 import { lineOf, resolveLink } from "./links";
+import { openBeside } from "./openFile";
 import { pageHtml } from "./page";
 import { deleteDraft, readDraft, readScheme, writeDraft } from "./project";
 import type { ChangeState, JournalStore } from "./store";
@@ -203,14 +204,11 @@ export class ViewerPanel {
     }
   }
 
-  /** Путь берётся из карты показанного вывода, из сообщения страницы он не приходит никогда (F-44, F-54). Рядом, предпросмотром, фокус остаётся в просмотрщике (F-45). */
+  /** Путь берётся из карты показанного вывода, из сообщения страницы он не приходит никогда (F-44, F-54). */
   private async openFile(link: unknown, line: unknown): Promise<void> {
     const state = this.key ? this.deps.store.get(this.key) : undefined;
     const file = resolveLink(state?.payload?.file_links, link, state?.ref.root);
-    if (!file) return;
-    const at = lineOf(line);
-    const selection = at ? new vscode.Range(at - 1, 0, at - 1, 0) : undefined;
-    await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(file), { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true, selection });
+    if (file) await openBeside(file, lineOf(line));
   }
 
   private async reset(key: string): Promise<void> {

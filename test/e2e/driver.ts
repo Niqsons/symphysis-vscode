@@ -116,6 +116,10 @@ function helpSnapshot() {
     current: document.querySelector(".help-current")?.textContent ?? null,
     steps: [...document.querySelectorAll<HTMLElement>(".help-steps li")].map((l) => l.textContent ?? ""),
     currentInList: document.querySelector('.help-steps [aria-current="step"]')?.textContent ?? null,
+    page: document.querySelector(".help-page")?.getAttribute("data-step") ?? null,
+    rules: !!document.querySelector(".help-page[data-rules]"),
+    versions: document.querySelector(".help-versions")?.textContent ?? null,
+    nextDisabled: [...document.querySelectorAll<HTMLButtonElement>(".help-nav button")].find((b) => b.textContent === "следующий")?.disabled ?? null,
     choices: [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].map((b) => b.textContent ?? ""),
     note: document.querySelector(".help-body .note")?.textContent ?? null,
     violations: [...violations],
@@ -152,6 +156,14 @@ async function drive(m: any): Promise<unknown> {
       // Страница может прислать что угодно: хост не должен этому верить.
       api.postMessage(m.message);
       return null;
+    case "helpClick": {
+      // Кнопка справки по тексту: шаг в списке, «предыдущий», «следующий», «Как готовить intent.md?».
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".help-body button")].find((x) => x.textContent === m.text);
+      if (!b) throw new Error(`нет кнопки «${m.text}»`);
+      b.click();
+      await settle();
+      return helpSnapshot();
+    }
     case "helpChoose": {
       const b = [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].find((x) => x.textContent === m.text);
       if (!b) throw new Error(`нет строки «${m.text}»`);

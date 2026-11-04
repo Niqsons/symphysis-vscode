@@ -9,6 +9,8 @@ export interface TaskCounts {
   total: number;
 }
 
+export const sameTasks = (a: TaskCounts | null, b: TaskCounts | null): boolean => a?.complete === b?.complete && a?.total === b?.total;
+
 /**
  * Ответ идёт журналу, только если он посчитан для того же каталога изменения: ключ, а не имя (две папки могут держать одноимённые изменения).
  * Сбой, отказ, список на выбор, нет чисел или ответа вовсе — `null`: части о задачах нет.

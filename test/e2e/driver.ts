@@ -8,6 +8,12 @@ const api = acquireVsCodeApi();
 const violations: string[] = [];
 document.addEventListener("securitypolicyviolation", (e) => violations.push(`${e.violatedDirective}: ${e.blockedURI}`));
 
+// Сколько раз хост прислал новые данные журнала: каждый раз перерисовываются все карточки.
+let journalMessages = 0;
+window.addEventListener("message", (ev) => {
+  if (ev.data?.type === "journal") journalMessages++;
+});
+
 const setValue = (el: HTMLTextAreaElement | HTMLInputElement, value: string) => {
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, value);
@@ -53,6 +59,7 @@ function snapshot() {
     violations: [...violations],
     scrollTop: document.querySelector("main")?.scrollTop ?? 0,
     overflowX: overflowX(),
+    journalMessages,
   };
 }
 
@@ -122,6 +129,7 @@ function helpSnapshot() {
     nextDisabled: [...document.querySelectorAll<HTMLButtonElement>(".help-nav button")].find((b) => b.textContent === "следующий")?.disabled ?? null,
     choices: [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].map((b) => b.textContent ?? ""),
     note: document.querySelector(".help-body .note")?.textContent ?? null,
+    text: body?.textContent ?? "",
     violations: [...violations],
   };
 }
@@ -129,7 +137,6 @@ function helpSnapshot() {
 /** Настоящие события указателя: нажатие, сдвиг, отпускание над узлом или над пустым местом. */
 function press(target: Element, dx: number, dy: number) {
   const r = target.getBoundingClientRect();
-    text: body?.textContent ?? "",
   const x = r.left + r.width / 2, y = r.top + r.height / 2;
   const fire = (type: string, cx: number, cy: number) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: cx, clientY: cy, pointerId: 1, button: 0 }));
   fire("pointerdown", x, y);

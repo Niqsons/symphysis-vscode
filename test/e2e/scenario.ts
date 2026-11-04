@@ -1066,6 +1066,30 @@ export async function run(): Promise<void> {
     await schemeDrive("panelSwitch", { text: "схема" });
   });
 
+  await step("числа задач те же: ответ справки не шлёт просмотрщику новые данные журнала (карточки не перерисовываются); числа другие — шлёт", async () => {
+    try {
+      setFork({ file: false, tasks: { total: 5, complete: 2 } });
+      await schemeDrive("panelSwitch", { text: "справка" });
+      await helpShown("справка изменения", (r) => r.name === "со-схемой" && r.current);
+      await schemeDrive("helpClick", { text: "Обновить" });
+      await until("числа задач", async () => /Задач закрыто 2 из 5/.test((await snap()).stats));
+      await quiet();
+      const before = (await snap()).journalMessages;
+      const runs = calcs();
+      await schemeDrive("helpClick", { text: "Обновить" });
+      await until("расчёт по кнопке", () => calcs() > runs);
+      await quiet();
+      assert.equal((await snap()).journalMessages, before, "числа те же, а просмотрщик получил новые данные журнала");
+      setFork({ file: false, tasks: { total: 5, complete: 3 } });
+      await schemeDrive("helpClick", { text: "Обновить" });
+      await until("другие числа", async () => /Задач закрыто 3 из 5/.test((await snap()).stats));
+      assert.ok((await snap()).journalMessages > before, "контроль: числа сменились, а счётчик сообщений стоит");
+    } finally {
+      fs.writeFileSync(forkFile, forkBefore, "utf8");
+    }
+    await schemeDrive("panelSwitch", { text: "схема" });
+  });
+
   await step("«Журнал сменился»: справка следует за просмотрщиком, заголовок и страница называют новое изменение", async () => {
     await schemeDrive("panelSwitch", { text: "справка" });
     await helpShown("первое изменение", (r) => r.name === "со-схемой" && r.current);
@@ -1127,30 +1151,6 @@ export async function run(): Promise<void> {
     assert.equal((await schemeDrive("schemeSnapshot")).state, "svg");
   });
 
-  await step("перетаскивание двигает схему и не трогает фильтр; сдвиг на 3 пикселя — клик, на 4 — перетаскивание (F-68)", async () => {
-    const before = await schemeSnap();
-    const moved = await schemeDrive("schemeDrag", { dx: -40, dy: 25 });
-    assert.equal(moved.x, before.x - 40);
-    assert.equal(moved.y, before.y + 25);
-    assert.equal((await snap()).nodeFilter, null);
-    await schemeDrive("schemeNode", { id: "A", dx: 4, dy: 0 });
-    assert.equal((await snap()).nodeFilter, null);
-    await schemeDrive("schemeNode", { id: "A", dx: 3, dy: 0 });
-    await until("условие A", async () => (await snap()).nodeFilter === "A");
-    await schemeDrive("schemeNode", { id: "A" });
-    await until("условие снято", async () => (await snap()).nodeFilter === null);
-  });
-
-  await step("клик по узлу из другого режима: «решения», «показать» прежнее, условие в шапке; повторный клик снимает", async () => {
-    await drive("mode", { name: "атака" });
-    await drive("filter", { name: "открытые" }).catch(() => undefined);
-    await schemeDrive("schemeNode", { id: "A" });
-    const s = await until("условие", async () => { const r = await snap(); return r.nodeFilter === "A" ? r : null; });
-    assert.match(s.mode, /решения/);
-    assert.deepEqual(s.cards.filter((c: string) => c !== "F-01"), s.cards.filter((c: string) => c === "F-02"), "только записи узла A");
-    await schemeDrive("schemeNode", { id: "A" });
-    await until("условие снято", async () => (await snap()).nodeFilter === null);
-  });
   await step("поддельные значения страницы: `date` не становится путём записи, чужой `key` схемы не читается и не открывается, негодная строка не мешает открыть scheme.md (`security.md`)", async () => {
     const answers = path.join(withScheme, "answers");
     const answersNow = () => (fs.existsSync(answers) ? fs.readdirSync(answers).length : 0);
@@ -1187,6 +1187,30 @@ export async function run(): Promise<void> {
     await schemeState("svg");
   });
 
+  await step("перетаскивание двигает схему и не трогает фильтр; сдвиг на 3 пикселя — клик, на 4 — перетаскивание (F-68)", async () => {
+    const before = await schemeSnap();
+    const moved = await schemeDrive("schemeDrag", { dx: -40, dy: 25 });
+    assert.equal(moved.x, before.x - 40);
+    assert.equal(moved.y, before.y + 25);
+    assert.equal((await snap()).nodeFilter, null);
+    await schemeDrive("schemeNode", { id: "A", dx: 4, dy: 0 });
+    assert.equal((await snap()).nodeFilter, null);
+    await schemeDrive("schemeNode", { id: "A", dx: 3, dy: 0 });
+    await until("условие A", async () => (await snap()).nodeFilter === "A");
+    await schemeDrive("schemeNode", { id: "A" });
+    await until("условие снято", async () => (await snap()).nodeFilter === null);
+  });
+
+  await step("клик по узлу из другого режима: «решения», «показать» прежнее, условие в шапке; повторный клик снимает", async () => {
+    await drive("mode", { name: "атака" });
+    await drive("filter", { name: "открытые" }).catch(() => undefined);
+    await schemeDrive("schemeNode", { id: "A" });
+    const s = await until("условие", async () => { const r = await snap(); return r.nodeFilter === "A" ? r : null; });
+    assert.match(s.mode, /решения/);
+    assert.deepEqual(s.cards.filter((c: string) => c !== "F-01"), s.cards.filter((c: string) => c === "F-02"), "только записи узла A");
+    await schemeDrive("schemeNode", { id: "A" });
+    await until("условие снято", async () => (await snap()).nodeFilter === null);
+  });
 
   await step("условие не прячет открытые: шапка считает по всему журналу и говорит, сколько скрыто (F-104)", async () => {
     await schemeDrive("schemeNode", { id: "B" });
@@ -1579,6 +1603,49 @@ export async function run(): Promise<void> {
     await hookStands("запись на инструментах проекта");
   });
 
+  await step("справка следует за окружением: настройка Python и инструментов, инструменты появились, команда «Обновить»; новый путь к Python доходит до записи хука", async () => {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await until("всё закрыто", () => api.scheme.webview === null && api.viewer.currentKey === null);
+    await openJournal("изменение-один");
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("вкладка", () => api.scheme.webview);
+    const alive = (what: string) => helpShown(what, (r) => r.name === "изменение-один" && r.current);
+    const refused = (what: string, text: RegExp) => helpShown(what, (r) => text.test(r.note ?? ""));
+    const setPython = (value: string | undefined) => vscode.workspace.getConfiguration("symphysis").update("python", value, vscode.ConfigurationTarget.Global);
+    await alive("справка считается");
+
+    const was = hookRecords()[0].command as string;
+    // Тот же интерпретатор другой записью пути: запись хука обязана её получить.
+    const alias = `${path.dirname(was)}${path.sep}.${path.sep}${path.basename(was)}`;
+    await setPython(path.join(root, "нет-такого.exe"));
+    await refused("нет Python", /Python не найден/);
+    await setPython(alias);
+    await alive("Python поправлен");
+    await until("запись хука с новым путём", () => hookRecords()[0]?.command === alias);
+    await setPython(undefined);
+    await until("запись хука с прежним путём", () => hookRecords()[0]?.command === was);
+    await api.hookIdle();
+    await alive("настройка снята");
+
+    fs.renameSync(toolsScript, toolsAway);
+    try {
+      await refused("инструменты ушли", /Поставь инструменты/);
+      await setToolsPath(process.env.SYMPHYSIS_E2E_INSTALL);
+      await alive("инструменты по настройке");
+      await setToolsPath(undefined);
+      await refused("настройка снята", /Поставь инструменты/);
+    } finally {
+      fs.renameSync(toolsAway, toolsScript);
+    }
+    await alive("инструменты поставлены");
+
+    const before = calcs();
+    await vscode.commands.executeCommand("symphysis.refresh");
+    await until("расчёт по команде", () => calcs() > before);
+    await api.hookIdle();
+    await hookStands("запись на месте");
+  });
+
   await step("«Выключение»: настройка выключена в открытом окне, запись и скрипт сняты сразу", async () => {
     await vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).update("enabled", false, vscode.ConfigurationTarget.WorkspaceFolder);
     await until("снятие после выключения", () => !fs.existsSync(hookSettings) && !fs.existsSync(hookScript));
@@ -1639,49 +1706,6 @@ export async function run(): Promise<void> {
 
   // Пауза для снимка окна: журнал с открытой развилкой, выбором и словом.
   const pause = Number(process.env.SYMPHYSIS_E2E_PAUSE_MS || 0);
-  await step("справка следует за окружением: настройка Python и инструментов, инструменты появились, команда «Обновить»; новый путь к Python доходит до записи хука", async () => {
-    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-    await until("всё закрыто", () => api.scheme.webview === null && api.viewer.currentKey === null);
-    await openJournal("изменение-один");
-    await vscode.commands.executeCommand("symphysis.openHelp");
-    await until("вкладка", () => api.scheme.webview);
-    const alive = (what: string) => helpShown(what, (r) => r.name === "изменение-один" && r.current);
-    const refused = (what: string, text: RegExp) => helpShown(what, (r) => text.test(r.note ?? ""));
-    const setPython = (value: string | undefined) => vscode.workspace.getConfiguration("symphysis").update("python", value, vscode.ConfigurationTarget.Global);
-    await alive("справка считается");
-
-    const was = hookRecords()[0].command as string;
-    // Тот же интерпретатор другой записью пути: запись хука обязана её получить.
-    const alias = `${path.dirname(was)}${path.sep}.${path.sep}${path.basename(was)}`;
-    await setPython(path.join(root, "нет-такого.exe"));
-    await refused("нет Python", /Python не найден/);
-    await setPython(alias);
-    await alive("Python поправлен");
-    await until("запись хука с новым путём", () => hookRecords()[0]?.command === alias);
-    await setPython(undefined);
-    await until("запись хука с прежним путём", () => hookRecords()[0]?.command === was);
-    await api.hookIdle();
-    await alive("настройка снята");
-
-    fs.renameSync(toolsScript, toolsAway);
-    try {
-      await refused("инструменты ушли", /Поставь инструменты/);
-      await setToolsPath(process.env.SYMPHYSIS_E2E_INSTALL);
-      await alive("инструменты по настройке");
-      await setToolsPath(undefined);
-      await refused("настройка снята", /Поставь инструменты/);
-    } finally {
-      fs.renameSync(toolsAway, toolsScript);
-    }
-    await alive("инструменты поставлены");
-
-    const before = calcs();
-    await vscode.commands.executeCommand("symphysis.refresh");
-    await until("расчёт по команде", () => calcs() > before);
-    await api.hookIdle();
-    await hookStands("запись на месте");
-  });
-
   if (pause) {
     const theme = process.env.SYMPHYSIS_E2E_THEME;
     if (theme) await vscode.workspace.getConfiguration("workbench").update("colorTheme", theme, vscode.ConfigurationTarget.Global);

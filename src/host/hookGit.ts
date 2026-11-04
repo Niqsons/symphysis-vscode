@@ -198,9 +198,12 @@ export async function removeHook(root: string, git: string | null): Promise<stri
     }
   }
   const script = removeHookScript(root);
-  if (!script.ok) reasons.push(script.reason);
+  if (script.ok) removed ||= script.removed;
+  else reasons.push(script.reason);
+  // Ничего не снято — хука здесь нет: настройка может быть выключена на всю машину, и git в посторонних репозиториях не зовётся.
+  // Строки, оставшиеся после ручного снятия, безвредны, при следующем включении блок используется снова.
+  if (!removed) return reasons;
   const lines = await removeExcludeLines(root, git, free);
-  // Git нужен только для строк. Снимать было нечего — хука здесь не было, и говорить про git незачем.
-  if (!lines.ok && removed) reasons.push(lines.reason);
+  if (!lines.ok) reasons.push(lines.reason);
   return reasons;
 }

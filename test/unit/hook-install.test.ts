@@ -1,7 +1,7 @@
 // Условие установки хука, запись при активации и скрипт из пакета: настоящие файлы, настоящие junction, настоящий поиск Python.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import childProcess, { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -994,6 +994,91 @@ test("снятие в проекте без хука и без git: ничего
   assert.deepEqual(await removeHook(root, null), []);
   assert.deepEqual(fs.readdirSync(root), []);
 });
+
+/** Обёртка считает вызовы плагина к git, сами вызовы настоящие. */
+async function gitCalls<T>(fn: () => Promise<T>): Promise<{ result: T; calls: unknown[] }> {
+  const calls: unknown[] = [];
+  const real = childProcess.execFile;
+  childProcess.execFile = ((...args: unknown[]) => {
+    calls.push(args[1]);
+    return (real as (...a: unknown[]) => unknown)(...args);
+  }) as typeof childProcess.execFile;
+  try {
+    return { result: await fn(), calls };
+  } finally {
+    childProcess.execFile = real;
+  }
+}
+
+test("снятие в посторонней папке: git не зовётся ни разу, чужое и `exclude` не тронуты", async () => {
+  const root = gitProject();
+  writeSettings(root, { hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "чужой-хук" }] }] } });
+  make(root, ".opencode/plugins/");
+  fs.writeFileSync(pluginOf(root), "export default {};\n", "utf8");
+  const settings = freeze(settingsOf(root));
+  const plugin = freeze(pluginOf(root));
+  const exclude = freeze(excludeIn(root));
+  const { result, calls } = await gitCalls(() => removeHook(root, GIT));
+  assert.deepEqual(result, []);
+  assert.deepEqual(calls, []);
+  assertUntouched(settingsOf(root), settings);
+  assertUntouched(pluginOf(root), plugin);
+  assertUntouched(excludeIn(root), exclude);
+});
+
+test("снятие в посторонней папке через запуск: настройка выключена, git не зовётся ни разу", async () => {
+  const root = gitProject();
+  const { deps } = hookDeps({ enabled: () => false });
+  const { result, calls } = await gitCalls(() => syncHook(root, deps));
+  assert.deepEqual(result, []);
+  assert.deepEqual(calls, []);
+});
+
+test("снятие: запись убрана руками, а строки `exclude` остались: git не зовётся, строки безвредны, при следующем включении блок используется снова", async () => {
+  const root = gitProject();
+  await installAll(root);
+  fs.unlinkSync(settingsOf(root));
+  fs.unlinkSync(pluginOf(root));
+  fs.unlinkSync(scriptOf(root));
+  const block = fs.readFileSync(excludeIn(root));
+  const { result, calls } = await gitCalls(() => removeHook(root, GIT));
+  assert.deepEqual(result, []);
+  assert.deepEqual(calls, []);
+  assert.ok(fs.readFileSync(excludeIn(root)).equals(block));
+  await installAll(root);
+  assert.ok(fs.readFileSync(excludeIn(root)).equals(block), "блок прежний, строк не прибавилось");
+  assert.equal(gitIn(root, "status", "--porcelain"), "");
+});
+
+test("снятие: настройки не разбираются и других файлов нет: причина названа, git не нужен", async () => {
+  const root = make(tmp(), ".claude/");
+  gitIn(root, "init", "-q");
+  fs.writeFileSync(settingsOf(root), "// не JSON\n", "utf8");
+  const { result, calls } = await gitCalls(() => removeHook(root, GIT));
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes(".claude/settings.local.json"), result[0]);
+  assert.deepEqual(calls, []);
+});
+
+for (const [name, leave] of [
+  ["запись Claude Code", (root: string) => { fs.unlinkSync(pluginOf(root)); fs.unlinkSync(scriptOf(root)); }],
+  ["файл opencode с меткой", (root: string) => { fs.unlinkSync(settingsOf(root)); fs.unlinkSync(scriptOf(root)); }],
+  ["`.symphysis/viewer/hook.py`", (root: string) => { fs.unlinkSync(settingsOf(root)); fs.unlinkSync(pluginOf(root)); }],
+] as const) {
+  test(`снятие: в папке осталась ${name}, git зовётся, файл снят, строки сняты как раньше`, async () => {
+    const root = gitProject();
+    const before = fs.readFileSync(excludeIn(root));
+    await installAll(root);
+    leave(root);
+    const { result, calls } = await gitCalls(() => removeHook(root, GIT));
+    assert.deepEqual(result, []);
+    assert.ok(calls.length > 0, "обёртка не видит вызовов: тест выше ничего бы не показал");
+    assert.equal(fs.existsSync(settingsOf(root)), false);
+    assert.equal(fs.existsSync(pluginOf(root)), false);
+    assert.equal(fs.existsSync(scriptOf(root)), false);
+    assert.ok(fs.readFileSync(excludeIn(root)).equals(before));
+  });
+}
 
 // --- запуски: окна нет, предупреждение и настройка приходят параметрами; активация не ждёт ---
 

@@ -16,6 +16,7 @@ interface Api {
   toc: { getTreeItem(rec: any): vscode.TreeItem };
   attackToc: { getChildren(node?: any): any[]; getTreeItem(node: any): vscode.TreeItem; message(): string | undefined };
   search: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null };
+  hookIdle(): Promise<void>;
 }
 
 const measures: Record<string, unknown> = {};
@@ -1055,6 +1056,58 @@ export async function run(): Promise<void> {
     await schemeDrive("schemeNode", { id: "A" });
     await sleep(200);
     assert.equal(hash(), before);
+  });
+
+  // --- хук клиента (F-61, F-76): в конце, потому что последний шаг на время снимает инструменты ---
+  const hookSettings = path.join(root, ".claude", "settings.local.json");
+  const hookScript = path.join(root, ".symphysis", "viewer", "hook.py");
+  const hookRecords = (): any[] => (fs.existsSync(hookSettings) ? JSON.parse(fs.readFileSync(hookSettings, "utf8")).hooks.UserPromptSubmit.flatMap((g: any) => g.hooks).filter((h: any) => h.args?.some((a: string) => a.endsWith("/.symphysis/viewer/hook.py"))) : []);
+  const hookStands = async (what: string) => {
+    await until(what, () => hookRecords().length === 1 && fs.existsSync(hookScript));
+    await api.hookIdle();
+    assert.equal(hookRecords().length, 1);
+    assert.ok(path.isAbsolute(hookRecords()[0].command));
+  };
+
+  await step("«Активация при выключенной настройке»: записи нет, старая запись этого проекта снята, скрипта нет", async () => {
+    await api.hookIdle();
+    assert.equal(fs.existsSync(hookSettings), false);
+    assert.equal(fs.existsSync(hookScript), false);
+  });
+
+  await step("«Включение снова»: запись снова на месте без перезагрузки окна", async () => {
+    await vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).update("enabled", true, vscode.ConfigurationTarget.WorkspaceFolder);
+    await hookStands("запись после включения");
+  });
+
+  await step("«Запись удалена руками»: при перепроверке запись снова на месте, снять насовсем можно только настройкой (новая активация — в e2e:activation)", async () => {
+    fs.unlinkSync(hookSettings);
+    assert.equal(hookRecords().length, 0);
+    const config = path.join(root, "openspec", "config.yaml");
+    fs.writeFileSync(config, "schema: symphysis\n", "utf8");
+    await hookStands("запись после появления openspec/config.yaml");
+    fs.unlinkSync(config);
+    await sleep(300);
+    await api.hookIdle();
+  });
+
+  await step("«Инструменты поставлены при открытом окне»: без инструментов записи нет, появился journal.py — хук встал без перезагрузки", async () => {
+    const script = path.join(root, ".symphysis", "tools", "journal.py");
+    const away = `${script}.на-время`;
+    fs.renameSync(script, away);
+    fs.unlinkSync(hookSettings);
+    fs.unlinkSync(hookScript);
+    await sleep(500);
+    await api.hookIdle();
+    assert.equal(fs.existsSync(hookSettings), false, "без инструментов условие не выполнено");
+    fs.renameSync(away, script);
+    await hookStands("запись после появления инструментов");
+  });
+
+  await step("«Выключение»: настройка выключена в открытом окне, запись и скрипт сняты сразу", async () => {
+    await vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).update("enabled", false, vscode.ConfigurationTarget.WorkspaceFolder);
+    await until("снятие после выключения", () => !fs.existsSync(hookSettings) && !fs.existsSync(hookScript));
+    await api.hookIdle();
   });
 
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures }, null, 1), "utf8");

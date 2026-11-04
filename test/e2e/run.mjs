@@ -13,7 +13,10 @@ projectWithTools(project);
 // Проект недоверенного происхождения: подложенный python.exe в корне и настройка проекта, указывающая на него.
 fs.writeFileSync(path.join(project, "python.exe"), "не исполняемый файл", "utf8");
 fs.mkdirSync(path.join(project, ".vscode"), { recursive: true });
-fs.writeFileSync(path.join(project, ".vscode", "settings.json"), JSON.stringify({ "symphysis.python": path.join(project, "python.exe") }), "utf8");
+// Хук в этом проекте выключен, а старая запись на месте: первая активация обязана её снять, шаги хука в конце сценария его включают.
+fs.writeFileSync(path.join(project, ".vscode", "settings.json"), JSON.stringify({ "symphysis.python": path.join(project, "python.exe"), "symphysis.hook.enabled": false }), "utf8");
+fs.mkdirSync(path.join(project, ".claude"), { recursive: true });
+fs.writeFileSync(path.join(project, ".claude", "settings.local.json"), JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: path.join(project, "старый", "python.exe"), args: ["${CLAUDE_PROJECT_DIR}/.symphysis/viewer/hook.py"], timeout: 5 }] }] } }), "utf8");
 
 const change = (name) => addChange(project, name);
 fs.copyFileSync(path.join(fixtures, "decisions.json"), path.join(change("изменение-один"), "decisions.json"));

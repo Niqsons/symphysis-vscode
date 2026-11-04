@@ -52,6 +52,12 @@
           "scope": "machine",
           "markdownDescription": "Абсолютный путь к интерпретатору Python. Пусто — `python`, затем `python3` из PATH, каталоги рабочей области исключены. Настройка только на уровне машины: файл настроек проекта не может подменить интерпретатор."
         },
+        "symphysis.hook.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Хук клиента: сообщает агенту о решениях, внесённых кнопкой, и о правке `scheme.md`. Плагин ставит его сам там, где есть журнал, инструменты и след клиента. Выключено: плагин снимает свою запись в `.claude/settings.local.json`, файл `.opencode/plugins/symphysis-hook.js`, скрипт и свои строки в `.git/info/exclude` и больше их не ставит."
+        },
         "symphysis.colors.signal": {
           "type": "string",
           "format": "color-hex",
@@ -81,7 +87,8 @@
     "e2e": "node build.mjs --tests && node test/e2e/run.mjs",
     "package": "node package.mjs",
     "e2e:vsix": "node build.mjs --tests && node test/e2e/vsix.mjs",
-    "e2e:reload": "node build.mjs --tests && node test/e2e/reload.mjs"
+    "e2e:reload": "node build.mjs --tests && node test/e2e/reload.mjs",
+    "e2e:activation": "node build.mjs --tests && node test/e2e/activation.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

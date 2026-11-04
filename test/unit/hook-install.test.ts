@@ -6,6 +6,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { hookCondition, installClaudeHook, installHookScript, installOpencodeHook, isOwnClaudeHandler, isOwnOpencodeFile, writeProjectFile } from "../../src/host/hook";
+import { installClient, removeHook, resolveGit } from "../../src/host/hookGit";
+import { HookRunner, syncHook, type HookDeps } from "../../src/host/hookRunner";
 import { appendEvent } from "../../src/host/project";
 import { resolvePython } from "../../src/host/python";
 import { tempDir } from "../temp-dir.mjs";
@@ -844,4 +846,361 @@ test("«Сбой в оболочке opencode»: регистрация хука
   const mod = await import(`${pathToFileURL(pluginOf(root)).href}?${++loads}`);
   await mod.default.setup({ session: { hook: async () => { throw new Error("сбой hook"); } } });
   await mod.default.setup({});
+});
+
+// --- снятие (F-61, F-81, F-105): настоящий git, путь с кириллицей, файлы снимает только `unlinkSync` ---
+
+const GIT = resolveGit(process.env, []) as string;
+function gitIn(cwd: string, ...args: string[]): string {
+  const r = spawnSync(GIT, ["-c", "user.name=тест", "-c", "user.email=тест", "-c", "commit.gpgsign=false", ...args], { cwd, encoding: "utf8", windowsHide: true });
+  assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
+  return r.stdout;
+}
+const excludeIn = (root: string) => path.join(root, ".git", "info", "exclude");
+
+/** Репозиторий с чистым `git status` и следами обоих клиентов. */
+function gitProject(): string {
+  const root = make(tmp(), ".claude/", ".opencode/", "a.txt");
+  gitIn(root, "init", "-q");
+  gitIn(root, "add", "a.txt");
+  gitIn(root, "commit", "-q", "-m", "первый");
+  assert.equal(gitIn(root, "status", "--porcelain"), "");
+  return root;
+}
+async function installAll(root: string) {
+  assert.deepEqual(await installClient(root, "claude", PY, GIT), { ok: true });
+  assert.deepEqual(await installClient(root, "opencode", PY, GIT), { ok: true });
+  assert.deepEqual(installHookScript(root, EXTENSION), { ok: true });
+}
+
+test("«Выключение»: файла настроек, файла opencode и скрипта нет, строк `exclude` нет, `git status` как до установки", async () => {
+  const root = gitProject();
+  const before = fs.readFileSync(excludeIn(root));
+  await installAll(root);
+  assert.deepEqual(appendEvent(root, EVENT), { ok: true });
+  make(root, ".symphysis/viewer/sessions/курсор.json");
+  assert.deepEqual(await removeHook(root, GIT), []);
+  assert.equal(fs.existsSync(settingsOf(root)), false);
+  assert.equal(fs.existsSync(pluginOf(root)), false);
+  assert.equal(fs.existsSync(scriptOf(root)), false);
+  assert.ok(fs.readFileSync(excludeIn(root)).equals(before));
+  assert.equal(gitIn(root, "status", "--porcelain"), "");
+  // Остаётся то, что описано в F-105: события, курсоры, `.gitignore`. Пустых каталогов git не видит.
+  assert.deepEqual(fs.readdirSync(path.join(root, ".symphysis", "viewer")).sort(), [".gitignore", "events.jsonl", "sessions"]);
+  assert.deepEqual(fs.readdirSync(path.join(root, ".symphysis", "viewer", "sessions")), ["курсор.json"]);
+  assert.deepEqual(fs.readdirSync(path.join(root, ".opencode", "plugins")), []);
+});
+
+test("«Чужое остаётся»: разрешения и чужой хук на месте, записи плагина нет", async () => {
+  const root = gitProject();
+  const foreign = { permissions: { allow: ["Bash(git status)"] }, hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "чужой-хук" }] }], PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "другой" }] }] } };
+  writeSettings(root, foreign);
+  await installAll(root);
+  assert.deepEqual(await removeHook(root, GIT), []);
+  assert.deepEqual(readSettings(root), foreign);
+});
+
+test("«Чужое остаётся»: от записи плагина не осталось и пустых `hooks`, чужое поле цело", async () => {
+  const root = gitProject();
+  writeSettings(root, { permissions: { allow: [] } });
+  await installAll(root);
+  assert.deepEqual(await removeHook(root, GIT), []);
+  assert.deepEqual(readSettings(root), { permissions: { allow: [] } });
+});
+
+test("«Чужое остаётся»: записи плагина нет, файл человека не перезаписан, и пустой тоже не снят", async () => {
+  for (const text of ["{ \"permissions\" : {} }\n", "{ \"hooks\" : { \"PreToolUse\" : [] } }\n", "{ \"hooks\" : {} }\n", "{ \"hooks\" : { \"UserPromptSubmit\" : [] } }\n", "{}\n", ""]) {
+    const root = make(tmp(), ".claude/");
+    fs.writeFileSync(settingsOf(root), text, "utf8");
+    const was = freeze(settingsOf(root));
+    assert.deepEqual(await removeHook(root, GIT), []);
+    assertUntouched(settingsOf(root), was);
+  }
+});
+
+test("«Чужой файл opencode»: без метки плагина файл на месте, причин нет", async () => {
+  const root = make(tmp(), ".opencode/plugins/");
+  fs.writeFileSync(pluginOf(root), "export default {};\n", "utf8");
+  const was = freeze(pluginOf(root));
+  assert.deepEqual(await removeHook(root, GIT), []);
+  assertUntouched(pluginOf(root), was);
+});
+
+test("«Файл настроек не разбирается при снятии»: файл байт в байт прежний, причина названа, строка `exclude` держит его скрытым, после починки снимается", async () => {
+  const root = gitProject();
+  const before = fs.readFileSync(excludeIn(root));
+  await installAll(root);
+  const good = fs.readFileSync(settingsOf(root), "utf8");
+  fs.writeFileSync(settingsOf(root), `// заметка человека\n${good}`, "utf8");
+  const was = freeze(settingsOf(root));
+  const reasons = await removeHook(root, GIT);
+  assert.equal(reasons.length, 1);
+  assert.ok(reasons[0].includes(".claude/settings.local.json"), reasons[0]);
+  assertUntouched(settingsOf(root), was);
+  assert.equal(fs.existsSync(pluginOf(root)), false, "другой клиент снят");
+  assert.equal(fs.existsSync(scriptOf(root)), false);
+  assert.equal(gitIn(root, "status", "--porcelain"), "", "с абсолютным путём файл не должен стать виден git");
+
+  fs.writeFileSync(settingsOf(root), good, "utf8");
+  assert.deepEqual(await removeHook(root, GIT), []);
+  assert.equal(fs.existsSync(settingsOf(root)), false);
+  assert.ok(fs.readFileSync(excludeIn(root)).equals(before));
+});
+
+for (const [dir, file, content] of [
+  [".claude", "settings.local.json", () => `${JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [handler(PY)] }] } }, null, 2)}\n`],
+  [".opencode/plugins", "symphysis-hook.js", () => `${installedMark()}\nкод\n`],
+  [".symphysis/viewer", "hook.py", () => "print('скрипт')\n"],
+] as const) {
+  test(`снятие через ссылку: \`${dir}\` ведёт наружу, причина названа, файл снаружи не тронут`, async () => {
+    const root = tmp();
+    const target = tmp();
+    const text = content();
+    fs.writeFileSync(path.join(target, file), text, "utf8");
+    junction(target, path.join(root, dir));
+    const was = freeze(path.join(target, file));
+    const reasons = await removeHook(root, GIT);
+    assert.equal(reasons.length, 1, reasons.join("; "));
+    assert.ok(reasons[0].includes("за пределы проекта") && reasons[0].includes(dir), reasons[0]);
+    assertUntouched(path.join(target, file), was);
+    assert.deepEqual(fs.readdirSync(target), [file]);
+  });
+}
+
+test("снятие: сам файл ссылка, ссылка на месте, причина названа", async () => {
+  const root = make(tmp(), ".claude/");
+  const target = tmp();
+  junction(target, settingsOf(root));
+  const reasons = await removeHook(root, GIT);
+  assert.equal(reasons.length, 1, reasons.join("; "));
+  assert.ok(reasons[0].includes(".claude/settings.local.json это ссылка"), reasons[0]);
+  assert.equal(fs.lstatSync(settingsOf(root)).isSymbolicLink(), true);
+});
+
+test("снятие без git: файлы сняты, про строки причина названа; хука не было — говорить не о чем", async () => {
+  const withHook = gitProject();
+  await installAll(withHook);
+  const reasons = await removeHook(withHook, null);
+  assert.equal(fs.existsSync(settingsOf(withHook)), false);
+  assert.equal(fs.existsSync(pluginOf(withHook)), false);
+  assert.equal(reasons.length, 1);
+  assert.match(reasons[0], /git/);
+
+  assert.deepEqual(await removeHook(gitProject(), null), []);
+});
+
+test("снятие в проекте без хука и без git: ничего не меняется, причин нет", async () => {
+  const root = tmp();
+  assert.deepEqual(await removeHook(root, null), []);
+  assert.deepEqual(fs.readdirSync(root), []);
+});
+
+// --- запуски: окна нет, предупреждение и настройка приходят параметрами; активация не ждёт ---
+
+function hookDeps(over: Partial<HookDeps> = {}, answer?: Promise<unknown>) {
+  const shown: unknown[][] = [];
+  const memory = new Map<string, unknown>();
+  const deps: HookDeps = {
+    extensionPath: EXTENSION,
+    enabled: () => true,
+    python: () => PYTHON,
+    git: () => GIT,
+    window: { showWarningMessage: (...args: unknown[]) => { shown.push(args); return answer; } },
+    memory: { get: (key: string) => memory.get(key) as any, update: (key: string, value: unknown) => { memory.set(key, value); return Promise.resolve(); } },
+    ...over,
+  };
+  return { deps, shown, memory };
+}
+const readyProject = (...more: string[]) => make(tmp(), "openspec/", INSTALLED, ...more);
+
+test("запуск: условие выполнено, запись и скрипт на месте, только у клиента со следом", async () => {
+  const root = readyProject(".claude/");
+  const { deps, shown } = hookDeps();
+  assert.deepEqual(await syncHook(root, deps), []);
+  assert.deepEqual(ownHandlers(root), [handler(PY)]);
+  assert.ok(fs.readFileSync(scriptOf(root)).equals(PACKAGED));
+  assert.equal(fs.existsSync(pluginOf(root)), false);
+  assert.deepEqual(shown, []);
+});
+
+test("запуск: настройка выключена, старая запись снята, Python не нужен и не проверяется", async () => {
+  const root = readyProject(".claude/");
+  await syncHook(root, hookDeps().deps);
+  assert.equal(fs.existsSync(settingsOf(root)), true);
+  const { deps } = hookDeps({ enabled: () => false, python: () => { throw new Error("Python спрашивать незачем"); } });
+  assert.deepEqual(await syncHook(root, deps), []);
+  assert.equal(fs.existsSync(settingsOf(root)), false);
+  assert.equal(fs.existsSync(scriptOf(root)), false);
+});
+
+test("запуск: условие не выполнено, ничего не написано и ничего не снято", async () => {
+  const root = make(tmp(), ".claude/");
+  writeSettings(root, { hooks: { UserPromptSubmit: [{ hooks: [handler("старый")] }] } });
+  const was = freeze(settingsOf(root));
+  assert.deepEqual(await syncHook(root, hookDeps().deps), []);
+  assertUntouched(settingsOf(root), was);
+  assert.equal(fs.existsSync(scriptOf(root)), false);
+});
+
+test("«Python не найден»: ничего не написано, предупреждения нет: причину называет просмотрщик", async () => {
+  const root = readyProject(".claude/");
+  const { deps, shown } = hookDeps({ python: () => NO_PYTHON });
+  const runner = new HookRunner(deps);
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(fs.existsSync(settingsOf(root)), false);
+  assert.equal(fs.existsSync(scriptOf(root)), false);
+  assert.deepEqual(shown, []);
+});
+
+test("«`git` не найден» в запуске: файлов хука нет, и скрипта тоже, причина названа", async () => {
+  const root = gitProjectReady();
+  const { deps } = hookDeps({ git: () => null });
+  const reasons = await syncHook(root, deps);
+  assert.ok(reasons.length > 0);
+  for (const reason of reasons) assert.match(reason, /git/);
+  assert.equal(fs.existsSync(settingsOf(root)), false);
+  assert.equal(fs.existsSync(pluginOf(root)), false);
+  assert.equal(fs.existsSync(scriptOf(root)), false);
+});
+
+function gitProjectReady(): string {
+  const root = gitProject();
+  make(root, "openspec/", INSTALLED);
+  return root;
+}
+
+test("запуск: один клиент отказал, другой поставлен, скрипт на месте, причина одна", async () => {
+  const root = readyProject(".claude/", ".opencode/plugins/");
+  fs.writeFileSync(pluginOf(root), "export default {};\n", "utf8");
+  const reasons = await syncHook(root, hookDeps().deps);
+  assert.equal(reasons.length, 1);
+  assert.ok(reasons[0].includes(".opencode/plugins/symphysis-hook.js"), reasons[0]);
+  assert.equal(ownHandlers(root).length, 1);
+  assert.equal(fs.existsSync(scriptOf(root)), true);
+});
+
+test("запрос не ждёт: `request` возвращается раньше, чем что-то записано", async () => {
+  const root = readyProject(".claude/");
+  const runner = new HookRunner(hookDeps().deps);
+  runner.request(root);
+  assert.equal(fs.existsSync(settingsOf(root)), false);
+  await runner.whenIdle();
+  assert.equal(fs.existsSync(settingsOf(root)), true);
+});
+
+test("запуски для одной папки идут по одному, просьбы на время запуска склеиваются в один следующий", async () => {
+  // Настоящий git делает запуск асинхронным, а предупреждение стоит в его конце: наложись запуски, второй начался бы раньше конца первого.
+  const root = gitProjectReady();
+  make(root, ".opencode/plugins/");
+  fs.writeFileSync(pluginOf(root), "export default {};\n", "utf8");
+  const log: string[] = [];
+  const { deps } = hookDeps();
+  const runner = new HookRunner({
+    ...deps,
+    enabled: () => {
+      log.push("начало");
+      if (log.length === 1) {
+        runner.request(root);
+        runner.request(root);
+        runner.request(root);
+      }
+      return true;
+    },
+    window: { showWarningMessage: () => { log.push("конец первого"); } },
+  });
+  runner.request(root);
+  runner.request(root);
+  await runner.whenIdle();
+  assert.deepEqual(log, ["начало", "конец первого", "начало"]);
+});
+
+test("разные папки не ждут друг друга и ставятся обе", async () => {
+  const first = readyProject(".claude/");
+  const second = readyProject(".claude/");
+  const runner = new HookRunner(hookDeps().deps);
+  runner.request(first);
+  runner.request(second);
+  await runner.whenIdle();
+  assert.equal(ownHandlers(first).length, 1);
+  assert.equal(ownHandlers(second).length, 1);
+});
+
+test("одна причина на двух клиентов: `git` не найден, предупреждение одно", async () => {
+  const root = gitProjectReady();
+  const { deps, shown } = hookDeps({ git: () => null });
+  const runner = new HookRunner(deps);
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(shown.length, 1);
+});
+
+test("окно бросило при показе предупреждения: запуск не падает, очередь не встаёт", async () => {
+  const root = readyProject(".opencode/plugins/");
+  fs.writeFileSync(pluginOf(root), "export default {};\n", "utf8");
+  let calls = 0;
+  const { deps } = hookDeps({ window: { showWarningMessage: () => { calls++; throw new Error("сбой окна"); } } });
+  const runner = new HookRunner(deps);
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(calls, 1);
+  runner.request(root);
+  await runner.whenIdle();
+});
+
+test("необработанное исключение становится причиной в том же предупреждении, запуск не падает, следующий идёт", async () => {
+  const root = readyProject(".claude/");
+  let fail = true;
+  const { deps, shown } = hookDeps({
+    enabled: () => {
+      if (fail) throw new Error("сбой настройки");
+      return true;
+    },
+  });
+  const runner = new HookRunner(deps);
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(shown.length, 1);
+  assert.match(String(shown[0][0]), /сбой настройки/);
+  fail = false;
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(ownHandlers(root).length, 1);
+});
+
+// Человек не отвечает никогда: запуск обязан идти дальше без него. Предел нужен, чтобы запуск, который ждёт ответа, дал красный тест, а не зависание.
+test("«Причина называется один раз»: та же причина и новая активация — второго предупреждения нет; новая причина и другой проект — показано снова", { timeout: 10000 }, async () => {
+  const root = readyProject(".opencode/plugins/");
+  fs.writeFileSync(pluginOf(root), "export default {};\n", "utf8");
+  const { deps, shown } = hookDeps({}, new Promise(() => {}));
+  const runner = new HookRunner(deps);
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(shown.length, 1);
+  const text = String(shown[0][0]);
+  assert.ok(text.includes(".opencode/plugins/symphysis-hook.js"), text);
+  assert.match(text, /Устрани причину/);
+  assert.match(text, /symphysis\.hook\.enabled/);
+  assert.deepEqual(shown[0].slice(1), [], "без модальности и без кнопок: опций нет");
+
+  runner.request(root);
+  await runner.whenIdle();
+  assert.equal(shown.length, 1, "та же причина в том же окне");
+  const again = new HookRunner(deps);
+  again.request(root);
+  await again.whenIdle();
+  assert.equal(shown.length, 1, "та же причина при новой активации");
+
+  make(root, ".claude/");
+  fs.writeFileSync(settingsOf(root), "// не JSON\n", "utf8");
+  again.request(root);
+  await again.whenIdle();
+  assert.equal(shown.length, 2, "новая причина");
+  assert.ok(String(shown[1][0]).includes(".claude/settings.local.json"));
+
+  const other = readyProject(".opencode/plugins/");
+  fs.writeFileSync(pluginOf(other), "export default {};\n", "utf8");
+  again.request(other);
+  await again.whenIdle();
+  assert.equal(shown.length, 3, "другой проект");
 });

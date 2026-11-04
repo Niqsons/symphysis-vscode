@@ -1,5 +1,5 @@
-// Файлы проекта: где ядро, какие изменения, ответы человека, черновики, события для хука. Расширение пишет только в `.symphysis/viewer/` (Р4)
-// и в `answers/` изменения (Р8).
+// Файлы проекта: где ядро, какие изменения, ответы человека, черновики, события для хука. Расширение пишет только в `.symphysis/viewer/` (Р4),
+// в `answers/` изменения (Р8) и для хука в `.claude/settings.local.json`, `.opencode/plugins/`, `.git/info/exclude` (F-47).
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";

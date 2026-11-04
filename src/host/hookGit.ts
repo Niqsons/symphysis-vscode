@@ -4,7 +4,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { installClaudeHook, installOpencodeHook, replaceFile } from "./hook";
+import { installClaudeHook, installOpencodeHook, removeClaudeHook, removeHookScript, removeOpencodeHook, replaceFile } from "./hook";
 import { writeRefusal, type WriteResult } from "./project";
 import { pathCandidates } from "./python";
 
@@ -164,18 +164,43 @@ async function otherWorktrees(root: string, git: string): Promise<string[] | { r
 }
 
 /** Снятие своих строк. Файл один на все рабочие деревья, поэтому строка снимается, только если её файла нет ни в одном другом: отдельно на каждую (F-81). */
-export async function removeExcludeLines(root: string, git: string | null): Promise<WriteResult> {
+export async function removeExcludeLines(root: string, git: string | null, clients: HookClient[] = ["claude", "opencode"]): Promise<WriteResult> {
   if (!insideRepo(root)) return OK;
   if (git === null) return fail(noGit());
   const repo = await repoOf(root, git);
   if ("reason" in repo) return fail(repo.reason);
   const others = await otherWorktrees(root, git);
   if ("reason" in others) return fail(others.reason);
-  const free = Object.values(CLIENT_FILE).filter((rel) => !others.some((dir) => fs.existsSync(path.join(dir, repo.prefix, rel))));
+  const free = clients.map((client) => CLIENT_FILE[client]).filter((rel) => !others.some((dir) => fs.existsSync(path.join(dir, repo.prefix, rel))));
   try {
     removeLines(repo.exclude, free.map((rel) => lineOf(repo.prefix, rel)));
     return OK;
   } catch (e) {
     return fail(String(e));
   }
+}
+
+/**
+ * Снятие хука в проекте: сначала файлы, потом строки, и строка уходит только у клиента, чей файл снят. Иначе файл с абсолютным путём к Python, который не вышло снять, стал бы виден git.
+ * Возвращает причины. `events.jsonl`, курсоры и `.gitignore` остаются (F-105).
+ */
+export async function removeHook(root: string, git: string | null): Promise<string[]> {
+  const reasons: string[] = [];
+  const free: HookClient[] = [];
+  let removed = false;
+  for (const [client, remove] of [["claude", removeClaudeHook], ["opencode", removeOpencodeHook]] as const) {
+    const r = remove(root);
+    if (r.ok) {
+      free.push(client);
+      removed ||= r.removed;
+    } else {
+      reasons.push(r.reason);
+    }
+  }
+  const script = removeHookScript(root);
+  if (!script.ok) reasons.push(script.reason);
+  const lines = await removeExcludeLines(root, git, free);
+  // Git нужен только для строк. Снимать было нечего — хука здесь не было, и говорить про git незачем.
+  if (!lines.ok && removed) reasons.push(lines.reason);
+  return reasons;
 }

@@ -1,7 +1,9 @@
-// Точка входа: Python и ядро, данные журналов, слежение за файлами (Р5), боковая панель, вкладка просмотрщика.
+// Точка входа: Python и ядро, данные журналов, слежение за файлами (Р5), боковая панель, вкладка просмотрщика, запуски хука клиента.
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { viewJson, type CoreEnv, type ViewResult } from "./host/core";
+import { resolveGit } from "./host/hookGit";
+import { HookRunner } from "./host/hookRunner";
 import { findTools, listChanges, type ChangeRef } from "./host/project";
 import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
@@ -102,6 +104,17 @@ export function activate(context: vscode.ExtensionContext) {
     refreshSoon(path.join(root, CHANGES, name));
   };
 
+  // Хук клиента: активация этого не ждёт. Настройка по папке, чтобы её можно было выключить в одном проекте (F-106).
+  const hook = new HookRunner({
+    extensionPath: context.extensionPath,
+    enabled: (root) => vscode.workspace.getConfiguration("symphysis.hook", vscode.Uri.file(root)).get("enabled", true),
+    python: pythonNow,
+    git: () => resolveGit(process.env, workspaceDirs()),
+    window: vscode.window,
+    memory: context.workspaceState,
+  });
+  const hookAll = () => workspaceDirs().forEach((root) => hook.request(root));
+
   let watchers: vscode.Disposable[] = [];
   const watch = () => {
     watchers.forEach((w) => w.dispose());
@@ -117,8 +130,11 @@ export function activate(context: vscode.ExtensionContext) {
       const onScheme = (uri: vscode.Uri) => { scheme.fileChanged(path.dirname(uri.fsPath)); on(uri); };
       journalWatchers.push([schemeWatcher, schemeWatcher.onDidChange(onScheme), schemeWatcher.onDidCreate(onScheme), schemeWatcher.onDidDelete(onScheme)]);
       const tools = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, ".symphysis/tools/journal.py"));
-      const all = () => { store.refreshAll(); changes.refresh(); };
-      return [...journalWatchers.flat(), tools, tools.onDidChange(all), tools.onDidCreate(all), tools.onDidDelete(all)];
+      const recheck = () => hook.request(root);
+      const all = () => { store.refreshAll(); changes.refresh(); recheck(); };
+      // Файл настроек только перепроверяет условие хука: журнал по нему не считается.
+      const config = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/config.yaml"));
+      return [...journalWatchers.flat(), tools, tools.onDidChange(all), tools.onDidCreate(all), tools.onDidDelete(all), config, config.onDidChange(recheck), config.onDidCreate(recheck), config.onDidDelete(recheck)];
     });
   };
   watch();
@@ -144,15 +160,18 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("symphysis.colors")) { viewer.colorsChanged(); search.refresh(); }
       if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); }
+      if (e.affectsConfiguration("symphysis.hook.enabled")) hookAll();
     }),
     { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); } },
   );
 
-  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf };
+  hookAll();
+
+  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf, hookIdle: () => hook.whenIdle() };
   return undefined;
 }
 

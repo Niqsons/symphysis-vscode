@@ -236,3 +236,55 @@ export function installOpencodeHook(root: string, python: string): WriteResult {
   if (current !== null && !isOwnOpencodeFile(current)) return { ok: false, reason: ".opencode/plugins/symphysis-hook.js чужой файл: в первой строке нет метки плагина" };
   return writeProjectFile(root, file, wanted);
 }
+
+// --- снятие ---
+
+export type RemoveResult = { ok: true; removed: boolean } | { ok: false; reason: string };
+
+/** Файл есть? Проверка до `writeRefusal`: через ссылку наружу снимать нельзя, но если и там файла нет, говорить не о чем. Только `unlinkSync`: `rmSync` молча не удаляет файл с кириллицей в пути. */
+function unlinkOwn(root: string, file: string, own: (file: string) => boolean | { reason: string }): RemoveResult {
+  try {
+    if (!fs.lstatSync(file, { throwIfNoEntry: false })) return { ok: true, removed: false };
+    const refusal = writeRefusal(root, file);
+    if (refusal) return { ok: false, reason: refusal };
+    const verdict = own(file);
+    if (typeof verdict === "object") return { ok: false, reason: verdict.reason };
+    if (!verdict) return { ok: true, removed: false };
+    fs.unlinkSync(file);
+    return { ok: true, removed: true };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
+}
+
+/**
+ * Своя запись уходит, чужое остаётся. Файл, в котором не осталось ничего, удаляется: иначе он останется виден git.
+ * Не разбирается: файл прежний, причина названа. Клиент такой файл не читает, запись снимется при первой активации после починки.
+ */
+export function removeClaudeHook(root: string): RemoveResult {
+  const file = path.join(root, ".claude", "settings.local.json");
+  let rewrite: Json | null = null;
+  const removed = unlinkOwn(root, file, () => {
+    const read = readClaudeSettings(file);
+    if ("reason" in read) return { reason: read.reason };
+    const hooks = read.settings.hooks;
+    const groups = isObject(hooks) && Array.isArray(hooks.UserPromptSubmit) ? (hooks.UserPromptSubmit as unknown[]) : [];
+    if (!isObject(hooks) || !groups.flatMap(handlersOf).some(isOwnClaudeHandler)) return false;
+    const rest = withoutOwnHandlers(groups);
+    if (rest.length) hooks.UserPromptSubmit = rest;
+    else delete hooks.UserPromptSubmit;
+    if (!Object.keys(hooks).length) delete read.settings.hooks;
+    if (!Object.keys(read.settings).length) return true;
+    rewrite = read.settings;
+    return false;
+  });
+  if (!removed.ok || !rewrite) return removed;
+  const written = writeProjectFile(root, file, `${JSON.stringify(rewrite, null, 2)}\n`);
+  return written.ok ? { ok: true, removed: true } : written;
+}
+
+/** Файл с меткой уходит, чужой остаётся без причины: он не наш. Каталог `.opencode/plugins/` остаётся, пустых каталогов git не видит. */
+export const removeOpencodeHook = (root: string): RemoveResult =>
+  unlinkOwn(root, path.join(root, ".opencode", "plugins", "symphysis-hook.js"), (file) => isOwnOpencodeFile(fs.readFileSync(file, "utf8")));
+
+export const removeHookScript = (root: string): RemoveResult => unlinkOwn(root, path.join(root, ".symphysis", "viewer", SCRIPT), () => true);

@@ -28,6 +28,7 @@ if (process.argv.includes("--unit")) {
     await buildUnits();
     await build({ ...node, entryPoints: ["test/e2e/scenario.ts"], outfile: "out/e2e/scenario.js" });
     await build({ ...node, entryPoints: ["test/e2e/vsix-scenario.ts"], outfile: "out/e2e/vsix-scenario.js" });
+    await build({ ...node, entryPoints: ["test/e2e/activation-scenario.ts"], outfile: "out/e2e/activation-scenario.js" });
     await build({ ...web, entryPoints: ["test/e2e/driver.ts"], outfile: "media/test-driver.js" });
   }
 }

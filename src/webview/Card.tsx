@@ -176,10 +176,7 @@ function Fork({ rec, ctx }: { rec: JournalRecord; ctx: CardContext }) {
       })}
       {entry?.choice && <button type="button" className="small clear-choice" onClick={() => ctx.update((d) => clearChoice(d, rec.id))}>снять выбор {entry.choice}</button>}
       {rec.recommendation && (
-        <div className="rec">рекомендация: {rec.recommendation.text
-          ? <Text s={rec.recommendation.text} />
-          : <><b>{rec.recommendation.option}</b> — <Text s={rec.recommendation.why} /></>}
-        </div>
+        <div className="rec">рекомендация: <b>{rec.recommendation.option}</b> — <Text s={rec.recommendation.why} /></div>
       )}
       {rec.decision?.word && <div className="note"><b>слово в журнале ({rec.decision.date}):</b> «<Text s={rec.decision.word} />»</div>}
       {msg && <div className="note signal">{msg}</div>}

@@ -72,7 +72,6 @@ test("ищется каждое поле записи", () => {
     [{ options: [option("A", { evidence: [ev] })] }, "docs/путь", "вариант A, улика"],
     [{ evidence: [ev] }, "цитата улики", "улика"],
     [{ recommendation: { option: "A", why: "потому что так" } }, "потому что", "рекомендация"],
-    [{ recommendation: { option: "A", why: "", text: "целиком текст" } }, "целиком текст", "рекомендация"],
     [{ decision: { option: "A", word: "моё слово", date: "" } }, "мое слово", "слово"],
     [{ reversibility: { level: "в одну сторону", why: "станет контрактом" } }, "станет контрактом", "обратимость"],
     [{ outcome: { kind: "проба", value: "Defer", reason: "ждёт показа" } }, "defer", "исход"],
@@ -88,6 +87,18 @@ test("ищется каждое поле записи", () => {
     assert.equal(hit?.field, field, q);
     assert.deepEqual(hit.target, { id: "F-01" });
   }
+});
+
+test("слово только в text рекомендации не находит запись: совпадения не было бы видно в карточке", () => {
+  // Старый журнал: поле приходит из файла, типа у него нет, поэтому объект заведён отдельно.
+  const recommendation = { option: "A", why: "дешевле откатить", text: "A — кратко" };
+  assert.deepEqual(find(payload([fork("F-01", { recommendation })]), "кратко").journal, []);
+});
+
+test("слово в причине находит запись в поле «рекомендация»", () => {
+  const recommendation = { option: "A", why: "дешевле откатить", text: "A — кратко" };
+  const [hit] = find(payload([fork("F-01", { recommendation })]), "откатить").journal;
+  assert.equal(hit?.field, "рекомендация");
 });
 
 test("строка атаки: ищется каждая колонка; цель — якорь строки в «атаке», у попадания файл и тяжесть", () => {

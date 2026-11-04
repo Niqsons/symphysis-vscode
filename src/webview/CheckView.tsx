@@ -37,10 +37,7 @@ function Record({ rec, anchor }: { rec: JournalRecord; anchor: boolean }) {
             </div>
           ))}
           {rec.recommendation && (
-            <div className="rec">рекомендация: {rec.recommendation.text
-              ? <Text s={rec.recommendation.text} />
-              : <><b>{rec.recommendation.option}</b> — <Text s={rec.recommendation.why} /></>}
-            </div>
+            <div className="rec">рекомендация: <b>{rec.recommendation.option}</b> — <Text s={rec.recommendation.why} /></div>
           )}
         </>
       )}

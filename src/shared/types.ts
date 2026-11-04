@@ -36,7 +36,7 @@ export interface JournalRecord {
   delivery: string;
   options: JournalOption[];
   antipodes: { option: string; other: string }[];
-  recommendation: { option: string; why: string; text?: string } | null;
+  recommendation: { option: string; why: string } | null;
   decision: { option: string; word: string; date: string } | null;
   reversibility: { level: string; why: string } | null;
   outcome: { kind: string; value: string; reason: string } | null;

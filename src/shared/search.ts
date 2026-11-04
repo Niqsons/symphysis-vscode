@@ -92,7 +92,6 @@ function recordFields(rec: JournalRecord, d: Draft): Field[] {
       ...evidenceFields(o.evidence, `вариант ${o.letter}, улика`),
     ]),
     ...(d.added[rec.id] ?? []).map((o) => ({ field: `в черновике: вариант ${o.letter}`, text: o.text })),
-    { field: "рекомендация", text: rec.recommendation?.text },
     { field: "рекомендация", text: rec.recommendation?.why },
     { field: "слово", text: rec.decision?.word },
     { field: "в черновике: слово", text: own?.word },

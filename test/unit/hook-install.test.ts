@@ -1,9 +1,11 @@
 // Условие установки хука, запись при активации и скрипт из пакета: настоящие файлы, настоящие junction, настоящий поиск Python.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { hookCondition, installHookScript, writeProjectFile } from "../../src/host/hook";
+import { pathToFileURL } from "node:url";
+import { hookCondition, installClaudeHook, installHookScript, installOpencodeHook, isOwnClaudeHandler, isOwnOpencodeFile, writeProjectFile } from "../../src/host/hook";
 import { appendEvent } from "../../src/host/project";
 import { resolvePython } from "../../src/host/python";
 import { tempDir } from "../temp-dir.mjs";
@@ -117,13 +119,13 @@ test("«Чужой `tools/journal.py`»: без схемы symphysis это не
   assert.deepEqual(hookCondition(root, PYTHON), met(true, false));
 });
 
-test("признак схемы: только строка `schema: symphysis`", () => {
+test("признак схемы: только строка `schema: symphysis`, с кавычками и хвостовым комментарием тоже", () => {
   const root = make(tmp(), "openspec/", "tools/journal.py", ".claude/");
-  for (const good of ["schema: symphysis", "schema: symphysis\n", "a: 1\r\nschema: symphysis\r\nb: 2\r\n", "﻿schema: symphysis\n", "schema:  symphysis  \n"]) {
+  for (const good of ["schema: symphysis", "schema: symphysis\n", "a: 1\r\nschema: symphysis\r\nb: 2\r\n", "\uFEFFschema: symphysis\n", "schema:  symphysis  \n", "schema: \"symphysis\"\n", "schema: 'symphysis'\r\n", "schema: symphysis # заметка\n", "schema: \"symphysis\"  # заметка\n", "\uFEFFschema: 'symphysis' #\n"]) {
     config(root, good);
     assert.deepEqual(hookCondition(root, PYTHON), met(true, false), JSON.stringify(good));
   }
-  for (const bad of ["# schema: symphysis\n", "  schema: symphysis\n", "schema: symphysis-x\n", "schema:\nsymphysis\n", "schema: other symphysis\n", "x-schema: symphysis\n", ""]) {
+  for (const bad of ["# schema: symphysis\n", "  schema: symphysis\n", "schema: symphysis-x\n", "schema:\nsymphysis\n", "schema: other symphysis\n", "x-schema: symphysis\n", "", "schema: symphysis#заметка\n", "schema: \"symphysis\n", "schema: symphysis\"\n", "schema: \"symphysis'\n", "schema: \"symphysis-x\"\n", "schema: \"symphysis\"#заметка\n", "schema: symphysis заметка\n"]) {
     config(root, bad);
     assert.deepEqual(hookCondition(root, PYTHON), NOT_MET, JSON.stringify(bad));
   }
@@ -338,4 +340,448 @@ test("скрипт: в пакете файла нет, отказ значени
   const root = tmp();
   assert.equal(installHookScript(root, tmp()).ok, false);
   assert.deepEqual(fs.readdirSync(root), []);
+});
+
+// --- запись Claude Code (F-31, F-48, F-57, F-69, F-77) ---
+
+const PY = PYTHON.ok ? PYTHON.path : "";
+// Текст обёртки дословно из проб F-69 и security: копия здесь ловит случайную правку в коде.
+const GUARD = "import os,runpy,sys\np=sys.argv[1]\ntry:\n    os.path.isfile(p) and runpy.run_path(p,run_name='__main__')\nexcept BaseException:\n    pass\n";
+const handler = (python: string) => ({ type: "command", command: python, args: ["-I", "-X", "utf8", "-c", GUARD, "${CLAUDE_PROJECT_DIR}/.symphysis/viewer/hook.py"], timeout: 5 });
+const settingsOf = (root: string) => path.join(root, ".claude", "settings.local.json");
+const readSettings = (root: string) => JSON.parse(fs.readFileSync(settingsOf(root), "utf8"));
+const writeSettings = (root: string, value: unknown) => fs.writeFileSync(settingsOf(root), JSON.stringify(value), "utf8");
+const ownHandlers = (root: string) => readSettings(root).hooks.UserPromptSubmit.flatMap((g: any) => g.hooks).filter(isOwnClaudeHandler);
+
+/** Старое время: перезапись того же содержимого видна по времени изменения. */
+function freeze(file: string) {
+  const old = new Date("2020-01-02T03:04:05Z");
+  fs.utimesSync(file, old, old);
+  return { bytes: fs.readFileSync(file), mtime: fs.statSync(file).mtimeMs };
+}
+function assertUntouched(file: string, was: { bytes: Buffer; mtime: number }) {
+  assert.ok(fs.readFileSync(file).equals(was.bytes), "файл изменился");
+  assert.equal(fs.statSync(file).mtimeMs, was.mtime, "файл перезаписан");
+}
+
+test("«Файла нет»: файл создан, одна запись, отступ два пробела и перевод строки в конце", () => {
+  const root = make(tmp(), ".claude/");
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assert.equal(fs.readFileSync(settingsOf(root), "utf8"), `${JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [handler(PY)] }] } }, null, 2)}\n`);
+  assert.deepEqual(fs.readdirSync(path.join(root, ".claude")), ["settings.local.json"]);
+});
+
+test("«Чужие настройки и хуки»: всё на месте без изменений, запись плагина отдельной группой рядом", () => {
+  const root = make(tmp(), ".claude/");
+  const foreign = {
+    permissions: { allow: ["Bash(git status)"] },
+    hooks: {
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "чужой-до-инструмента" }] }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: "чужой-хук" }] }],
+    },
+    env: { A: "1" },
+  };
+  writeSettings(root, foreign);
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assert.deepEqual(readSettings(root), { ...foreign, hooks: { ...foreign.hooks, UserPromptSubmit: [...foreign.hooks.UserPromptSubmit, { hooks: [handler(PY)] }] } });
+  assert.deepEqual(Object.keys(readSettings(root)), ["permissions", "hooks", "env"]);
+});
+
+test("«Повторная активация»: файл байт в байт прежний и не перезаписан", () => {
+  const root = make(tmp(), ".claude/");
+  installClaudeHook(root, PY);
+  const was = freeze(settingsOf(root));
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assertUntouched(settingsOf(root), was);
+});
+
+test("«Повторная активация»: другой порядок полей и другое форматирование человека не повод переписывать", () => {
+  const root = make(tmp(), ".claude/");
+  const { type, command, args, timeout } = handler(PY);
+  fs.writeFileSync(settingsOf(root), JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ timeout, args, command, type }] }] } }, null, 4), "utf8");
+  const was = freeze(settingsOf(root));
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assertUntouched(settingsOf(root), was);
+});
+
+test("«Python переехал»: путь в записи новый, запись одна, чужое на месте", () => {
+  const root = make(tmp(), ".claude/");
+  writeSettings(root, { hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "чужой-хук" }] }, { hooks: [handler("C:\\старый\\python.exe")] }] } });
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assert.deepEqual(ownHandlers(root), [handler(PY)]);
+  assert.deepEqual(readSettings(root).hooks.UserPromptSubmit[0], { hooks: [{ type: "command", command: "чужой-хук" }] });
+  assert.equal(readSettings(root).hooks.UserPromptSubmit.length, 2);
+});
+
+test("«Python переехал»: записи плагина размножились и одна попала в чужую группу, остаётся одна, чужая группа цела", () => {
+  const root = make(tmp(), ".claude/");
+  const mixed = { matcher: "x", hooks: [{ type: "command", command: "чужой-хук" }, handler("старый-1")] };
+  writeSettings(root, { hooks: { UserPromptSubmit: [mixed, { hooks: [handler("старый-2")] }] } });
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assert.deepEqual(readSettings(root).hooks.UserPromptSubmit, [{ matcher: "x", hooks: [{ type: "command", command: "чужой-хук" }] }, { hooks: [handler(PY)] }]);
+});
+
+const UNPARSED: [string, string | Buffer][] = [
+  ["комментарий", '// заметка человека\n{"permissions": {}}\n'],
+  ["обрыв", '{"hooks": '],
+  ["только пробелы", "  \n"],
+  ["BOM", '\uFEFF{"permissions": {}}'],
+  ["не UTF-8: при чтении знаки заменились бы, и перезапись их потеряла", Buffer.concat([Buffer.from('{"заметка": "'), Buffer.from([0xcf, 0xf0, 0xe8]), Buffer.from('"}')])],
+  ["верхний уровень список", "[]"],
+  ["верхний уровень null", "null"],
+  ["верхний уровень строка", '"настройки"'],
+  ["hooks список", '{"hooks": []}'],
+  ["hooks null", '{"hooks": null}'],
+  ["UserPromptSubmit объект", '{"hooks": {"UserPromptSubmit": {}}}'],
+  ["UserPromptSubmit null", '{"hooks": {"UserPromptSubmit": null}}'],
+];
+for (const [name, text] of UNPARSED) {
+  test(`«Файл настроек не разбирается»: ${name}, файл байт в байт прежний, записи нет, названы файл и причина`, () => {
+    const root = make(tmp(), ".claude/");
+    fs.writeFileSync(settingsOf(root), text);
+    const was = freeze(settingsOf(root));
+    assertRefused(installClaudeHook(root, PY), ".claude/settings.local.json");
+    assertUntouched(settingsOf(root), was);
+    assert.deepEqual(fs.readdirSync(path.join(root, ".claude")), ["settings.local.json"]);
+  });
+}
+
+test("«Пустой файл настроек»: считается пустыми настройками, запись плагина в нём", () => {
+  const root = make(tmp(), ".claude/settings.local.json");
+  assert.equal(fs.statSync(settingsOf(root)).size, 0);
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  assert.deepEqual(readSettings(root), { hooks: { UserPromptSubmit: [{ hooks: [handler(PY)] }] } });
+});
+
+test("запись Claude Code идёт через проверку: `.claude` как junction и файл-ссылка, снаружи пусто, причина названа", () => {
+  const viaDir = tmp();
+  const dirTarget = tmp();
+  junction(dirTarget, path.join(viaDir, ".claude"));
+  assertRefused(installClaudeHook(viaDir, PY), ".claude");
+  assert.deepEqual(fs.readdirSync(dirTarget), []);
+
+  const viaFile = make(tmp(), ".claude/");
+  const fileTarget = tmp();
+  junction(fileTarget, settingsOf(viaFile));
+  assertRefused(installClaudeHook(viaFile, PY), ".claude/settings.local.json это ссылка");
+  assert.deepEqual(fs.readdirSync(fileTarget), []);
+});
+
+test("своя запись узнаётся по пути скрипта в `args`, и только так", () => {
+  assert.equal(isOwnClaudeHandler(handler(PY)), true);
+  assert.equal(isOwnClaudeHandler({ type: "command", command: "x", args: ["/другой/корень/.symphysis/viewer/hook.py"] }), true);
+  for (const foreign of [
+    { type: "command", command: "python ${CLAUDE_PROJECT_DIR}/.symphysis/viewer/hook.py" },
+    { type: "command", command: "x", args: ["/.symphysis/viewer/другой.py"] },
+    { type: "command", command: "x", args: ["/чужой/каталог/hook.py"] },
+    { type: "command", command: "x", args: "/.symphysis/viewer/hook.py" },
+    { type: "command", command: "x", args: [1, null] },
+    null, "строка", [],
+  ]) assert.equal(isOwnClaudeHandler(foreign), false, JSON.stringify(foreign));
+});
+
+/** `command` и `args` записи как есть, без оболочки: `${CLAUDE_PROJECT_DIR}` подставляет клиент. */
+function runRecord(root: string, session = "сессия") {
+  const [own] = ownHandlers(root);
+  const args = own.args.map((a: string) => a.replace("${CLAUDE_PROJECT_DIR}", root));
+  return spawnSync(own.command, args, { input: JSON.stringify({ session_id: session, prompt: "вопрос" }), cwd: root, encoding: "utf8", windowsHide: true, timeout: 20000 });
+}
+function recordProject(script?: string) {
+  const root = make(tmp(), ".claude/");
+  assert.deepEqual(installClaudeHook(root, PY), { ok: true });
+  if (script !== undefined) {
+    make(root, ".symphysis/viewer/hook.py");
+    fs.writeFileSync(scriptOf(root), script, "utf8");
+  }
+  return root;
+}
+
+test("запись запущена как есть: «Файла скрипта нет у Claude Code», код 0, вывод пуст", () => {
+  const r = runRecord(recordProject());
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, "");
+});
+
+test("запись запущена как есть: «Скрипт вышел с кодом 2», код 0, вывод скрипта на месте", () => {
+  const r = runRecord(recordProject("import sys\nprint('метка до выхода')\nsys.exit(2)\n"));
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /метка до выхода/);
+});
+
+test("запись запущена как есть: скрипт упал исключением, код 0", () => {
+  const r = runRecord(recordProject("raise ValueError('сбой скрипта')\n"));
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test("запись запущена как есть: настоящий hook.py через обёртку `runpy` даёт вывод и код 0, путь с пробелом и кириллицей", () => {
+  const root = recordProject();
+  assert.deepEqual(installHookScript(root, EXTENSION), { ok: true });
+  const first = runRecord(root);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(first.stdout, "");
+  assert.deepEqual(appendEvent(root, EVENT), { ok: true });
+  const second = runRecord(root);
+  assert.equal(second.status, 0, second.stderr);
+  assert.ok(second.stdout.includes("openspec/changes/х/answers/2026-11-01.md"), second.stdout);
+  assert.equal(second.stderr, "");
+  assert.equal(runRecord(root).stdout, "");
+});
+
+// --- файл opencode (F-49, F-67, F-68, F-69, F-79): подключается через `import()`, `instructions.entry` — заглушка, скрипт настоящий ---
+
+const pluginOf = (root: string) => path.join(root, ".opencode", "plugins", "symphysis-hook.js");
+
+let loads = 0;
+/** Файл подключён как у клиента: `setup` с заглушкой, новый `import` на каждый вызов — как новый процесс клиента. */
+async function plug(root: string, entry: Partial<Record<"put" | "remove", (a: any) => Promise<void>>> = {}) {
+  const calls: [string, any][] = [];
+  let prompt: ((event: any) => Promise<void>) | undefined;
+  const ctx = {
+    session: {
+      hook: async (name: string, fn: (event: any) => Promise<void>) => {
+        if (name === "prompt") prompt = fn;
+      },
+      instructions: {
+        entry: {
+          put: async (a: any) => {
+            calls.push(["put", a]);
+            await entry.put?.(a);
+          },
+          remove: async (a: any) => {
+            calls.push(["remove", a]);
+            await entry.remove?.(a);
+          },
+        },
+      },
+    },
+  };
+  const mod = await import(`${pathToFileURL(pluginOf(root)).href}?${++loads}`);
+  await mod.default.setup(ctx);
+  assert.ok(prompt, "хук prompt не зарегистрирован");
+  return { calls, prompt: prompt! };
+}
+function pluginProject(python = PY) {
+  const root = make(tmp(), ".opencode/");
+  assert.deepEqual(installOpencodeHook(root, python), { ok: true });
+  assert.deepEqual(installHookScript(root, EXTENSION), { ok: true });
+  return root;
+}
+const REMOVED = (sessionID: string) => ["remove", { sessionID, key: "symphysis" }];
+
+/** Метка берётся из настоящего файла: тест метки в чужой строке иначе проверял бы выдуманную. */
+function installedMark(): string {
+  const root = make(tmp(), ".opencode/");
+  installOpencodeHook(root, "x");
+  return fs.readFileSync(pluginOf(root), "utf8").split("\n")[0];
+}
+
+test("«Установка»: файл есть, метка в первой строке, `opencode.json` не менялся", async () => {
+  const root = make(tmp(), ".opencode/", "opencode.json");
+  fs.writeFileSync(path.join(root, "opencode.json"), '{"$schema": "чужой"}\n', "utf8");
+  const was = freeze(path.join(root, "opencode.json"));
+  assert.deepEqual(installOpencodeHook(root, PY), { ok: true });
+  const text = fs.readFileSync(pluginOf(root), "utf8");
+  assert.match(text, /^\/\/ .*\n/);
+  assert.equal(isOwnOpencodeFile(text), true);
+  assertUntouched(path.join(root, "opencode.json"), was);
+  await plug(root);
+});
+
+test("«Файл совпадает с нужным»: байт в байт прежний и не перезаписан", () => {
+  const root = pluginProject();
+  const was = freeze(pluginOf(root));
+  assert.deepEqual(installOpencodeHook(root, PY), { ok: true });
+  assertUntouched(pluginOf(root), was);
+});
+
+test("Python переехал: свой файл с другим путём заменён, метка та же", () => {
+  const root = pluginProject("C:\\старый\\python.exe");
+  assert.deepEqual(installOpencodeHook(root, PY), { ok: true });
+  const text = fs.readFileSync(pluginOf(root), "utf8");
+  assert.ok(text.includes(JSON.stringify(PY)));
+  assert.ok(!text.includes("старый"));
+  assert.equal(isOwnOpencodeFile(text), true);
+  assert.deepEqual(fs.readdirSync(path.dirname(pluginOf(root))), ["symphysis-hook.js"]);
+});
+
+for (const [name, text] of [
+  ["свой код человека", () => "export default {};\n"],
+  ["метка не в первой строке", () => `\n${installedMark()}\n`],
+  ["пустой файл", () => ""],
+] as const) {
+  test(`«Чужой файл с тем же именем»: ${name}, файл не тронут, причина названа`, () => {
+    const root = make(tmp(), ".opencode/plugins/");
+    fs.writeFileSync(pluginOf(root), text(), "utf8");
+    const was = freeze(pluginOf(root));
+    assertRefused(installOpencodeHook(root, PY), ".opencode/plugins/symphysis-hook.js");
+    assertUntouched(pluginOf(root), was);
+  });
+}
+
+test("своя метка: первая строка файла, и перевод строки CRLF её не прячет", () => {
+  const mark = installedMark();
+  assert.equal(isOwnOpencodeFile(`${mark}\nкод`), true);
+  assert.equal(isOwnOpencodeFile(`${mark}\r\nкод`), true);
+  assert.equal(isOwnOpencodeFile(mark), true);
+  assert.equal(isOwnOpencodeFile(`код\n${mark}\n`), false);
+  assert.equal(isOwnOpencodeFile(`${mark} и ещё`), false);
+  assert.equal(isOwnOpencodeFile(""), false);
+});
+
+test("запись opencode идёт через проверку: `.opencode/plugins` как junction и файл-ссылка, снаружи пусто, причина названа", () => {
+  const viaDir = tmp();
+  const dirTarget = tmp();
+  junction(dirTarget, path.join(viaDir, ".opencode", "plugins"));
+  assertRefused(installOpencodeHook(viaDir, PY), ".opencode/plugins");
+  assert.deepEqual(fs.readdirSync(dirTarget), []);
+
+  const viaFile = make(tmp(), ".opencode/plugins/");
+  const fileTarget = tmp();
+  junction(fileTarget, pluginOf(viaFile));
+  assertRefused(installOpencodeHook(viaFile, PY), "symphysis-hook.js это ссылка");
+  assert.deepEqual(fs.readdirSync(fileTarget), []);
+});
+
+test("из окружения в файл идёт только путь к Python, закодированный JSON: кавычка, обратная косая и прочее не ломают разбор", async () => {
+  const nasty = 'C:\\стр"анный\\путь\\`${process.exit(9)}\n*/ \u2028 \'\\python.exe';
+  const root = make(tmp(), ".opencode/");
+  assert.deepEqual(installOpencodeHook(root, nasty), { ok: true });
+  const lines = fs.readFileSync(pluginOf(root), "utf8").split("\n");
+  const isPython = (l: string) => l.startsWith("const PYTHON = ");
+  assert.equal(lines.filter(isPython).length, 1);
+  assert.equal(JSON.parse(lines.find(isPython)!.slice("const PYTHON = ".length, -1)), nasty);
+
+  // Остальной текст файла от пути не зависит: подстановка одна.
+  const other = make(tmp(), ".opencode/");
+  installOpencodeHook(other, "другой");
+  const otherLines = fs.readFileSync(pluginOf(other), "utf8").split("\n");
+  assert.deepEqual(lines.filter((l) => !isPython(l)), otherLines.filter((l) => !isPython(l)));
+
+  const { calls, prompt } = await plug(root);
+  await prompt({ sessionID: "с" });
+  assert.deepEqual(calls, [REMOVED("с")]);
+});
+
+test("настоящий Python по пути с апострофом и обратной косой: файл разбирается и запускается, событие показано", async () => {
+  const link = path.join(tmp(), "стран'ный `каталог` $x");
+  junction(path.dirname(PY), link);
+  try {
+    const root = pluginProject(path.join(link, path.basename(PY)));
+    const { calls, prompt } = await plug(root);
+    await prompt({ sessionID: "с" });
+    appendEvent(root, EVENT);
+    await prompt({ sessionID: "с" });
+    const [kind, arg] = calls.at(-1)!;
+    assert.equal(kind, "put");
+    assert.ok(arg.value.includes("openspec/changes/х/answers/2026-11-01.md"), arg.value);
+  } finally {
+    // Ссылка ведёт в настоящий каталог Python: снимается сразу, общая уборка временных каталогов её не видит.
+    fs.unlinkSync(link);
+  }
+});
+
+test("«Новые события»: запись с ключом `symphysis` несёт событие, слова запроса не изменены", async () => {
+  const root = pluginProject();
+  const { calls, prompt } = await plug(root);
+  const event = { sessionID: "сессия-1", messageID: "m", prompt: { text: "вопрос человека" } };
+  await prompt(event);
+  assert.deepEqual(calls, [REMOVED("сессия-1")]);
+  appendEvent(root, EVENT);
+  await prompt(event);
+  const [kind, arg] = calls.at(-1)!;
+  assert.equal(kind, "put");
+  assert.equal(arg.sessionID, "сессия-1");
+  assert.equal(arg.key, "symphysis");
+  assert.ok(arg.value.includes("openspec/changes/х/answers/2026-11-01.md"), arg.value);
+  assert.deepEqual(event, { sessionID: "сессия-1", messageID: "m", prompt: { text: "вопрос человека" } });
+});
+
+test("«Новых событий нет»: запись с прошлого обращения снята", async () => {
+  const root = pluginProject();
+  const { calls, prompt } = await plug(root);
+  await prompt({ sessionID: "с" });
+  appendEvent(root, EVENT);
+  await prompt({ sessionID: "с" });
+  assert.equal(calls.at(-1)![0], "put");
+  await prompt({ sessionID: "с" });
+  assert.deepEqual(calls.at(-1), REMOVED("с"));
+});
+
+test("«Та же сессия»: сессия продолжена с тем же номером новым процессом, события в инструкциях нет", async () => {
+  const root = pluginProject();
+  const first = await plug(root);
+  await first.prompt({ sessionID: "с" });
+  appendEvent(root, EVENT);
+  await first.prompt({ sessionID: "с" });
+  assert.equal(first.calls.at(-1)![0], "put");
+  const second = await plug(root);
+  await second.prompt({ sessionID: "с" });
+  assert.deepEqual(second.calls, [REMOVED("с")]);
+});
+
+test("путь к скрипту оболочка считает от своего файла: `cwd` процесса другой, скрипт найден", async () => {
+  const root = pluginProject();
+  const { calls, prompt } = await plug(root);
+  const cwd = process.cwd();
+  process.chdir(tmp());
+  try {
+    await prompt({ sessionID: "с" });
+    appendEvent(root, EVENT);
+    await prompt({ sessionID: "с" });
+  } finally {
+    process.chdir(cwd);
+  }
+  assert.equal(calls.at(-1)![0], "put");
+});
+
+for (const [name, prepare] of [
+  ["файла скрипта нет", (root: string) => fs.unlinkSync(scriptOf(root))],
+  ["скрипт вышел с кодом 2", (root: string) => fs.writeFileSync(scriptOf(root), "import sys\nprint('метка')\nsys.exit(2)\n", "utf8")],
+  ["скрипт упал", (root: string) => fs.writeFileSync(scriptOf(root), "raise ValueError('сбой')\n", "utf8")],
+  ["путь к Python мёртв", (root: string) => assert.deepEqual(installOpencodeHook(root, path.join(root, "нет такого", "python.exe")), { ok: true })],
+] as const) {
+  test(`«Сбой в оболочке opencode»: ${name}, запрос не останавливается, запись снята`, async () => {
+    const root = pluginProject();
+    prepare(root);
+    const { calls, prompt } = await plug(root);
+    await prompt({ sessionID: "с" });
+    assert.deepEqual(calls, [REMOVED("с")]);
+  });
+}
+
+test("«Сбой в оболочке opencode»: скрипт завис, предел вызова 5 с, запрос идёт дальше, запись снята", async () => {
+  const root = pluginProject();
+  fs.writeFileSync(scriptOf(root), "import time\ntime.sleep(60)\n", "utf8");
+  const { calls, prompt } = await plug(root);
+  const t0 = Date.now();
+  await prompt({ sessionID: "с" });
+  const ms = Date.now() - t0;
+  assert.ok(ms >= 4500 && ms < 9000, `вызов шёл ${ms} мс`);
+  assert.deepEqual(calls, [REMOVED("с")]);
+});
+
+test("«Сбой в оболочке opencode»: `put` бросает, запрос не останавливается, запись снимается", async () => {
+  const root = pluginProject();
+  const { calls, prompt } = await plug(root, { put: async () => { throw new Error("сбой put"); } });
+  await prompt({ sessionID: "с" });
+  appendEvent(root, EVENT);
+  await prompt({ sessionID: "с" });
+  assert.deepEqual(calls.at(-1), REMOVED("с"));
+});
+
+test("«Сбой в оболочке opencode»: бросают и `put`, и `remove`, запрос всё равно не останавливается", async () => {
+  const root = pluginProject();
+  const fail = async () => { throw new Error("сбой"); };
+  const { prompt } = await plug(root, { put: fail, remove: fail });
+  await prompt({ sessionID: "с" });
+  appendEvent(root, EVENT);
+  await prompt({ sessionID: "с" });
+  await prompt(undefined);
+});
+
+test("«Сбой в оболочке opencode»: регистрация хука бросает, `setup` не падает", async () => {
+  const root = pluginProject();
+  const mod = await import(`${pathToFileURL(pluginOf(root)).href}?${++loads}`);
+  await mod.default.setup({ session: { hook: async () => { throw new Error("сбой hook"); } } });
+  await mod.default.setup({});
 });

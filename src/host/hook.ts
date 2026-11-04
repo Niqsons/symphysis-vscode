@@ -1,6 +1,7 @@
-// Хук клиента: где он нужен, безопасная запись, скрипт из пакета. Без `vscode`: связь с окном и настройками живёт не здесь.
+// Хук клиента: где он нужен, безопасная запись, скрипт из пакета, запись Claude Code, файл opencode. Без `vscode`: связь с окном и настройками живёт не здесь.
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { findTools, viewerDir, viewerRefusal, writeRefusal, type WriteResult } from "./project";
 import type { PythonResolution } from "./python";
 
@@ -24,7 +25,7 @@ const isFile = (p: string) => !!statOf(p)?.isFile();
 /** Признак проекта на symphysis: строка в `openspec/config.yaml`, YAML разбирать незачем (F-75, F-98). */
 function hasSymphysisSchema(root: string): boolean {
   try {
-    return /^﻿?schema:[ \t]+symphysis[ \t]*$/m.test(fs.readFileSync(path.join(root, "openspec", "config.yaml"), "utf8"));
+    return /^\uFEFF?schema:[ \t]+(["']?)symphysis\1(?:[ \t]+#.*)?[ \t]*$/m.test(fs.readFileSync(path.join(root, "openspec", "config.yaml"), "utf8"));
   } catch {
     return false;
   }
@@ -100,4 +101,134 @@ export function installHookScript(root: string, extensionPath: string): WriteRes
   } catch (e) {
     return { ok: false, reason: String(e) };
   }
+}
+
+// --- запись Claude Code ---
+
+type Json = Record<string, unknown>;
+const isObject = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
+
+const SETTINGS = ".claude/settings.local.json";
+const SCRIPT_TAIL = "/.symphysis/viewer/hook.py";
+/** Файла нет или скрипт вышел с любым кодом — код процесса 0. Без обёртки Python сам выходит с кодом 2, а он блокирует запрос (F-69). Текст из пробы F-69. */
+const GUARD = "import os,runpy,sys\np=sys.argv[1]\ntry:\n    os.path.isfile(p) and runpy.run_path(p,run_name='__main__')\nexcept BaseException:\n    pass\n";
+
+/** Без оболочки: `${CLAUDE_PROJECT_DIR}` подставляет клиент. `-I`: каталог вызова не попадает в `sys.path`. */
+const claudeHandler = (python: string) => ({ type: "command", command: python, args: ["-I", "-X", "utf8", "-c", GUARD, `\${CLAUDE_PROJECT_DIR}${SCRIPT_TAIL}`], timeout: 5 });
+
+/** Своя запись: путь скрипта в `args`. Путь к Python и остальное могут быть любыми: они и сверяются. */
+export const isOwnClaudeHandler = (handler: unknown): boolean =>
+  isObject(handler) && Array.isArray(handler.args) && handler.args.some((a) => typeof a === "string" && a.endsWith(SCRIPT_TAIL));
+
+/** Настройки из файла или причина их не трогать: файл человека, не в git, и вернуть его нечем (F-77). */
+function readClaudeSettings(file: string): { settings: Json } | { reason: string } {
+  let raw: Buffer;
+  try {
+    raw = fs.readFileSync(file);
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ENOENT" ? { settings: {} } : { reason: `${SETTINGS}: ${String(e)}` };
+  }
+  if (raw.length === 0) return { settings: {} };
+  let settings: unknown;
+  try {
+    // `fatal`: иначе чужая кодировка пришла бы с заменёнными знаками, и перезапись их потеряла. `ignoreBOM`: BOM остаётся в тексте, и JSON его не примет.
+    settings = JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(raw));
+  } catch (e) {
+    return { reason: `${SETTINGS} не разбирается как JSON: ${String(e)}` };
+  }
+  if (!isObject(settings)) return { reason: `${SETTINGS}: верхний уровень не объект` };
+  if (settings.hooks !== undefined && !isObject(settings.hooks)) return { reason: `${SETTINGS}: поле hooks не объект` };
+  if (isObject(settings.hooks) && settings.hooks.UserPromptSubmit !== undefined && !Array.isArray(settings.hooks.UserPromptSubmit)) return { reason: `${SETTINGS}: поле hooks.UserPromptSubmit не список` };
+  return { settings };
+}
+
+const handlersOf = (group: unknown): unknown[] => (isObject(group) && Array.isArray(group.hooks) ? group.hooks : []);
+
+/** Группы без своих записей. Чужое остаётся как было, группа, где не осталось ничего, уходит. */
+function withoutOwnHandlers(groups: unknown[]): unknown[] {
+  return groups.flatMap((group) => {
+    if (!handlersOf(group).some(isOwnClaudeHandler)) return [group];
+    const rest = handlersOf(group).filter((h) => !isOwnClaudeHandler(h));
+    return rest.length ? [{ ...(group as Json), hooks: rest }] : [];
+  });
+}
+
+/** Запись стоит и совпадает — файл не пишется вовсе. Иначе своя запись одна, в своей группе (F-57). */
+export function installClaudeHook(root: string, python: string): WriteResult {
+  const file = path.join(root, ".claude", "settings.local.json");
+  const refusal = writeRefusal(root, file);
+  if (refusal) return { ok: false, reason: refusal };
+  const read = readClaudeSettings(file);
+  if ("reason" in read) return { ok: false, reason: read.reason };
+  const hooks = (read.settings.hooks ??= {}) as Json;
+  const groups = (hooks.UserPromptSubmit ??= []) as unknown[];
+  const wanted = claudeHandler(python);
+  const own = groups.flatMap(handlersOf).filter(isOwnClaudeHandler);
+  if (own.length === 1 && isDeepStrictEqual(own[0], wanted)) return { ok: true };
+  hooks.UserPromptSubmit = [...withoutOwnHandlers(groups), { hooks: [wanted] }];
+  return writeProjectFile(root, file, `${JSON.stringify(read.settings, null, 2)}\n`);
+}
+
+// --- файл opencode ---
+
+const OPENCODE_MARK = "// symphysis-vscode: хук opencode, файл пишет и заменяет плагин, не правь";
+
+/** Свой файл: метка в первой строке. Файл скрыт от git, и переписанное чужое уже не вернуть (F-79). */
+export const isOwnOpencodeFile = (text: string): boolean => text.split(/\r?\n/, 1)[0] === OPENCODE_MARK;
+
+/**
+ * Оболочка над тем же скриптом (F-68). Подстановка одна, путь к Python через JSON; остальное постоянный текст, путь к скрипту от своего файла.
+ * Необработанное исключение в хуке `prompt` останавливает запрос человека, поэтому ловится всё (F-69). `remove` без записи ничего не делает.
+ */
+const opencodeText = (python: string) => [
+  OPENCODE_MARK,
+  'import { execFileSync } from "node:child_process";',
+  'import path from "node:path";',
+  'import { fileURLToPath } from "node:url";',
+  "",
+  `const PYTHON = ${JSON.stringify(python)};`,
+  'const KEY = "symphysis";',
+  "",
+  "function read(sessionID) {",
+  '  const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", ".symphysis", "viewer", "hook.py");',
+  '  return execFileSync(PYTHON, ["-I", "-X", "utf8", script], { input: JSON.stringify({ session_id: sessionID }), encoding: "utf8", timeout: 5000, windowsHide: true, stdio: "pipe" }).trim();',
+  "}",
+  "",
+  "export default {",
+  '  id: "symphysis-hook",',
+  "  async setup(ctx) {",
+  "    try {",
+  "      const entry = ctx.session.instructions.entry;",
+  '      await ctx.session.hook("prompt", async (event) => {',
+  "        try {",
+  "          const value = read(event.sessionID);",
+  "          if (value) await entry.put({ sessionID: event.sessionID, key: KEY, value });",
+  "          else await entry.remove({ sessionID: event.sessionID, key: KEY });",
+  "        } catch {",
+  "          try {",
+  "            await entry.remove({ sessionID: event.sessionID, key: KEY });",
+  "          } catch { /* запрос человека важнее */ }",
+  "        }",
+  "      });",
+  "    } catch { /* запрос человека важнее */ }",
+  "  },",
+  "};",
+  "",
+].join("\n");
+
+/** Чужой файл не трогается. Свой совпал — не пишется. `opencode.json` не меняется (F-49). */
+export function installOpencodeHook(root: string, python: string): WriteResult {
+  const file = path.join(root, ".opencode", "plugins", "symphysis-hook.js");
+  const refusal = writeRefusal(root, file);
+  if (refusal) return { ok: false, reason: refusal };
+  const wanted = opencodeText(python);
+  let current: string | null = null;
+  try {
+    current = fs.readFileSync(file, "utf8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") return { ok: false, reason: `.opencode/plugins/symphysis-hook.js: ${String(e)}` };
+  }
+  if (current === wanted) return { ok: true };
+  if (current !== null && !isOwnOpencodeFile(current)) return { ok: false, reason: ".opencode/plugins/symphysis-hook.js чужой файл: в первой строке нет метки плагина" };
+  return writeProjectFile(root, file, wanted);
 }

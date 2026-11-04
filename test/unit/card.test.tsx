@@ -40,11 +40,17 @@ test("рекомендация стоит под списком варианто
   assert.equal((out.match(/checked=""/g) ?? []).length, 0);
 });
 
-test("составная рекомендация пишется строкой как написана", () => {
-  const rec = fork("F-01", { recommendation: { option: "A", why: "приближение", text: "A для одного и B для другого" } });
-  const out = html(rec);
-  assert.ok(out.includes("A для одного и B для другого"));
-  assert.ok(!out.includes("приближение"));
+test("карточка при поле text показывает вариант и причину, а не его", () => {
+  // Старый журнал: поле приходит из файла, типа у него нет, поэтому объект заведён отдельно.
+  const recommendation = { option: "A", why: "дешевле откатить", text: "A — кратко" };
+  const out = html(fork("F-01", { recommendation }));
+  assert.ok(out.includes("<b>A</b> — дешевле откатить"), out);
+  assert.ok(!out.includes("A — кратко"));
+});
+
+test("поля text нет: видны вариант и причина", () => {
+  const out = html(fork("F-01", { recommendation: { option: "A", why: "дешевле откатить" } }));
+  assert.ok(out.includes("<b>A</b> — дешевле откатить"), out);
 });
 
 test("выбор в журнале отмечен; слово журнала видно с датой", () => {

@@ -12,12 +12,13 @@
     "untrustedWorkspaces": { "supported": false, "description": "Расширение запускает .symphysis/tools/journal.py из проекта." },
     "virtualWorkspaces": { "supported": false, "description": "Журнал читает Python с локального диска." }
   },
-  "activationEvents": ["workspaceContains:openspec/changes/*/decisions.json", "onWebviewPanel:symphysis.viewer", "onWebviewPanel:symphysis.scheme"],
+  "activationEvents": ["workspaceContains:openspec", "onWebviewPanel:symphysis.viewer", "onWebviewPanel:symphysis.scheme"],
   "contributes": {
     "commands": [
       { "command": "symphysis.refresh", "title": "Обновить", "category": "Symphysis", "icon": "$(refresh)" },
       { "command": "symphysis.openChange", "title": "Открыть журнал", "category": "Symphysis" },
       { "command": "symphysis.openScheme", "title": "Показать схему решения", "category": "Symphysis" },
+      { "command": "symphysis.openHelp", "title": "Справка о шаге конвейера", "category": "Symphysis", "icon": "$(question)" },
       { "command": "symphysis.revealRecord", "title": "Показать запись", "category": "Symphysis" },
       { "command": "symphysis.revealAttack", "title": "Показать в атаке", "category": "Symphysis" }
     ],
@@ -36,7 +37,10 @@
       { "view": "symphysis.changes", "contents": "В рабочей области нет каталога openspec/changes." }
     ],
     "menus": {
-      "view/title": [{ "command": "symphysis.refresh", "when": "view == symphysis.changes", "group": "navigation" }],
+      "view/title": [
+        { "command": "symphysis.openHelp", "when": "view == symphysis.changes", "group": "navigation" },
+        { "command": "symphysis.refresh", "when": "view == symphysis.changes", "group": "navigation" }
+      ],
       "commandPalette": [
         { "command": "symphysis.openChange", "when": "false" },
         { "command": "symphysis.revealRecord", "when": "false" },

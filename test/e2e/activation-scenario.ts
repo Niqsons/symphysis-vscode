@@ -1,13 +1,16 @@
 // Сценарии `activation.mjs`: что сделала сама активация. Имя функции — имя запуска.
+// `activate` тест не зовёт ни в одном запуске: он поднял бы плагин и там, где событие активации не сработало (F-39).
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { results, step } from "./steps";
+import { results, sleep, step, until } from "./steps";
 
 interface Api {
   hookIdle(): Promise<void>;
+  changes: { getChildren(): { ref: { name: string } }[] };
 }
+type Ext = vscode.Extension<Api>;
 
 const settingsOf = (root: string) => path.join(root, ".claude", "settings.local.json");
 const scriptOf = (root: string) => path.join(root, ".symphysis", "viewer", "hook.py");
@@ -20,8 +23,21 @@ function assertHookStands(root: string) {
   assert.ok(fs.existsSync(scriptOf(root)));
 }
 
-const RUNS: Record<string, () => Promise<void>> = {
-  "Выключение в одном проекте": async () => {
+const activated = (ext: Ext) => until("плагин активирован событием", () => ext.isActive);
+const hookDone = async (ext: Ext) => {
+  await activated(ext);
+  await ext.exports.hookIdle();
+};
+
+/** Команда кнопки и палитры работает и без журнала: вкладка на месте. Что на ней показано — забота сценария «Команда палитры». */
+async function assertHelpOpens() {
+  await vscode.commands.executeCommand("symphysis.openHelp");
+  await until("вкладка", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("symphysis.scheme")));
+}
+
+const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
+  "Выключение в одном проекте": async (ext) => {
+    await hookDone(ext);
     const off = process.env.SYMPHYSIS_E2E_OFF!;
     const on = process.env.SYMPHYSIS_E2E_ON!;
     assert.equal(vscode.workspace.workspaceFolders?.length, 2);
@@ -31,17 +47,39 @@ const RUNS: Record<string, () => Promise<void>> = {
     assert.equal(fs.existsSync(scriptOf(off)), false);
     assertHookStands(on);
   },
-  "Первая активация ставит запись": async () => assertHookStands(process.env.SYMPHYSIS_E2E_ON!),
-  "Запись удалена руками": async () => assertHookStands(process.env.SYMPHYSIS_E2E_ON!),
+  "Первая активация ставит запись": async (ext) => {
+    await hookDone(ext);
+    assertHookStands(process.env.SYMPHYSIS_E2E_ON!);
+  },
+  "Запись удалена руками": async (ext) => {
+    await hookDone(ext);
+    assertHookStands(process.env.SYMPHYSIS_E2E_ON!);
+  },
+  "Проект без журнала": async (ext) => {
+    await hookDone(ext);
+    assert.deepEqual(ext.exports.changes.getChildren().map((c) => c.ref.name), ["без-журнала"]);
+    assertHookStands(process.env.SYMPHYSIS_E2E_ON!);
+    await assertHelpOpens();
+  },
+  "Пустой проект, боковая панель": async (ext) => {
+    // Контроль: окно открыто, панель закрыта, плагина нет. Без него «активирован событием» в других запусках ничего бы не значило.
+    await sleep(2000);
+    assert.equal(ext.isActive, false, "пустая папка не должна поднимать плагин при открытии окна");
+    await vscode.commands.executeCommand("workbench.view.extension.symphysis");
+    await activated(ext);
+    // Заголовок и строку списка рисует сам VS Code, из хоста расширения их не прочитать: проверяется то, из чего он их рисует.
+    const { commands, menus, viewsWelcome } = ext.packageJSON.contributes;
+    assert.deepEqual(menus["view/title"].find((m: { command: string }) => m.command === "symphysis.openHelp"), { command: "symphysis.openHelp", when: "view == symphysis.changes", group: "navigation" });
+    assert.ok(commands.find((c: { command: string }) => c.command === "symphysis.openHelp").icon, "кнопка в заголовке рисуется значком");
+    assert.deepEqual(ext.exports.changes.getChildren(), [], "список пуст, поэтому VS Code показывает строку о каталоге");
+    assert.ok(viewsWelcome.find((w: { view: string }) => w.view === "symphysis.changes").contents.includes("нет каталога openspec/changes"));
+    await assertHelpOpens();
+  },
 };
 
 export async function run(): Promise<void> {
   const name = process.env.SYMPHYSIS_E2E_RUN!;
-  const ext = vscode.extensions.all.find((e) => e.packageJSON.name === "symphysis-vscode")!;
-  const api = (await ext.activate()) as Api;
-  await step(`«${name}»`, async () => {
-    await api.hookIdle();
-    await RUNS[name]();
-  });
+  const ext = vscode.extensions.all.find((e) => e.packageJSON.name === "symphysis-vscode")! as Ext;
+  await step(`«${name}»`, () => RUNS[name](ext));
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures: {} }, null, 1), "utf8");
 }

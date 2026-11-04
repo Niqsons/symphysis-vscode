@@ -25,9 +25,9 @@ export class SchemePanel {
 
   constructor(private readonly deps: SchemeDeps) {}
 
-  /** Кнопка «схема» и команда: вторая вкладка не появляется, открытая получает фокус. */
-  open(key: string): void {
-    this.remember(key);
+  /** Кнопка «схема» и команды: вторая вкладка не появляется, открытая получает фокус. `null` — изменения нет: вкладка пуста, пока журнал не откроют. */
+  open(key: string | null): void {
+    if (key) this.remember(key);
     if (this.panel) {
       this.panel.reveal(undefined, false);
       this.send();

@@ -31,6 +31,21 @@ function twoFolders() {
 
 const again = project("вторая активация");
 
+/** `openspec/` есть, журнала нет ни в одном изменении и файлов в изменении нет вовсе. Инструменты и след клиента на месте: активация обязана поставить и хук. */
+function withoutJournal() {
+  const dir = path.join(work, "проекты", "без журнала");
+  projectWithTools(dir);
+  addChange(dir, "без-журнала");
+  fs.mkdirSync(path.join(dir, ".claude"), { recursive: true });
+  return { open: dir, env: { SYMPHYSIS_E2E_ON: dir } };
+}
+
+function emptyFolder() {
+  const dir = path.join(work, "проекты", "пустой проект");
+  fs.mkdirSync(dir, { recursive: true });
+  return { open: dir, env: {} };
+}
+
 /** `name` — имя запуска и сценария, `prepare` — что открыть и что передать сценарию. Запуски идут по порядку, каталог проекта между ними общий. */
 const RUNS = [
   { name: "Выключение в одном проекте", prepare: twoFolders },
@@ -44,6 +59,8 @@ const RUNS = [
       return { open: again, env: { SYMPHYSIS_E2E_ON: again } };
     },
   },
+  { name: "Проект без журнала", prepare: withoutJournal },
+  { name: "Пустой проект, боковая панель", prepare: emptyFolder },
 ];
 
 cleanEnv();

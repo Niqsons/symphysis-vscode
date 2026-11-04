@@ -162,6 +162,8 @@ export function activate(context: vscode.ExtensionContext) {
       const target = key ?? viewer.currentKey ?? store.list()[0]?.ref.dir;
       if (target) scheme.open(target);
     }),
+    // Без журнала и без изменений тоже: вкладка открывается всегда (F-40).
+    vscode.commands.registerCommand("symphysis.openHelp", () => scheme.open(viewer.currentKey ?? store.list()[0]?.ref.dir ?? null)),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
     vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); }),

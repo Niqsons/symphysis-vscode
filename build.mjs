@@ -29,6 +29,9 @@ if (process.argv.includes("--unit")) {
     await build({ ...node, entryPoints: ["test/e2e/scenario.ts"], outfile: "out/e2e/scenario.js" });
     await build({ ...node, entryPoints: ["test/e2e/vsix-scenario.ts"], outfile: "out/e2e/vsix-scenario.js" });
     await build({ ...node, entryPoints: ["test/e2e/activation-scenario.ts"], outfile: "out/e2e/activation-scenario.js" });
+    // Файлы хука ставит код плагина, а не копия формы в тесте: e2e:hook берёт их отсюда.
+    await build({ ...node, entryPoints: ["src/host/hook.ts"], outfile: "out/e2e/hook.cjs" });
+    await build({ ...node, entryPoints: ["src/host/python.ts"], outfile: "out/e2e/python.cjs" });
     await build({ ...web, entryPoints: ["test/e2e/driver.ts"], outfile: "media/test-driver.js" });
   }
 }

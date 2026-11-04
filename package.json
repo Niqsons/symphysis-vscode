@@ -88,7 +88,8 @@
     "package": "node package.mjs",
     "e2e:vsix": "node build.mjs --tests && node test/e2e/vsix.mjs",
     "e2e:reload": "node build.mjs --tests && node test/e2e/reload.mjs",
-    "e2e:activation": "node build.mjs --tests && node test/e2e/activation.mjs"
+    "e2e:activation": "node build.mjs --tests && node test/e2e/activation.mjs",
+    "e2e:hook": "node build.mjs --tests && node test/e2e/hook-clients.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

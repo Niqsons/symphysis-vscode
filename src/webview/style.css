@@ -142,6 +142,8 @@ details summary { cursor: pointer; font-size: .92em; color: var(--vscode-descrip
 .prompt-text { margin-top: 5px; font-family: var(--vscode-editor-font-family, monospace); font-size: .92em; resize: none; max-height: calc(100vh - 170px); }
 .report { position: relative; margin-bottom: 6px; padding: 6px 26px 6px 8px; border: 1px solid var(--line); border-radius: 3px; max-height: 32vh; overflow-y: auto; font-size: .95em; }
 .report-close { position: absolute; top: 4px; right: 4px; }
+.report-saved { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 4px 4px 4px 8px; border: 1px solid var(--line); border-left: 2px solid var(--sym-accent); border-radius: 3px; background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, .1)); font-size: .95em; }
+.report-saved-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .report-lines { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family, monospace); font-size: .92em; margin: 3px 0; }
 
 /* Поиск в боковой панели: узкая колонка, фон — панели, а не редактора. */

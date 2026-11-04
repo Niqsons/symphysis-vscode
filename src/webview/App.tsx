@@ -255,11 +255,13 @@ export function App() {
     post({ type: "apply", key: keyRef.current, text: prompt.text, shownSha: payload.sha256, date: localDate() });
   };
 
-  const onCopy = () => {
-    if (!prompt) return;
-    post({ type: "copy", text: prompt.text });
+  const copyText = (text: string) => {
+    post({ type: "copy", text });
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+  const onCopy = () => {
+    if (prompt) copyText(prompt.text);
   };
 
   if (!view) return <div className="empty">Выбери изменение в боковой панели Symphysis.</div>;
@@ -362,7 +364,7 @@ export function App() {
         <ReturnPanel
           prompt={prompt} open={ui.promptOpen} applying={applying} blockedReason={blockedReason} result={result} copied={copied}
           height={ui.promptHeight} onHeight={(promptHeight) => putUi({ ...ui, promptHeight })}
-          onToggle={() => putUi({ ...ui, promptOpen: !ui.promptOpen })} onApply={onApply} onCopy={onCopy} onDismiss={() => setResult(null)}
+          onToggle={() => putUi({ ...ui, promptOpen: !ui.promptOpen })} onApply={onApply} onCopy={onCopy} onCopyAnswer={copyText} onDismiss={() => setResult(null)}
         />
       )}
     </div>

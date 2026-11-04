@@ -163,6 +163,13 @@ export async function run(): Promise<void> {
     assert.match(clean.stats, /решено 2/);
   });
 
+  await step("«Копировать» в поле над логом кладёт в буфер текст поля с полным путём файла ответа", async () => {
+    const [file] = fs.readdirSync(path.join(one, "answers"));
+    const expected = `Внесено, ответ сохранён: ${path.join(one, "answers", file)}`.toLowerCase();
+    await drive("click", { text: "Копировать" });
+    await until("буфер", async () => (await vscode.env.clipboard.readText()).toLowerCase() === expected);
+  });
+
   await step("своё внесение не называется обновлением снаружи", async () => {
     await sleep(600);
     const s = await snap();

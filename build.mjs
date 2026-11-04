@@ -20,6 +20,7 @@ if (process.argv.includes("--unit")) {
   await build({ ...web, minify: true, entryPoints: ["src/webview/main.tsx"], outfile: "media/viewer.js" });
   await build({ ...web, minify: true, entryPoints: ["src/webview/search.tsx"], outfile: "media/search.js" });
   await build({ ...web, minify: true, entryPoints: ["src/webview/scheme.ts"], outfile: "media/scheme.js" });
+  await build({ ...web, minify: true, entryPoints: ["src/webview/help.tsx"], outfile: "media/help.js" });
   // Файл mermaid закреплённой версии идёт в пакет как есть: у плагина и инсталлятора один номер (F-40, F-53).
   fs.copyFileSync("node_modules/mermaid/dist/mermaid.min.js", "media/mermaid.min.js");
   fs.copyFileSync("node_modules/mermaid/LICENSE", "media/mermaid.LICENSE");

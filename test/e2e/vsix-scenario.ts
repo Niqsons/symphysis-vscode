@@ -8,7 +8,7 @@ import { results, sleep, step, until } from "./steps";
 
 const ID = "symphysis.symphysis-vscode";
 /** Белый список .vscodeignore: забытый файл молча даёт пустую панель, лишний — утечку исходников. */
-const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json"];
+const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/help.js", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json"];
 
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;
@@ -50,6 +50,12 @@ export async function run(): Promise<void> {
   await step("вкладка схемы: кнопка и команда объявлены пакетом, открывается рядом с просмотрщиком", async () => {
     await vscode.commands.executeCommand("symphysis.openScheme", change("с-атакой"));
     await until("вкладка схемы", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Схема: с-атакой"));
+  });
+
+  await step("справка: команда объявлена пакетом, вкладка та же, заголовок называет показанное", async () => {
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("заголовок справки", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Справка: с-атакой"));
+    assert.ok(!vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Схема: с-атакой"), "вторая вкладка");
   });
 
   await step("поиск и оглавления объявлены пакетом и открываются", async () => {

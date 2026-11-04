@@ -4,11 +4,12 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { results, sleep, step, until } from "./steps";
+import { driver, results, sleep, step, until } from "./steps";
 
 interface Api {
   hookIdle(): Promise<void>;
   changes: { getChildren(): { ref: { name: string } }[] };
+  scheme: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null };
 }
 type Ext = vscode.Extension<Api>;
 
@@ -74,6 +75,22 @@ const RUNS: Record<string, (ext: Ext) => Promise<void>> = {
     assert.deepEqual(ext.exports.changes.getChildren(), [], "список пуст, поэтому VS Code показывает строку о каталоге");
     assert.ok(viewsWelcome.find((w: { view: string }) => w.view === "symphysis.changes").contents.includes("нет каталога openspec/changes"));
     await assertHelpOpens();
+  },
+  "Команда палитры": async (ext) => {
+    await activated(ext);
+    assert.deepEqual(ext.exports.changes.getChildren(), [], "изменений нет");
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    const drive = driver(() => ext.exports.scheme.webview, ext.exports.scheme.messages);
+    const help = await until("текущий шаг", async () => {
+      const r = await drive("helpSnapshot").catch(() => null);
+      return r?.current ? r : null;
+    }, 25000);
+    assert.match(help.current, /intent/);
+    assert.match(help.current, /ход человека/);
+    assert.equal(help.panel, "справка");
+    assert.ok(help.currentInList, "текущий шаг не отмечен в списке");
+    assert.deepEqual(help.violations, []);
+    await until("заголовок вкладки без изменения", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "Справка"));
   },
 };
 

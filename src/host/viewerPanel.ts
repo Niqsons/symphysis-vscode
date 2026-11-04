@@ -5,7 +5,7 @@ import { applyFlow } from "./apply";
 import type { CoreEnv } from "./core";
 import { lineOf, resolveLink } from "./links";
 import { pageHtml } from "./page";
-import { deleteDraft, readDraft, readScheme, writeDraft, type ChangeRef } from "./project";
+import { deleteDraft, readDraft, readScheme, writeDraft } from "./project";
 import type { ChangeState, JournalStore } from "./store";
 import { asleepTab } from "./tabs";
 import { DEFAULT_UI, type ApplyReport, type Colors, type CoreFailure, type HostMessage, type JournalView, type PageMessage, type UiState, type ViewMode } from "../shared/protocol";
@@ -19,7 +19,7 @@ const SHOWN_KEY = "symphysis.shownJournal";
 export interface ViewerDeps {
   context: vscode.ExtensionContext;
   store: JournalStore;
-  coreEnv(ref: ChangeRef): CoreEnv | CoreFailure;
+  coreEnv(root: string): CoreEnv | CoreFailure;
   colors(): Colors;
   onShown(key: string | null): void;
   onDraft(key: string, draft: Draft): void;
@@ -227,7 +227,7 @@ export class ViewerPanel {
     if (this.applying) return;
     const state = this.deps.store.get(m.key);
     if (!state) return void report({ stage: "error", text: "изменение не найдено" });
-    const env = this.deps.coreEnv(state.ref);
+    const env = this.deps.coreEnv(state.ref.root);
     if (isFailure(env)) return void report({ stage: "error", text: `ядро недоступно (${env.kind})` });
     this.applying = true;
     try {

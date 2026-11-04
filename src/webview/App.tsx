@@ -285,7 +285,7 @@ export function App() {
             className="modes" value={ui.mode} onChange={(mode) => setMode(mode)}
             items={MODES.map(({ mode, label, title }) => ({ value: mode, title, label: `${label}${mode === "attack" && attackRows > 0 ? ` · ${attackRows}` : ""}` }))}
           />
-          <button type="button" className="small" onClick={() => post({ type: "openScheme", key: view.key })} title="схема решения рядом: scheme.md этого изменения">схема</button>
+          <button type="button" className="small" onClick={() => post({ type: "openScheme", key: view.key })} title="рядом с карточками: схема решения из scheme.md или справка о шаге конвейера">схема · справка</button>
           <span className="spacer" />
           {view.loading && ui.mode !== "decisions" && <span className="muted">перечитывается…</span>}
           {ui.mode !== "check" && <button type="button" className="small" onClick={() => post({ type: "reset", key: view.key })} title="убрать весь черновик этого журнала">Сбросить</button>}

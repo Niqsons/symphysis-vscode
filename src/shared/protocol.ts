@@ -102,10 +102,29 @@ export interface SchemeView extends ParsedScheme {
 
 export type SchemeHostMessage = { type: "scheme"; view: SchemeView };
 
+/** Положение переключателя вкладки. */
+export type PanelView = "scheme" | "help";
+
 export type SchemePageMessage =
   | { type: "schemeReady" }
   | { type: "schemeNode"; id: string }
-  | { type: "schemeOpenFile"; line: number | null };
+  | { type: "schemeOpenFile"; line: number | null }
+  | { type: "panelView"; view: PanelView };
+
+/** Справка на той же вкладке. `panel: "scheme"` здесь значит схему без изменения: рисовать нечего, и mermaid страница не грузит. `outcome: null` — ответа ещё нет. */
+export interface HelpView {
+  panel: PanelView;
+  name: string | null;
+  outcome: HelpOutcome | null;
+}
+
+export type HelpHostMessage = { type: "help"; view: HelpView };
+
+export type HelpPageMessage =
+  | { type: "helpReady" }
+  | { type: "panelView"; view: PanelView }
+  | { type: "helpChoose"; key: string }
+  | { type: "openPythonSetting" };
 
 /** Страница поиска в боковой панели. `scope` — открытое изменение; `null` — журнал не открыт, искать негде. */
 export type SearchHostMessage = { type: "searchState"; query: string; scope: string | null; outcome: SearchOutcome; colors: Colors };

@@ -1,79 +1,144 @@
-// Вкладка схемы: одна на окно, рядом с просмотрщиком, сама не открывается. Файл читает плагин и следит за ним, сам в него не пишет (F-25, F-26, F-103).
+// Вкладка схемы и справки: одна на окно, рядом с просмотрщиком, сама не открывается, показывает одно из двух (F-17, F-40, F-107).
+// Страниц две, у схемы mermaid, у справки React: переключатель заменяет страницу. `scheme.md` читает плагин и следит за ним, сам в него не пишет (F-25, F-26, F-103).
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { pageHtml } from "./page";
-import { readScheme, schemeFile } from "./project";
-import type { JournalStore } from "./store";
+import { changeDir, readScheme, schemeFile, type ChangeRef } from "./project";
+import { chooseTarget, sameTarget, type HelpTarget } from "./stepHelp";
 import { asleepTab } from "./tabs";
-import type { SchemeHostMessage, SchemePageMessage } from "../shared/protocol";
+import type { HelpHostMessage, HelpOutcome, HelpPageMessage, PanelView, SchemeHostMessage, SchemePageMessage } from "../shared/protocol";
 
 export const SCHEME_TYPE = "symphysis.scheme";
-/** Какое изменение показать, когда VS Code вернёт вкладку после перезагрузки. Не стирается: читается, только если вкладка осталась. */
+/** Последнее показанное изменение: его показывает вкладка при закрытом просмотрщике и после перезагрузки (F-41). Не стирается: изменение могло уйти, это проверяется при чтении. */
 const SHOWN_KEY = "symphysis.shownScheme";
+/** Выбор «схема | справка». Записи нет — выбора ещё не было (F-40). */
+const PANEL_KEY = "symphysis.panelView";
 
 export interface SchemeDeps {
   context: vscode.ExtensionContext;
-  store: JournalStore;
   showNode(key: string, id: string): void;
   currentKey(): string | null;
+  /** Изменения рабочей области, как они лежат на диске сейчас. */
+  activeChanges(): ChangeRef[];
+  workspaceRoots(): string[];
+  requestHelp(target: HelpTarget): void;
 }
+
+const SCHEME_PAGE = "scheme.js";
+const HELP_PAGE = "help.js";
 
 export class SchemePanel {
   private panel: vscode.WebviewPanel | null = null;
   private ready = false;
   private key: string | null = null;
+  private view: PanelView = "scheme";
+  private page: string | null = null;
+  private outcome: HelpOutcome | null = null;
 
   constructor(private readonly deps: SchemeDeps) {}
 
-  /** Кнопка «схема» и команды: вторая вкладка не появляется, открытая получает фокус. `null` — изменения нет: вкладка пуста, пока журнал не откроют. */
-  open(key: string | null): void {
-    if (key) this.remember(key);
+  /** Кнопка и команды: вторая вкладка не появляется, открытая получает фокус. `view` — положение, которое просит команда; кнопка его не просит: последний выбор. */
+  open(key: string | null, view?: PanelView): void {
+    if (view) void this.memory.update(PANEL_KEY, view);
+    const shown = key ?? this.liveKey();
+    if (shown) this.remember(shown);
+    else this.forget();
+    this.view = this.positionFor(shown);
     if (this.panel) {
       this.panel.reveal(undefined, false);
-      this.send();
+      this.show();
     } else {
       // Новая встаёт в группу спящей и только потом закрывает её: последняя вкладка группы унесла бы и группу.
       const asleep = asleepTab(SCHEME_TYPE);
       this.create(asleep?.group.viewColumn ?? vscode.ViewColumn.Beside);
+      this.show();
       if (asleep) void vscode.window.tabGroups.close(asleep);
     }
   }
 
-  /** VS Code вернул вкладку после перезагрузки окна (F-125). Журнал мог смениться, пока она спала: вкладка следует за ним (F-64). */
+  /**
+   * VS Code вернул вкладку после перезагрузки окна (F-125). Журнал мог смениться, пока она спала: вкладка следует за ним (F-64).
+   * Изменения больше нет: схеме показывать нечего, вкладка закрывается; справка на месте и выбирает заново. Вкладка без изменения возвращается и показывает справку (F-24).
+   */
   restore(panel: vscode.WebviewPanel): void {
-    const key = this.deps.currentKey() ?? this.deps.context.workspaceState.get<string>(SHOWN_KEY);
-    if (this.panel || !key || !this.deps.store.get(key)) {
+    const key = this.deps.currentKey() ?? this.memory.get<string>(SHOWN_KEY) ?? null;
+    const alive = key !== null && this.isActive(key);
+    if (this.panel || (key !== null && !alive && this.memory.get<PanelView>(PANEL_KEY) !== "help")) {
       panel.dispose();
       return;
     }
     panel.webview.options = this.contentOptions();
-    this.remember(key);
+    if (alive) this.remember(key);
+    this.view = this.positionFor(alive ? key : null);
     this.attach(panel);
-    this.send();
+    this.show();
   }
 
-  /** В просмотрщике открыт другой журнал: открытая вкладка показывает его схему, закрытая так и остаётся закрытой. */
+  /** В просмотрщике открыт другой журнал: открытая вкладка показывает его, закрытая так и остаётся закрытой. */
   follow(key: string): void {
     if (!this.panel || key === this.key) return;
     this.remember(key);
-    this.send();
+    this.show();
   }
 
   /** `scheme.md` изменился на диске. */
   fileChanged(dir: string): void {
-    if (this.panel && dir === this.key) this.send();
+    if (this.panel && dir === this.key && this.page === SCHEME_PAGE) this.send();
+  }
+
+  /** Ответ расчёта справки. Пока показана схема, цель меняется и без нового расчёта: ответ для прежней цели не показывается (F-41). */
+  helpAnswered(target: HelpTarget, outcome: HelpOutcome): void {
+    if (!this.panel || !sameTarget(target, this.target())) return;
+    if ("roots" in target) {
+      // Изменение выбрало ядро: одно активное дальше показывается как последнее показанное. Иначе вкладка без изменения.
+      const change = outcome.kind === "output" ? outcome.output.change : null;
+      if (change && outcome.kind === "output") this.remember(changeDir(outcome.root, change));
+      else this.forget();
+    }
+    this.outcome = outcome;
+    this.paint();
   }
 
   /** Для тестов: сообщения страницы. */
-  readonly messages = new vscode.EventEmitter<SchemePageMessage>();
+  readonly messages = new vscode.EventEmitter<SchemePageMessage | HelpPageMessage>();
   /** Для тестов: страница как есть. */
   get webview(): vscode.Webview | null {
     return this.panel?.webview ?? null;
   }
 
+  private get memory(): vscode.Memento {
+    return this.deps.context.workspaceState;
+  }
+
+  private isActive(key: string): boolean {
+    return this.deps.activeChanges().some((r) => r.dir === key);
+  }
+
+  /** Что показать, когда изменение не названо: за просмотрщиком, затем последнее показанное, если оно ещё есть. */
+  private liveKey(): string | null {
+    const key = this.deps.currentKey() ?? this.memory.get<string>(SHOWN_KEY) ?? null;
+    return key !== null && this.isActive(key) ? key : null;
+  }
+
+  /** Без сохранённого выбора показывается схема, без изменения — справка (F-40). «Схему» без изменения выбирает только сам человек, переключателем. */
+  private positionFor(key: string | null): PanelView {
+    return key ? this.memory.get<PanelView>(PANEL_KEY) ?? "scheme" : "help";
+  }
+
+  private target(): HelpTarget {
+    return chooseTarget(this.deps.currentKey(), this.key, this.deps.workspaceRoots(), this.deps.activeChanges());
+  }
+
+  /** Ответ расчёта про другое изменение показывать нельзя: при смене он забывается. */
   private remember(key: string): void {
+    if (key !== this.key) this.outcome = null;
     this.key = key;
-    void this.deps.context.workspaceState.update(SHOWN_KEY, key);
+    void this.memory.update(SHOWN_KEY, key);
+  }
+
+  private forget(): void {
+    if (this.key !== null) this.outcome = null;
+    this.key = null;
   }
 
   private contentOptions(): vscode.WebviewOptions {
@@ -91,33 +156,78 @@ export class SchemePanel {
   private attach(panel: vscode.WebviewPanel): void {
     this.panel = panel;
     this.ready = false;
+    this.page = null;
     panel.iconPath = vscode.Uri.joinPath(this.deps.context.extensionUri, "media", "icon.svg");
-    panel.webview.html = pageHtml(panel.webview, this.deps.context, "scheme.js", { before: ["mermaid.min.js"], inlineStyles: true });
-    panel.webview.onDidReceiveMessage((m: SchemePageMessage) => {
+    panel.webview.onDidReceiveMessage((m: SchemePageMessage | HelpPageMessage) => {
       this.messages.fire(m);
       void this.onMessage(m);
     });
     panel.onDidDispose(() => {
       this.panel = null;
       this.ready = false;
+      this.page = null;
       this.key = null;
+      this.outcome = null;
     });
   }
 
-  private send(): void {
-    if (!this.panel || !this.key) return;
-    const name = path.basename(this.key);
-    this.panel.title = `Схема: ${name}`;
-    if (!this.ready) return;
-    const m: SchemeHostMessage = { type: "scheme", view: { name, ...readScheme(this.key) } };
-    void this.panel.webview.postMessage(m);
+  /** Показать и, если показана справка, посчитать. Показ расчёта не ждёт: на экране прежний ответ, пока не придёт новый (F-53). */
+  private show(): void {
+    this.paint();
+    if (this.view === "help") this.deps.requestHelp(this.target());
   }
 
-  private async onMessage(m: SchemePageMessage): Promise<void> {
+  /** Схема без изменения идёт на странице справки: рисовать нечего, mermaid не нужен. Новая страница получит данные, когда скажет о готовности. */
+  private paint(): void {
+    if (!this.panel) return;
+    const page = this.view === "scheme" && this.key ? SCHEME_PAGE : HELP_PAGE;
+    if (page === this.page) return this.send();
+    this.page = page;
+    this.ready = false;
+    const webview = this.panel.webview;
+    webview.html = page === SCHEME_PAGE
+      ? pageHtml(webview, this.deps.context, SCHEME_PAGE, { before: ["mermaid.min.js"], inlineStyles: true })
+      : pageHtml(webview, this.deps.context, HELP_PAGE);
+  }
+
+  /** Заголовок называет показанное и ставится вместе с данными: у пакета живость страницы видна только по нему (`test/e2e/vsix-scenario.ts`). */
+  private send(): void {
+    if (!this.panel || !this.ready) return;
+    const name = this.key ? path.basename(this.key) : null;
+    const what = this.view === "scheme" ? "Схема" : "Справка";
+    this.panel.title = name ? `${what}: ${name}` : what;
+    if (this.page === SCHEME_PAGE && this.key && name) {
+      const m: SchemeHostMessage = { type: "scheme", view: { name, ...readScheme(this.key) } };
+      void this.panel.webview.postMessage(m);
+    } else {
+      const m: HelpHostMessage = { type: "help", view: { panel: this.view, name, outcome: this.outcome } };
+      void this.panel.webview.postMessage(m);
+    }
+  }
+
+  private async onMessage(m: SchemePageMessage | HelpPageMessage): Promise<void> {
     switch (m.type) {
       case "schemeReady":
+      case "helpReady":
+        // Ответ прежней страницы на замену не считается: новая скажет о себе сама.
+        if ((m.type === "schemeReady") !== (this.page === SCHEME_PAGE)) return;
         this.ready = true;
         this.send();
+        return;
+      case "panelView":
+        if (m.view !== "scheme" && m.view !== "help") return;
+        this.view = m.view;
+        void this.memory.update(PANEL_KEY, m.view);
+        this.show();
+        return;
+      case "helpChoose":
+        // Ключ приходит со страницы: только из того, что есть на диске (`security.md`). Выбор запоминается как последнее показанное (F-41).
+        if (!this.isActive(m.key)) return;
+        this.remember(m.key);
+        this.show();
+        return;
+      case "openPythonSetting":
+        await vscode.commands.executeCommand("workbench.action.openSettings", "symphysis.python");
         return;
       case "schemeNode":
         if (this.key) this.deps.showNode(this.key, m.id);

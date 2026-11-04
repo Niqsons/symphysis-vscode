@@ -3,8 +3,9 @@
 import { runTests } from "@vscode/test-electron";
 import fs from "node:fs";
 import path from "node:path";
+import { forkStatusAll, installForkShim } from "../fork-shim.mjs";
 import { tempDir } from "../temp-dir.mjs";
-import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report } from "./harness.mjs";
+import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 
 const work = tempDir("symphysis-activation-");
 
@@ -46,6 +47,14 @@ function emptyFolder() {
   return { open: dir, env: {} };
 }
 
+/** Инструменты есть, изменений нет. `step_help.py` настоящий, форк шимом: его в этой среде может не быть. */
+function noChanges() {
+  const dir = path.join(work, "проекты", "без изменений");
+  projectWithTools(dir);
+  fs.mkdirSync(path.join(dir, "openspec", "changes"), { recursive: true });
+  return { open: dir, env: installForkShim(SYMPHYSIS, path.join(work, "шим форка"), { status_all: forkStatusAll() }).env };
+}
+
 /** `name` — имя запуска и сценария, `prepare` — что открыть и что передать сценарию. Запуски идут по порядку, каталог проекта между ними общий. */
 const RUNS = [
   { name: "Выключение в одном проекте", prepare: twoFolders },
@@ -61,6 +70,7 @@ const RUNS = [
   },
   { name: "Проект без журнала", prepare: withoutJournal },
   { name: "Пустой проект, боковая панель", prepare: emptyFolder },
+  { name: "Команда палитры", prepare: noChanges },
 ];
 
 cleanEnv();

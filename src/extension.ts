@@ -9,6 +9,7 @@ import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
 import { AttackTocProvider, ChangesProvider, TocProvider } from "./host/sidebar";
 import { SCHEME_TYPE, SchemePanel } from "./host/schemePanel";
+import { computeHelp, StepHelpRunner } from "./host/stepHelp";
 import { JournalStore, keyOf } from "./host/store";
 import { VIEWER_TYPE, ViewerPanel } from "./host/viewerPanel";
 import type { Colors, CoreFailure } from "./shared/protocol";
@@ -29,17 +30,17 @@ export function activate(context: vscode.ExtensionContext) {
   // Уровень машины: значение из файла настроек проекта сюда не доходит, иначе проект выбирал бы запускаемый код (`security.md`).
   const toolsPath = () => vscode.workspace.getConfiguration("symphysis").get<string>("toolsPath") || undefined;
 
-  const coreEnv = (ref: ChangeRef): CoreEnv | CoreFailure => {
-    const tools = findTools(ref.root, toolsPath());
+  const coreEnv = (root: string): CoreEnv | CoreFailure => {
+    const tools = findTools(root, toolsPath());
     if ("kind" in tools) return tools;
     const py = pythonNow();
     if (!py.ok) return { kind: "no-python", reason: py.reason, tried: py.tried };
-    return { python: py.path, tools: tools.dir, cwd: ref.root, installDir: tools.installDir };
+    return { python: py.path, tools: tools.dir, cwd: root, installDir: tools.installDir };
   };
 
   const run = async (ref: ChangeRef): Promise<ViewResult> => {
     if (!ref.hasJournal) return { ok: false, failure: { kind: "no-journal" } };
-    const env = coreEnv(ref);
+    const env = coreEnv(ref.root);
     return "kind" in env ? { ok: false, failure: env } : viewJson(env, ref);
   };
 
@@ -88,7 +89,18 @@ export function activate(context: vscode.ExtensionContext) {
     },
     openScheme: (key) => scheme.open(key),
   });
-  const scheme = new SchemePanel({ context, store, showNode: (key, id) => viewer.showNode(key, id), currentKey: () => viewer.currentKey });
+  const help = new StepHelpRunner({
+    compute: (target) => computeHelp(target, coreEnv),
+    onResult: (target, outcome) => scheme.helpAnswered(target, outcome),
+  });
+  const scheme: SchemePanel = new SchemePanel({
+    context,
+    showNode: (key, id) => viewer.showNode(key, id),
+    currentKey: () => viewer.currentKey,
+    activeChanges: () => workspaceDirs().flatMap(listChanges),
+    workspaceRoots: workspaceDirs,
+    requestHelp: (target) => help.request(target),
+  });
 
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.
   const timers = new Map<string, NodeJS.Timeout>();
@@ -160,10 +172,10 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand("symphysis.openScheme", (key?: string) => {
       const target = key ?? viewer.currentKey ?? store.list()[0]?.ref.dir;
-      if (target) scheme.open(target);
+      if (target) scheme.open(target, "scheme");
     }),
-    // Без журнала и без изменений тоже: вкладка открывается всегда (F-40).
-    vscode.commands.registerCommand("symphysis.openHelp", () => scheme.open(viewer.currentKey ?? store.list()[0]?.ref.dir ?? null)),
+    // Без журнала и без изменений тоже: вкладка открывается всегда, какое изменение показать, решает она сама (F-40, F-41).
+    vscode.commands.registerCommand("symphysis.openHelp", () => scheme.open(viewer.currentKey, "help")),
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
     vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); }),

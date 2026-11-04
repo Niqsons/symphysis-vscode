@@ -1,5 +1,5 @@
 // Страница вкладки схемы: рисует `scheme.md` сборкой mermaid из пакета. Файл читает хост; страница его не меняет (F-25, F-103).
-// React здесь не нужен: страница одна, состояние — масштаб, сдвиг и рисунок.
+// React здесь не нужен: страница одна, состояние — масштаб, сдвиг и рисунок. Справка — своя страница на той же вкладке (F-107); переключатель той же разметки, что `Segmented`.
 import type { SchemeHostMessage, SchemePageMessage, SchemeView } from "../shared/protocol";
 import { blocksNote, fitScale, isClick, nodeIdOf, SVG_ID, zoomIn, zoomOut } from "../shared/scheme";
 
@@ -12,7 +12,7 @@ declare const mermaid: {
 const vscode = acquireVsCodeApi();
 const root = document.getElementById("root")!;
 root.innerHTML = `<div class="scheme-page">
-  <div class="scheme-bar"><span class="scheme-name"></span><span class="spacer"></span>
+  <div class="scheme-bar"><div class="seg panel-switch"><button type="button" class="active" aria-pressed="true">схема</button><button type="button" aria-pressed="false" data-panel="help">справка</button></div><span class="scheme-name"></span><span class="spacer"></span>
     <button type="button" class="small" data-zoom="out" title="уменьшить">−</button>
     <button type="button" class="small" data-zoom="in" title="увеличить">+</button>
     <button type="button" class="small" data-zoom="fit" title="показать схему целиком">вписать</button></div>
@@ -140,6 +140,7 @@ async function draw(view: SchemeView) {
 }
 
 root.addEventListener("click", (e) => {
+  if ((e.target as HTMLElement).closest("[data-panel]")) return vscode.postMessage({ type: "panelView", view: "help" });
   const zoom = (e.target as HTMLElement).closest<HTMLElement>("[data-zoom]")?.dataset.zoom;
   if (!zoom) return;
   const size = naturalSize();

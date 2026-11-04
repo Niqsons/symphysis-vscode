@@ -5,10 +5,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { attackAnchor, lensAnchor, rowAnchor } from "../../src/shared/attack";
 import { buildPrompt, emptyDraft } from "../../src/shared/logic";
 import { search } from "../../src/shared/search";
-import type { AttackFile, AttackRow, Draft, ViewPayload } from "../../src/shared/types";
+import type { HelpView } from "../../src/shared/protocol";
+import type { AttackFile, AttackRow, Draft, StepHelpOutput, ViewPayload } from "../../src/shared/types";
 import { AttackView, LensFilter } from "../../src/webview/AttackView";
 import { CheckView } from "../../src/webview/CheckView";
 import { FailureText } from "../../src/webview/FailureText";
+import { HelpBody } from "../../src/webview/HelpBody";
 import { SearchResults } from "../../src/webview/SearchResults";
 import { Segmented } from "../../src/webview/Segmented";
 import { fact, fork, option, payload } from "./helpers";
@@ -18,6 +20,13 @@ const SHA = "a".repeat(64);
 const noop = () => {};
 
 const check = (p: ViewPayload) => renderToStaticMarkup(<CheckView payload={p} />);
+
+/** Вывод `step_help.py` со страницами шагов: поля те же, что у ядра, лишнего тесту не нужно. */
+function helpOutput(over: Partial<StepHelpOutput> = {}): StepHelpOutput {
+  const page = (id: string) => ({ id, state: null, turn: "human", optional: false, blocks: [], stops_apply: false, waits_for: [], files: [], file_note: null, texts: { title: "", why: "", mechanics: "", if_skipped: "", what_to_check: "", command: "", how_to_prepare: "" }, text_note: null, prev: null, next: null, skills: [] } as StepHelpOutput["steps"][number]);
+  return { contract: 2, taken_at: "", versions: { openspec: null, symphysis: null }, change: null, changes: [], error: null, current_step: "intent", current_text: "Активных изменений нет: следующий шаг по файлам — `intent`, ход человека.", turn: "human", next_by_status: null, forks: null, tasks: null, steps: [page("intent"), page("specs")], file_links: {}, ...over };
+}
+const help = (view: Partial<HelpView>) => renderToStaticMarkup(<HelpBody view={{ panel: "help", name: null, outcome: null, ...view }} choose={noop} openPythonSetting={noop} />);
 
 function attack(p: ViewPayload, lens = "all", draft: Draft = emptyDraft()): string {
   return renderToStaticMarkup(<AttackView payload={p} draft={draft} flags={buildPrompt(p, draft, DATE)} lens={lens} update={noop} />);
@@ -268,6 +277,39 @@ test("«Папка без `openspec/`»: отказ говорит, что в э
   const text = renderToStaticMarkup(<FailureText failure={{ kind: "no-openspec", root: "D:/папка" }} openPythonSetting={noop} />);
   assert.ok(text.includes("D:/папка"), text);
   assert.ok(text.includes("<code>openspec/</code>"), text);
+});
+
+test("«Команда палитры»: изменений нет: текущий шаг `intent`, ход человека, пункт отмечен текущим", () => {
+  const html = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput() } });
+  assert.ok(html.includes('<div class="help-current"><b>intent</b> · ход человека</div>'), html);
+  assert.ok(html.includes('<li class="current" aria-current="step">intent</li>'), html);
+  assert.ok(html.includes("<li>specs</li>"), html);
+});
+
+test("«Сбой форка»: шага нет, `error` дословно, список шагов остаётся", () => {
+  const html = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput({ current_step: null, turn: null, current_text: null, error: "openspec не найден" }) } });
+  assert.ok(html.includes("openspec не найден"), html);
+  assert.ok(!html.includes("help-current"), html);
+  assert.ok(html.includes("<li>intent</li>"), html);
+});
+
+test("«Несколько активных»: список имён без папки; «Две папки рабочей области»: с именем папки", () => {
+  const one = help({ outcome: { kind: "choice", choices: [{ key: "к1", change: "а", folder: null }, { key: "к2", change: "б", folder: null }] } });
+  assert.ok(one.includes(">а</button>") && one.includes(">б</button>"), one);
+  const two = help({ outcome: { kind: "choice", choices: [{ key: "к1", change: "а", folder: "первая" }, { key: "к2", change: "а", folder: "вторая" }] } });
+  assert.ok(two.includes(">а · первая</button>") && two.includes(">а · вторая</button>"), two);
+});
+
+test("«Схема без изменения»: говорит, что изменение не выбрано, и предлагает выбрать его в списке, ответ расчёта не показан", () => {
+  const html = help({ panel: "scheme", outcome: { kind: "output", root: "D:/п", output: helpOutput() } });
+  assert.match(html, /Изменение не выбрано/);
+  assert.match(html, /в списке/);
+  assert.ok(!html.includes("help-steps"), html);
+});
+
+test("отказ и ожидание: отказ через те же тексты, что у журнала; ответа ещё нет — так и сказано", () => {
+  assert.ok(help({ outcome: { kind: "failure", failure: { kind: "no-tools", root: "D:/п" } } }).includes("symphysis install --project ."));
+  assert.match(help({}), /Считается/);
 });
 
 test("Python снят по пределу: прежний текст", () => {

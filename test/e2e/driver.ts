@@ -89,6 +89,7 @@ function schemeSnapshot() {
   }
   return {
     state: stage?.dataset.state ?? "",
+    panel: document.querySelector(".panel-switch .active")?.textContent ?? "",
     plates: [...document.querySelectorAll<HTMLElement>("#plates .note")].map((n) => n.textContent ?? ""),
     openButton: !!buttonByText(document, "Открыть scheme.md"),
     source: source && !source.hidden ? source.textContent : null,
@@ -102,6 +103,22 @@ function schemeSnapshot() {
     jsLinks: svg ? [...svg.querySelectorAll("a")].filter((a) => /javascript:/i.test(a.getAttribute("href") ?? a.getAttribute("xlink:href") ?? "")).length : 0,
     violations: [...violations],
     stageWidth: stage?.clientWidth ?? 0,
+  };
+}
+
+/** Страница справки на той же вкладке. */
+function helpSnapshot() {
+  const body = document.querySelector<HTMLElement>(".help-body");
+  return {
+    isHelp: !!body,
+    panel: document.querySelector(".panel-switch .active")?.textContent ?? "",
+    name: document.querySelector(".scheme-name")?.textContent ?? "",
+    current: document.querySelector(".help-current")?.textContent ?? null,
+    steps: [...document.querySelectorAll<HTMLElement>(".help-steps li")].map((l) => l.textContent ?? ""),
+    currentInList: document.querySelector('.help-steps [aria-current="step"]')?.textContent ?? null,
+    choices: [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].map((b) => b.textContent ?? ""),
+    note: document.querySelector(".help-body .note")?.textContent ?? null,
+    violations: [...violations],
   };
 }
 
@@ -122,6 +139,26 @@ async function drive(m: any): Promise<unknown> {
       return snapshot();
     case "schemeSnapshot":
       return schemeSnapshot();
+    case "helpSnapshot":
+      return helpSnapshot();
+    case "panelSwitch": {
+      // Ответ без ожидания: хост заменит страницу, и позже отвечать будет некому.
+      const b = buttonByText(document.querySelector(".panel-switch")!, m.text);
+      if (!b) throw new Error(`нет положения «${m.text}»`);
+      b.click();
+      return null;
+    }
+    case "post":
+      // Страница может прислать что угодно: хост не должен этому верить.
+      api.postMessage(m.message);
+      return null;
+    case "helpChoose": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].find((x) => x.textContent === m.text);
+      if (!b) throw new Error(`нет строки «${m.text}»`);
+      b.click();
+      await settle();
+      return helpSnapshot();
+    }
     case "schemeNode": {
       const node = [...document.querySelectorAll("#canvas g.node")].find((n) => n.id.includes(`-${m.id}-`));
       if (!node) throw new Error(`нет узла ${m.id}`);

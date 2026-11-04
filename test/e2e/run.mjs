@@ -3,6 +3,7 @@ import { runTests } from "@vscode/test-electron";
 import fs from "node:fs";
 import path from "node:path";
 import { bigJournal } from "../core-journals.mjs";
+import { FORK_APPLY, forkStatus, forkStatusAll, installForkShim } from "../fork-shim.mjs";
 import { tempDir } from "../temp-dir.mjs";
 import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 
@@ -63,6 +64,11 @@ if (fs.existsSync(path.join(big, "attack"))) {
   for (const f of fs.readdirSync(path.join(big, "attack"))) fs.copyFileSync(path.join(big, "attack", f), path.join(bigCopy, "attack", f));
 }
 
+// Форк шимом: `step_help.py` настоящий, а форка в этой среде может не быть. Изменения из ответа лежат в проекте.
+const fork = installForkShim(SYMPHYSIS, path.join(work, "шим форка"), {
+  status_all: forkStatusAll("изменение-один", "изменение-два"), status: forkStatus(project, "изменение-один"), apply: FORK_APPLY,
+});
+
 cleanEnv();
 
 const results = path.join(repo, "out", "e2e", "results.json");
@@ -74,6 +80,8 @@ try {
     extensionDevelopmentPath: repo,
     extensionTestsPath: path.join(repo, "out", "e2e", "scenario.js"),
     extensionTestsEnv: {
+      ...fork.env,
+      SYMPHYSIS_E2E_FORK: path.dirname(fork.file),
       SYMPHYSIS_E2E_RESULTS: results, SYMPHYSIS_E2E_INSTALL: install, SYMPHYSIS_E2E_PAUSE_MS: process.env.SYMPHYSIS_E2E_PAUSE_MS ?? "",
       SYMPHYSIS_E2E_THEME: process.env.SYMPHYSIS_E2E_THEME ?? "", SYMPHYSIS_E2E_SHOW: process.env.SYMPHYSIS_E2E_SHOW ?? "", SYMPHYSIS_E2E_NODE: process.env.SYMPHYSIS_E2E_NODE ?? "",
       SYMPHYSIS_E2E_STRETCH: process.env.SYMPHYSIS_E2E_STRETCH ?? "", SYMPHYSIS_E2E_MODE: process.env.SYMPHYSIS_E2E_MODE ?? "",

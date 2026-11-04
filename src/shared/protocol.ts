@@ -49,7 +49,7 @@ export interface JournalView {
 export type ApplyReport =
   | { stage: "stale" }
   | { stage: "refused"; report: string[] }
-  | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string }
+  | { stage: "applied"; answers: string; report: string[]; rebuildOk: boolean; rebuildReport: string[]; sha256After: string | null }
   | { stage: "error"; text: string };
 
 /** Куда перейти на странице: якорь и режим, в котором он живёт; режима нет — запись журнала, она есть и в «решениях», и в «проверке». */

@@ -1,4 +1,4 @@
-// Файлы проекта: где ядро, какие изменения, ответы человека, черновики. Расширение пишет только в `.symphysis/viewer/` (Р4)
+// Файлы проекта: где ядро, какие изменения, ответы человека, черновики, события для хука. Расширение пишет только в `.symphysis/viewer/` (Р4)
 // и в `answers/` изменения (Р8).
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -97,16 +97,45 @@ export function readDraft(root: string, name: string): { draft: Draft; damaged: 
   }
 }
 
-/** Запись через временный файл и переименование: обрыв не оставит половину черновика. Каталог сам себя исключает из git. */
-export function writeDraft(root: string, name: string, draft: Draft): void {
+/** Каталог для записи: черновик, событие и файлы хука идут через эту функцию, поэтому каталог всегда сам себя исключает из git. */
+export function viewerDir(root: string): string {
   const dir = path.join(root, VIEWER);
   fs.mkdirSync(dir, { recursive: true });
   const ignore = path.join(dir, ".gitignore");
   if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, "*\n", "utf8");
+  return dir;
+}
+
+/** Запись через временный файл и переименование: обрыв не оставит половину черновика. */
+export function writeDraft(root: string, name: string, draft: Draft): void {
+  viewerDir(root);
   const file = draftFile(root, name);
   const temp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temp, JSON.stringify(draft, null, 1), "utf8");
   fs.renameSync(temp, file);
+}
+
+/** Строка `events.jsonl`. Поля читает `hook/hook.py`. */
+export interface JournalEvent {
+  change: string;
+  answers: string;
+  sha256_before: string;
+  sha256_after: string;
+  report: string[];
+}
+
+/** Один вызов на строку: хук читает файл параллельно, а неполную последнюю строку оставляет на следующее обращение. */
+export function appendEvent(root: string, event: JournalEvent): void {
+  fs.appendFileSync(path.join(viewerDir(root), "events.jsonl"), `${JSON.stringify(event)}\n`, "utf8");
+}
+
+/** Курсор появляется при первом срабатывании хука: нет ни одного — хук в этом проекте ни разу не срабатывал (F-99). */
+export function hasSessionCursors(root: string): boolean {
+  try {
+    return fs.readdirSync(path.join(root, VIEWER, "sessions")).some((f) => f.endsWith(".json"));
+  } catch {
+    return false;
+  }
 }
 
 /** `unlinkSync`, не `rmSync`: `rmSync` в Node 24 на Windows молча не удаляет файл, если в пути кириллица. */

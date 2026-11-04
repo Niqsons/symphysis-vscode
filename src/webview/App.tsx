@@ -224,7 +224,7 @@ export function App() {
         onNode(m.id);
       } else if (m.type === "applied") {
         if (m.key !== keyRef.current) return;
-        if (m.result.stage === "applied") ownShas.current.add(m.result.sha256After);
+        if (m.result.stage === "applied" && m.result.sha256After) ownShas.current.add(m.result.sha256After);
         applyingRef.current = false;
         setApplying(false);
         setResult(m.result);

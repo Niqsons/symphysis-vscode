@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { tempDir } from "../temp-dir.mjs";
 import { coreRoot } from "./fixture-project";
-import { deleteDraft, findTools, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
+import { appendEvent, deleteDraft, findTools, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
 import { emptyDraft } from "../../src/shared/logic";
 
 const tmp = () => tempDir("symphysis-проект-");
@@ -97,6 +97,34 @@ test("черновик: сброс удаляет файл, отсутствие
   assert.equal(fs.existsSync(path.join(root, ".symphysis", "viewer", "х.json")), false);
 });
 
+
+const event = (report: string[]) => ({ change: "х", answers: "openspec/changes/х/answers/2026-11-01.md", sha256_before: "a".repeat(64), sha256_after: "b".repeat(64), report });
+
+test("событие: первая запись создаёт каталог и `.gitignore`, git каталога не видит", () => {
+  const root = tmp();
+  assert.equal(spawnSync("git", ["init", "-q"], { cwd: root }).status, 0);
+  appendEvent(root, event(["[ok] F-02: решено A"]));
+  const dir = path.join(root, ".symphysis", "viewer");
+  assert.equal(fs.readFileSync(path.join(dir, ".gitignore"), "utf8"), "*\n");
+  assert.deepEqual(fs.readdirSync(dir).sort(), [".gitignore", "events.jsonl"]);
+  assert.equal(spawnSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).stdout, "");
+});
+
+test("событие: одна строка JSON с переводом в конце, перевод внутри отчёта её не ломает, вторая дописывается за первой", () => {
+  const root = tmp();
+  const file = path.join(root, ".symphysis", "viewer", "events.jsonl");
+  const first = event(["строка\nс переводом"]);
+  appendEvent(root, first);
+  const written = fs.readFileSync(file, "utf8");
+  assert.equal(written, `${JSON.stringify(first)}\n`);
+  assert.equal(written.indexOf("\n"), written.length - 1);
+  appendEvent(root, event(["вторая"]));
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  assert.equal(lines.length, 3);
+  assert.deepEqual(JSON.parse(lines[0]), first);
+  assert.deepEqual(JSON.parse(lines[1]).report, ["вторая"]);
+  assert.equal(lines[2], "");
+});
 
 // --- SYMPHYSIS_ROOT: опечатка в пути не должна выглядеть как «ядра нет» (F-20, F-82) ---
 

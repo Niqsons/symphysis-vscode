@@ -148,7 +148,9 @@ export async function run(): Promise<void> {
     });
   });
 
-  await step("«Внести»: ответ в answers/, журнал изменён настоящим apply, производные собраны, черновик очищен", async () => {
+  await step("«Внести»: ответ в answers/, журнал изменён настоящим apply, производные собраны, событие для хука в файле, отчёт говорит о сессиях, черновик очищен", async () => {
+    const sha = () => crypto.createHash("sha256").update(fs.readFileSync(journal)).digest("hex");
+    const shaBefore = sha();
     const s = await drive("click", { text: "Внести" });
     assert.ok(s.prompt.includes("F-02"));
     const after = await until("отчёт", async () => {
@@ -162,6 +164,16 @@ export async function run(): Promise<void> {
     assert.equal(JSON.parse(fs.readFileSync(journal, "utf8")).records[1].decision.option, "A");
     assert.ok(fs.existsSync(path.join(one, "decisions.md")));
     assert.ok(fs.existsSync(path.join(one, "symphysis.html")));
+    const [line, end, ...rest] = fs.readFileSync(path.join(root, ".symphysis", "viewer", "events.jsonl"), "utf8").split("\n");
+    assert.equal(end, "");
+    assert.deepEqual(rest, []);
+    const event = JSON.parse(line);
+    assert.equal(event.change, "изменение-один");
+    assert.equal(event.answers, `openspec/changes/изменение-один/answers/${files[0]}`);
+    assert.equal(event.sha256_before, shaBefore);
+    assert.equal(event.sha256_after, sha());
+    assert.ok(event.report.includes("[ok] F-02: решено A"));
+    assert.match(after.report, /Ни одна сессия агента ещё не обращалась через хук в этом проекте, агенту в другом каталоге надо сказать самому/);
     const clean = await until("очистка черновика", async () => {
       const r = await snap();
       return /нового нет/.test(r.prompt) ? r : null;

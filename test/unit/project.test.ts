@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { tempDir } from "../temp-dir.mjs";
 import { coreRoot } from "./fixture-project";
-import { appendEvent, deleteDraft, findTools, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
+import { appendEvent, deleteDraft, findTools, installDirOf, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
 import { emptyDraft } from "../../src/shared/logic";
 
 const tmp = () => tempDir("symphysis-проект-");
@@ -58,6 +58,33 @@ test("настройка: в каталоге инструменты ищутс�
   assert.deepEqual(findTools(tmp(), install), { dir: path.join(install, "tools"), installDir: install });
   tools(install, ".symphysis/tools");
   assert.deepEqual(findTools(tmp(), install), { dir: path.join(install, ".symphysis", "tools"), installDir: install });
+});
+
+test("настройка на каталог инструментов: `<x>/tools` и `<x>/.symphysis/tools` дают каталог установки `<x>`", () => {
+  const clone = tmp();
+  tools(clone, "tools");
+  const direct = path.join(clone, "tools");
+  assert.equal(installDirOf(direct), clone);
+  assert.equal(installDirOf(`${direct}${path.sep}`), clone, "косая на конце");
+  assert.deepEqual(findTools(tmp(), direct), { dir: direct, installDir: clone });
+  const installed = tmp();
+  tools(installed, ".symphysis/tools");
+  const hidden = path.join(installed, ".symphysis", "tools");
+  assert.equal(installDirOf(hidden), installed);
+  assert.deepEqual(findTools(tmp(), hidden), { dir: hidden, installDir: installed });
+});
+
+test("каталог установки: настройка на сам каталог остаётся им, и каталог установки с именем `tools` тоже", () => {
+  const plain = tmp();
+  tools(plain, "");
+  assert.equal(installDirOf(plain), plain);
+  const named = path.join(tmp(), "tools");
+  tools(named, ".symphysis/tools");
+  assert.equal(installDirOf(named), named);
+  assert.deepEqual(findTools(tmp(), named), { dir: path.join(named, ".symphysis", "tools"), installDir: named });
+  const clone = path.join(tmp(), "tools");
+  tools(clone, "tools");
+  assert.equal(installDirOf(clone), clone);
 });
 
 test("«Относительный путь»: настройка отвергнута с причиной, как `symphysis.python`; от текущего каталога инструменты не ищутся", () => {

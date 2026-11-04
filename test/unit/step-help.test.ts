@@ -3,9 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { copyCore, noCoreReason } from "./fixture-project";
+import { copyCore, noCoreReason, SYMPHYSIS } from "./fixture-project";
 import { FORK_APPLY, forkShim, forkStatus, forkStatusAll, python, type ForkReplies, type ForkShim } from "./fork-shim";
 import { EXPECTED_CONTRACT, type CoreEnv } from "../../src/host/core";
+import { resolveSkill } from "../../src/host/links";
 import { changeDir, findTools, listChanges } from "../../src/host/project";
 import { runPython } from "../../src/host/python";
 import { chooseTarget, computeHelp, stepHelp, StepHelpRunner, type HelpResult, type HelpTarget } from "../../src/host/stepHelp";
@@ -95,6 +96,27 @@ test("«Инструменты только по настройке»: спра�
   assert.ok(!("src/только-в-установке.py" in output.file_links!), "карта считается от установки");
   const intent = output.steps.find((s) => s.id === "intent")!;
   assert.deepEqual(intent.skills, [{ name: "symphysis-проба", path: ".claude/skills/symphysis-проба/SKILL.md", base: "install" }]);
+});
+
+test("«Скилл по настройке»: настройка на `<клон>/tools`: ядро ищет скилл в `<клон>`, клик открывает его же файл", opts, async () => {
+  const project = bareProject();
+  write(project, "openspec/schemas/symphysis/steps.md", "## intent\n\nНамерение\n\n### Зачем\n\nЗови `symphysis-проба`.\n");
+  const clone = home("symphysis-клон-", "клон с пробелами");
+  fs.mkdirSync(path.join(clone, "tools"));
+  for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
+    if (/^(journal.*\.(py|json)|step_help\.py)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(clone, "tools", f));
+  }
+  fs.mkdirSync(path.join(clone, "docs"));
+  fs.copyFileSync(path.join(SYMPHYSIS, "docs", "journal.schema.json"), path.join(clone, "docs", "journal.schema.json"));
+  const skill = path.join(clone, "skills", "symphysis-проба", "SKILL.md");
+  write(clone, "skills/symphysis-проба/SKILL.md");
+  shimOf(project);
+  const env = envOf(project, path.join(clone, "tools"));
+  assert.equal(env.installDir, clone);
+  const output = ok(await stepHelp(env, CHANGE));
+  const skills = output.steps.find((s) => s.id === "intent")!.skills!;
+  assert.deepEqual(skills, [{ name: "symphysis-проба", path: "skills/symphysis-проба/SKILL.md", base: "install" }]);
+  assert.equal(resolveSkill(skills, "symphysis-проба", env.installDir), fs.realpathSync.native(skill));
 });
 
 test("без `--change`: одно активное берётся само, несколько — список из поля `changes`", opts, async () => {

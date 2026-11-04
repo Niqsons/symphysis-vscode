@@ -26,8 +26,8 @@ export interface SchemeDeps {
   requestHelp(target: HelpTarget): void;
   /** Вкладку показали снова (она лежала под другой): справка могла устареть, пока на неё не смотрели. */
   helpShown(): void;
-  /** Настройка `symphysis.toolsPath`: от неё открываются скиллы из каталога установки (F-91). */
-  toolsPath(): string | undefined;
+  /** Каталог установки по настройке `symphysis.toolsPath`: от него открываются скиллы установки (F-91). */
+  installDir(): string | undefined;
 }
 
 const SCHEME_PAGE = "scheme.js";
@@ -265,7 +265,7 @@ export class SchemePanel {
       case "helpOpenSkill": {
         // Страница называет скилл по имени; файл ищется в поле `skills` показанного вывода и только внутри каталога установки (F-91).
         const shown = this.outcome?.kind === "output" ? this.outcome : null;
-        const file = shown ? resolveSkill(shown.output.steps.flatMap((p) => p.skills ?? []), m.name, this.deps.toolsPath()) : null;
+        const file = shown ? resolveSkill(shown.output.steps.flatMap((p) => p.skills ?? []), m.name, this.deps.installDir()) : null;
         if (file) await openBeside(file, null);
         return;
       }

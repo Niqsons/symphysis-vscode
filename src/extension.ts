@@ -5,7 +5,7 @@ import { viewJson, type CoreEnv, type ViewResult } from "./host/core";
 import { resolveGit } from "./host/hookGit";
 import { HookRunner } from "./host/hookRunner";
 import { tasksFor } from "./host/helpTasks";
-import { findTools, listChanges, type ChangeRef } from "./host/project";
+import { findTools, installDirOf, listChanges, type ChangeRef } from "./host/project";
 import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
 import { AttackTocProvider, ChangesProvider, TocProvider } from "./host/sidebar";
@@ -128,7 +128,10 @@ export function activate(context: vscode.ExtensionContext) {
     workspaceRoots: workspaceDirs,
     requestHelp: (target) => help.request(target),
     helpShown: helpIfStale,
-    toolsPath,
+    installDir: () => {
+      const value = toolsPath();
+      return value ? installDirOf(value) : undefined;
+    },
   });
 
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.

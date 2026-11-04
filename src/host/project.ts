@@ -20,7 +20,7 @@ export interface ChangeRef {
 const CHANGES = path.join("openspec", "changes");
 const VIEWER = path.join(".symphysis", "viewer");
 
-/** Где ядро или почему его нет. `installDir` — значение настройки, есть только у инструментов по ней. */
+/** Где ядро или почему его нет. `installDir` — каталог установки по настройке, есть только у инструментов по ней. */
 export type ToolsLookup = { dir: string; installDir?: string } | Extract<CoreFailure, { kind: "no-tools" | "tools-path" }>;
 
 /** Установленное ядро важнее `tools/`: у репозитория symphysis есть оба, и работает он как установленный проект. */
@@ -37,7 +37,18 @@ export function findTools(root: string, toolsPath?: string): ToolsLookup {
   if (!toolsPath) return { kind: "no-tools", root };
   if (!path.isAbsolute(toolsPath)) return { kind: "tools-path", reason: `в настройке symphysis.toolsPath нужен абсолютный путь, а там «${toolsPath}»` };
   const dir = withJournal([...toolsDirs(toolsPath), toolsPath]);
-  return dir ? { dir, installDir: toolsPath } : { kind: "tools-path", reason: `в каталоге ${toolsPath} из настройки symphysis.toolsPath нет journal.py: ни в .symphysis/tools, ни в tools, ни в нём самом` };
+  return dir ? { dir, installDir: installDirOf(toolsPath) } : { kind: "tools-path", reason: `в каталоге ${toolsPath} из настройки symphysis.toolsPath нет journal.py: ни в .symphysis/tools, ни в tools, ни в нём самом` };
+}
+
+/**
+ * Каталог установки по настройке `symphysis.toolsPath`: в нём ядро ищет скиллы, от него их открывает плагин (F-91). Настройка бывает и на сам каталог инструментов:
+ * `<x>/tools` и `<x>/.symphysis/tools` дают `<x>`. Каталог, в котором инструменты лежат глубже, остаётся собой, как бы он ни назывался.
+ */
+export function installDirOf(toolsPath: string): string {
+  const dir = path.resolve(toolsPath);
+  if (path.basename(dir) !== "tools" || withJournal(toolsDirs(dir))) return dir;
+  const up = path.dirname(dir);
+  return path.basename(up) === ".symphysis" ? path.dirname(up) : up;
 }
 
 export const changeDir = (root: string, name: string) => path.join(root, CHANGES, name);

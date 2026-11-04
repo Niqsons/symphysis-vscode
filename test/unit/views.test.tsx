@@ -1,10 +1,13 @@
 // Состав режимов «проверка» и «атака» по SKILL просмотрщика: рендер в HTML без браузера.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
+import { viewJson } from "../../src/host/core";
 import { tasksFor } from "../../src/host/helpTasks";
-import { findTools } from "../../src/host/project";
+import { changeRef, findTools } from "../../src/host/project";
 import { attackAnchor, lensAnchor, rowAnchor } from "../../src/shared/attack";
 import { buildPrompt, emptyDraft } from "../../src/shared/logic";
 import { search } from "../../src/shared/search";
@@ -18,8 +21,10 @@ import { SearchResults } from "../../src/webview/SearchResults";
 import { TasksPart } from "../../src/webview/Tasks";
 import { Segmented } from "../../src/webview/Segmented";
 import { tempDir } from "../temp-dir.mjs";
+import { makeProject, noCoreReason } from "./fixture-project";
 import { fact, fork, option, payload } from "./helpers";
 
+const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
 const DATE = "2026-11-01";
 const SHA = "a".repeat(64);
 const noop = () => {};
@@ -45,6 +50,23 @@ const row = (over: Partial<AttackRow> = {}): AttackRow =>
 const file = (rows: AttackRow[], sha = SHA, status = "gaps_found"): AttackFile =>
   ({ path: "openspec/changes/x/attack/decisions.md", frontmatter: { status, targets: [{ path: "decisions.json", sha256: sha }] }, rows });
 const withAttack = (rows: AttackRow[], records = [fork("F-02")], sha = SHA) => payload(records, { attacks: [file(rows, sha)] });
+
+test("«Прежний плагин и новое ядро»: в выводе `view-json` неизвестные поля: номер совпал, журнал показан, поле не мешает", { skip: noCoreReason }, async () => {
+  const { project, tools, change } = makeProject();
+  const env = { python, tools, cwd: project };
+  const ref = changeRef(project, path.basename(change));
+  const real = await viewJson(env, ref);
+  assert.ok(real.ok, JSON.stringify(real));
+  const mark = "ПОЛЕ-НОВОГО-ЯДРА";
+  fs.writeFileSync(path.join(tools, "вывод.json"), JSON.stringify({ ...real.payload, новое_поле: mark, records: real.payload.records.map((r) => ({ ...r, новое_поле: mark })) }), "utf8");
+  fs.writeFileSync(path.join(tools, "journal.py"), 'import pathlib, sys\nsys.stdout.buffer.write(pathlib.Path(__file__).with_name("вывод.json").read_bytes())\n', "utf8");
+  const read = await viewJson(env, ref);
+  assert.ok(read.ok, JSON.stringify(read));
+  assert.equal(read.payload.records.length, real.payload.records.length);
+  const shown = check(read.payload);
+  assert.ok(shown.includes(real.payload.records[0].question), "записи журнала нет на странице");
+  assert.ok(!shown.includes(mark), "неизвестное поле попало на страницу");
+});
 
 test("проверка: только чтение — ни одного поля, переключателя и кнопки", () => {
   const out = check(payload([fork("F-01"), fact("F-02")]));

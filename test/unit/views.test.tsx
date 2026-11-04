@@ -315,3 +315,19 @@ test("отказ и ожидание: отказ через те же текст
 test("Python снят по пределу: прежний текст", () => {
   assert.equal(renderToStaticMarkup(<FailureText failure={{ kind: "timeout" }} openPythonSetting={noop} />), "Python не ответил за отведённое время.");
 });
+
+test("«Нет инструментов»: справка называет `symphysis install --project .`, как просмотрщик, настройки нет", () => {
+  const html = help({ outcome: { kind: "failure", failure: { kind: "no-tools", root: "D:/пустая" } } });
+  assert.ok(html.includes("<code>symphysis install --project .</code>"), html);
+  assert.doesNotMatch(html, /toolsPath/);
+  assert.ok(html.includes("<code>.symphysis/tools/journal.py</code>"), html);
+});
+
+test("справка при настройке мимо инструментов называет настройку и путь; `error` дословно, «Как готовить intent.md?» остаётся", () => {
+  const reason = "в каталоге D:/установка из настройки symphysis.toolsPath нет journal.py";
+  const refused = help({ outcome: { kind: "failure", failure: { kind: "tools-path", reason } } });
+  assert.ok(refused.includes(reason), refused);
+  const verbatim = "openspec: не найден <b>как есть</b> `код`";
+  const out = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput({ error: verbatim }) } });
+  assert.ok(out.includes("openspec: не найден &lt;b&gt;как есть&lt;/b&gt; `код`"), out);
+});

@@ -158,12 +158,14 @@ async function drive(m: any): Promise<unknown> {
       return null;
     case "helpClick": {
       // Кнопка справки по тексту: шаг в списке, «предыдущий», «следующий», «Как готовить intent.md?».
-      const b = [...document.querySelectorAll<HTMLButtonElement>(".help-body button")].find((x) => x.textContent === m.text);
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".help-body button, .scheme-bar button")].find((x) => x.textContent === m.text);
       if (!b) throw new Error(`нет кнопки «${m.text}»`);
       b.click();
       await settle();
       return helpSnapshot();
     }
+    case "helpLinks":
+      return [...document.querySelectorAll<HTMLElement>(".help-page [data-file-link]")].map((x) => x.dataset.fileLink);
     case "helpFileLink": {
       // Настоящий клик по ссылке на файл шага.
       const links = [...document.querySelectorAll<HTMLElement>(".help-page [data-file-link]")];

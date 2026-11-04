@@ -24,6 +24,8 @@ export interface SchemeDeps {
   activeChanges(): ChangeRef[];
   workspaceRoots(): string[];
   requestHelp(target: HelpTarget): void;
+  /** Вкладку показали снова (она лежала под другой): справка могла устареть, пока на неё не смотрели. */
+  helpShown(): void;
   /** Настройка `symphysis.toolsPath`: от неё открываются скиллы из каталога установки (F-91). */
   toolsPath(): string | undefined;
 }
@@ -103,6 +105,16 @@ export class SchemePanel {
     this.paint();
   }
 
+  /** Справку видно: вкладка не под другой и показана справка, а не схема. Считать для невидимой незачем (F-42). */
+  helpVisible(): boolean {
+    return !!this.panel && this.panel.visible && this.view === "help";
+  }
+
+  /** Что считать для справки сейчас: за просмотрщиком, затем последнее показанное, затем все папки (F-41). */
+  helpTarget(): HelpTarget {
+    return this.target();
+  }
+
   /** Для тестов: сообщения страницы. */
   readonly messages = new vscode.EventEmitter<SchemePageMessage | HelpPageMessage>();
   /** Для тестов: страница как есть. */
@@ -166,6 +178,9 @@ export class SchemePanel {
       this.messages.fire(m);
       void this.onMessage(m);
     });
+    panel.onDidChangeViewState(() => {
+      if (panel.visible) this.deps.helpShown();
+    });
     panel.onDidDispose(() => {
       this.panel = null;
       this.ready = false;
@@ -223,6 +238,10 @@ export class SchemePanel {
         this.view = m.view;
         void this.memory.update(PANEL_KEY, m.view);
         this.show();
+        return;
+      case "helpRefresh":
+        // «Обновить» считает сразу, минуя склейку записей.
+        this.deps.requestHelp(this.target());
         return;
       case "helpChoose":
         // Ключ приходит со страницы: только из того, что есть на диске (`security.md`). Выбор запоминается как последнее показанное (F-41).

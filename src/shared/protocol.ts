@@ -128,6 +128,7 @@ export type HelpPageMessage =
   | { type: "helpReady" }
   | { type: "panelView"; view: PanelView }
   | { type: "helpChoose"; key: string }
+  | { type: "helpRefresh" }
   | { type: "helpOpenFile"; link: string; line: number | null }
   | { type: "helpOpenSkill"; name: string }
   | { type: "openPythonSetting" };

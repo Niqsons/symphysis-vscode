@@ -39,6 +39,7 @@ function HelpApp() {
       <div className="scheme-bar">
         <Segmented className="panel-switch" items={PANELS} value={view?.panel ?? "help"} onChange={(next) => post({ type: "panelView", view: next })} />
         <span className="scheme-name">{view?.name}</span>
+        <button type="button" className="small" title="Пересчитать справку сейчас" onClick={() => post({ type: "helpRefresh" })}>Обновить</button>
       </div>
       <main className="help-body">
         {view && <HelpBody view={view} choose={(key) => post({ type: "helpChoose", key })} shown={state.shown} actions={actions} openPythonSetting={() => post({ type: "openPythonSetting" })} />}

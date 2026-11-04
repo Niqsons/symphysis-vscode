@@ -34,7 +34,8 @@ function settle(answers: (HelpResult & { root: string })[]): HelpOutcome {
     key: changeDir(root, change), change, folder: answers.length > 1 ? path.basename(root) : null,
   })));
   if (choices.length > 1) return { kind: "choice", choices };
-  const best = outputs.find((a) => a.output.changes?.length) ?? outputs.find((a) => !a.output.error) ?? outputs[0];
+  // Папка с изменением, затем папка со сбоем (ядро при сбое `status --all` отдаёт `changes: null` и `error`), затем любая: сбой не прячется за чистой пустой папкой.
+  const best = outputs.find((a) => a.output.changes?.length) ?? outputs.find((a) => a.output.error) ?? outputs[0];
   if (best) return { kind: "output", ...best };
   const refused = answers.find((a) => !a.ok);
   return { kind: "failure", failure: refused && !refused.ok ? refused.failure : { kind: "no-tools", root: "" } };

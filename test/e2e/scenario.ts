@@ -17,6 +17,7 @@ interface Api {
   attackToc: { getChildren(node?: any): any[]; getTreeItem(node: any): vscode.TreeItem; message(): string | undefined };
   search: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null };
   hookIdle(): Promise<void>;
+  viewRuns(): number;
 }
 
 const measures: Record<string, unknown> = {};
@@ -854,6 +855,167 @@ export async function run(): Promise<void> {
     }
     await schemeDrive("panelSwitch", { text: "схема" });
     await schemeState("svg");
+  });
+
+  // Слежение за каталогом изменения (12.8): шим форка отвечает по `scenario.json`, каждый вызов виден в `calls.jsonl`.
+  const forkDir = process.env.SYMPHYSIS_E2E_FORK!;
+  const forkFile = path.join(forkDir, "scenario.json");
+  const calcs = () => {
+    const log = path.join(forkDir, "calls.jsonl");
+    return fs.existsSync(log) ? fs.readFileSync(log, "utf8").split("\n").filter(Boolean).filter((l) => (JSON.parse(l).argv as string[]).includes("status")).length : 0;
+  };
+  const watched = key("со-схемой");
+  const stepFile = path.join(watched, "intent.md");
+  const forkBefore = fs.readFileSync(forkFile, "utf8");
+  const setFork = (over: { file?: boolean; hang?: number; broken?: boolean }) => {
+    const scenario = JSON.parse(forkBefore);
+    const paths = (id: string, existing: string[]) => ({ outputPath: `${id}.md`, resolvedOutputPath: path.join(watched, `${id}.md`), existingOutputPaths: existing });
+    scenario.status = over.broken ? { stdout: "", stderr: "сбой форка в тесте", code: 1 } : { stdout: JSON.stringify({
+      changeName: "со-схемой", schemaName: "symphysis", planningHome: { root }, applyRequires: [],
+      artifacts: [{ id: "intent", outputPath: "intent.md", status: over.file ? "done" : "ready", requires: [] }, { id: "decisions", outputPath: "decisions.md", status: "ready", requires: ["intent"] }],
+      artifactPaths: { intent: paths("intent", over.file ? [stepFile] : []), decisions: paths("decisions", []) },
+    }), hang: over.hang ?? 0 };
+    fs.writeFileSync(forkFile, JSON.stringify(scenario), "utf8");
+  };
+  const stepLinks = () => schemeDrive("helpLinks").catch(() => null);
+  const seesFile = () => until("ссылка на файл шага", async () => ((await stepLinks()) ?? []).some((k: string) => k.endsWith("intent.md")));
+  const panelTab = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("symphysis.scheme"));
+  const viewerTab = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("symphysis.viewer"));
+  /** Справка на странице `intent` для изменения «со-схемой», расчёт тихий. */
+  const helpOnIntent = async () => {
+    await openJournal("со-схемой");
+    if (api.scheme.webview === null) await drive("click", { text: "схема · справка" });
+    await until("вкладка", () => api.scheme.webview);
+    await schemeDrive("panelSwitch", { text: "справка" }).catch(() => null);
+    await helpShown("справка изменения", (r) => r.name === "со-схемой" && r.steps.includes("intent"));
+    await schemeDrive("helpClick", { text: "intent" });
+    // Свежий расчёт под нынешний ответ шима: страница могла остаться с прежним.
+    await schemeDrive("helpClick", { text: "Обновить" });
+    await sleep(900);
+  };
+  const quiet = async () => { await sleep(700); };
+
+  await step("«Новый файл шага»: файл появился — справка обновилась сама, `view-json` при этом не считался (счётчик с контролем)", async () => {
+    setFork({ file: false });
+    if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
+    await helpOnIntent();
+    await quiet();
+    assert.deepEqual((await stepLinks()).filter((k: string) => k.endsWith("intent.md")), [], "ссылка до появления файла");
+    const runs = api.viewRuns();
+    setFork({ file: true });
+    fs.writeFileSync(stepFile, "# Намерение\n", "utf8");
+    await seesFile();
+    await quiet();
+    assert.equal(api.viewRuns(), runs, "запись артефакта вызвала view-json");
+    // Контроль: счётчик считает, запись журнала его двигает.
+    fs.appendFileSync(path.join(watched, "decisions.json"), "\n");
+    await until("view-json после записи журнала", () => api.viewRuns() > runs);
+  });
+
+  await step("«Серия записей»: десять файлов подряд — расчётов меньше десяти, последний видит все файлы", async () => {
+    setFork({ file: false });
+    if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
+    await helpOnIntent();
+    await quiet();
+    const before = calcs();
+    setFork({ file: true });
+    const names = Array.from({ length: 9 }, (_, i) => path.join(watched, `серия-${i}.md`));
+    for (const f of names) {
+      fs.writeFileSync(f, "x\n", "utf8");
+      await sleep(15);
+    }
+    fs.writeFileSync(stepFile, "# Намерение\n", "utf8");
+    await seesFile();
+    await quiet();
+    const made = calcs() - before;
+    assert.ok(made >= 1 && made < 10, `расчётов за серию из десяти записей: ${made}`);
+    for (const f of names) fs.unlinkSync(f);
+  });
+
+  await step("«Ничего не видно»: вкладка и журнал закрыты — файлы меняются, расчёта нет", async () => {
+    await vscode.window.tabGroups.close([panelTab(), viewerTab()].filter((t): t is vscode.Tab => !!t));
+    await until("всё закрыто", () => api.scheme.webview === null && api.viewer.currentKey === null);
+    await quiet();
+    const before = calcs();
+    fs.appendFileSync(stepFile, "ещё\n");
+    fs.writeFileSync(path.join(watched, "тишина.md"), "x\n", "utf8");
+    await sleep(900);
+    fs.unlinkSync(path.join(watched, "тишина.md"));
+    await sleep(500);
+    assert.equal(calcs(), before, "расчёт пошёл при закрытых вкладках");
+  });
+
+  await step("«Вкладка показана снова»: вкладка лежала под другой, файлы менялись — показ считает, справка свежая", async () => {
+    setFork({ file: false });
+    if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("вкладка", () => api.scheme.webview);
+    await helpShown("справка изменения", (r) => r.name === "со-схемой" && r.steps.includes("intent"));
+    await schemeDrive("helpClick", { text: "intent" });
+    await quiet();
+    const column = vscode.window.tabGroups.all.find((g) => g.tabs.some((t) => t.label.startsWith("Справка")))!.viewColumn;
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(path.join(watched, "decisions.json")), { viewColumn: column, preview: false });
+    await until("вкладка под другой", () => !panelTab()?.isActive);
+    await quiet();
+    const hidden = calcs();
+    setFork({ file: true });
+    fs.writeFileSync(stepFile, "# Намерение\n", "utf8");
+    await sleep(900);
+    assert.equal(calcs(), hidden, "расчёт пошёл под чужой вкладкой");
+    await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+    await until("расчёт при показе", () => calcs() > hidden);
+    await seesFile();
+  });
+
+  await step("«Показ не ждёт расчёта»: расчёт два секунды — листание и просмотрщик отвечают, старые данные на месте", async () => {
+    // Журнал и вкладка рядом, обе видны: у скрытой страницы нет отрисовки, и водитель молчит.
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await until("всё закрыто", () => api.scheme.webview === null && api.viewer.currentKey === null);
+    await openJournal("со-схемой");
+    await vscode.commands.executeCommand("symphysis.openHelp");
+    await until("вкладка", () => api.scheme.webview);
+    await helpShown("справка изменения", (r) => r.name === "со-схемой" && r.steps.includes("intent"));
+    await schemeDrive("helpClick", { text: "intent" });
+    await seesFile();
+    setFork({ file: false, hang: 2 });
+    if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
+    await sleep(500);
+    const t0 = Date.now();
+    const turned = await schemeDrive("helpClick", { text: "decisions" });
+    const s = await snap();
+    assert.ok(Date.now() - t0 < 1500, "интерфейс ждал расчёта");
+    assert.equal(turned.page, "decisions");
+    assert.ok(turned.steps.length > 0 && turned.isHelp, "старые данные пропали");
+    assert.equal(s.cards.length, 4, "просмотрщик не отвечает");
+    await schemeDrive("helpClick", { text: "intent" });
+    if (Date.now() - t0 < 1700) assert.ok((await stepLinks()).some((k: string) => k.endsWith("intent.md")), "до нового ответа старые данные пропали");
+    await until("новый ответ без файла", async () => !(await stepLinks())?.some((k: string) => k.endsWith("intent.md")), 10000);
+    setFork({ file: false });
+  });
+
+  await step("«Обновить»: кнопка считает сразу, без склейки", async () => {
+    await quiet();
+    const before = calcs();
+    await schemeDrive("helpClick", { text: "Обновить" });
+    await until("расчёт по кнопке", () => calcs() > before, 3000);
+  });
+
+  await step("«Сбой не закрывает «Внести»»: расчёт справки упал — журнал показан, «Внести» открыта, выбор цел", async () => {
+    await drive("choose", { id: "F-02", letter: "A" });
+    assert.equal((await snap()).applyDisabled, false);
+    setFork({ broken: true });
+    await schemeDrive("helpClick", { text: "Обновить" });
+    const failed = await helpShown("сбой форка на вкладке", (r) => r.note && /openspec|форк|сбой/i.test(r.note));
+    assert.ok(failed.note);
+    const s = await snap();
+    assert.equal(s.cards.length, 4);
+    assert.equal(s.applyDisabled, false, "«Внести» закрыта сбоем справки");
+    assert.match(s.prompt, /- F-02: A/);
+    await schemeDrive("helpClick", { text: "Как готовить intent.md?" });
+    setFork({ file: false });
+    await drive("click", { id: "F-02", text: "снять выбор A" });
+    fs.writeFileSync(forkFile, forkBefore, "utf8");
+    await schemeDrive("panelSwitch", { text: "схема" });
   });
 
   await step("«Журнал сменился»: справка следует за просмотрщиком, заголовок и страница называют новое изменение", async () => {

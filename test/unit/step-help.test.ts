@@ -513,3 +513,25 @@ test("«Нет инструментов»: одна папка или все б�
   assert.deepEqual(refused(await computeHelp({ roots: [] }, hostEnv)), { kind: "no-tools", root: "" });
   assert.deepEqual(refused(await computeHelp({ root: empty, change: CHANGE }, hostEnv)), { kind: "no-tools", root: empty });
 });
+
+test("сбой `status --all` соседней папки (`changes: null` и `error`) не прячется за чистой пустой папкой", async () => {
+  const clean = folder("чистая папка");
+  const broken = folder("сломанная папка");
+  answers(clean, { changes: [] });
+  answers(broken, { changes: null, error: "сбой форка", current_step: null, turn: null });
+  for (const roots of [[clean, broken], [broken, clean]]) {
+    const outcome = await computeHelp({ roots }, hostEnv);
+    assert.equal(shown(outcome).error, "сбой форка");
+    assert.ok(outcome.kind === "output" && outcome.root === broken);
+  }
+});
+
+test("папка с изменением важнее чужой ошибки", async () => {
+  const withChange = folder("с изменением", "а");
+  const broken = folder("сломанная папка");
+  answers(withChange, { changes: ["а"], change: "а", current_step: "specs" });
+  answers(broken, { changes: null, error: "сбой форка", current_step: null, turn: null });
+  const outcome = await computeHelp({ roots: [broken, withChange] }, hostEnv);
+  assert.equal(shown(outcome).change, "а");
+  assert.ok(outcome.kind === "output" && outcome.root === withChange);
+});

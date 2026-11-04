@@ -9,10 +9,10 @@ import { resolvePython, type PythonResolution } from "./host/python";
 import { SearchView } from "./host/searchView";
 import { AttackTocProvider, ChangesProvider, TocProvider } from "./host/sidebar";
 import { SCHEME_TYPE, SchemePanel } from "./host/schemePanel";
-import { computeHelp, StepHelpRunner } from "./host/stepHelp";
+import { computeHelp, StepHelpRunner, type HelpTarget } from "./host/stepHelp";
 import { JournalStore, keyOf } from "./host/store";
 import { VIEWER_TYPE, ViewerPanel } from "./host/viewerPanel";
-import type { Colors, CoreFailure } from "./shared/protocol";
+import type { Colors, CoreFailure, HelpOutcome } from "./shared/protocol";
 
 const REFRESH_DELAY_MS = 150;
 const CONCURRENT_RUNS = 2;
@@ -38,7 +38,10 @@ export function activate(context: vscode.ExtensionContext) {
     return { python: py.path, tools: tools.dir, cwd: root, installDir: tools.installDir };
   };
 
+  // Для сквозных тестов: сколько раз считался `view-json`.
+  let viewRuns = 0;
   const run = async (ref: ChangeRef): Promise<ViewResult> => {
+    viewRuns++;
     if (!ref.hasJournal) return { ok: false, failure: { kind: "no-journal" } };
     const env = coreEnv(ref.root);
     return "kind" in env ? { ok: false, failure: env } : viewJson(env, ref);
@@ -81,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
       tocView.description = name;
       attackView.description = name;
       attackView.message = attackToc.message();
-      if (key) scheme.follow(key);
+      if (key) { scheme.follow(key); helpIfStale(); }
     },
     onDraft: (key, draft) => {
       toc.setDraft(key, draft);
@@ -89,10 +92,31 @@ export function activate(context: vscode.ExtensionContext) {
     },
     openScheme: (key) => scheme.open(key),
   });
+  // Одна точка, куда приходит ответ расчёта справки: вкладка показывает его, а считается и при закрытой вкладке, пока открыт журнал.
+  // Последний ответ хранится для строки счётчиков просмотрщика (следующая единица).
+  let lastHelp: { target: HelpTarget; outcome: HelpOutcome } | null = null;
   const help = new StepHelpRunner({
     compute: (target) => computeHelp(target, coreEnv),
-    onResult: (target, outcome) => scheme.helpAnswered(target, outcome),
+    onResult: (target, outcome) => { lastHelp = { target, outcome }; scheme.helpAnswered(target, outcome); },
   });
+  // Справка считается, только пока её видно или открыт журнал (F-42). Файлы менялись, а смотреть было некому: пересчёт при следующем показе.
+  let helpStale = false;
+  let helpTimer: NodeJS.Timeout | undefined;
+  const helpWanted = () => scheme.helpVisible() || viewer.currentKey !== null;
+  const recalcHelp = () => {
+    if (helpWanted()) {
+      helpStale = false;
+      help.request(scheme.helpTarget());
+    } else {
+      helpStale = true;
+    }
+  };
+  // Склейка записей: агент пишет файлы сериями. Таймер только для склейки, опроса нет (F-25).
+  const helpSoon = () => {
+    clearTimeout(helpTimer);
+    helpTimer = setTimeout(recalcHelp, REFRESH_DELAY_MS);
+  };
+  const helpIfStale = () => { if (helpStale && helpWanted()) recalcHelp(); };
   const scheme: SchemePanel = new SchemePanel({
     context,
     showNode: (key, id) => viewer.showNode(key, id),
@@ -100,6 +124,7 @@ export function activate(context: vscode.ExtensionContext) {
     activeChanges: () => workspaceDirs().flatMap(listChanges),
     workspaceRoots: workspaceDirs,
     requestHelp: (target) => help.request(target),
+    helpShown: helpIfStale,
     toolsPath,
   });
 
@@ -142,6 +167,13 @@ export function activate(context: vscode.ExtensionContext) {
         const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, glob));
         return [w, w.onDidChange(on), w.onDidCreate(on), w.onDidDelete(on)];
       });
+      // Всё, что лежит в каталоге изменения, даёт только пересчёт справки: новый артефакт появляется без правки списка в плагине (F-26). Журнал по этому не считается.
+      const helpWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/changes/*/**"));
+      const onHelpFile = (uri: vscode.Uri) => {
+        const name = path.relative(path.join(root, CHANGES), uri.fsPath).split(path.sep)[0];
+        if (name && name !== "archive" && !name.startsWith("..")) helpSoon();
+      };
+      journalWatchers.push([helpWatcher, helpWatcher.onDidChange(onHelpFile), helpWatcher.onDidCreate(onHelpFile), helpWatcher.onDidDelete(onHelpFile)]);
       // Схема: вкладка рисует сразу, просмотрщик узнаёт через обычное перечитывание журнала (подсказка «узел не найден»).
       const schemeWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "openspec/changes/*/scheme.md"));
       const onScheme = (uri: vscode.Uri) => { scheme.fileChanged(path.dirname(uri.fsPath)); on(uri); };
@@ -186,12 +218,12 @@ export function activate(context: vscode.ExtensionContext) {
       if (e.affectsConfiguration("symphysis.toolsPath")) { store.refreshAll(); changes.refresh(); hookAll(); }
       if (e.affectsConfiguration("symphysis.hook.enabled")) hookAll();
     }),
-    { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); } },
+    { dispose: () => { watchers.forEach((w) => w.dispose()); timers.forEach(clearTimeout); clearTimeout(helpTimer); } },
   );
 
   hookAll();
 
-  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf, hookIdle: () => hook.whenIdle() };
+  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf, hookIdle: () => hook.whenIdle(), viewRuns: () => viewRuns, helpAnswer: () => lastHelp };
   return undefined;
 }
 

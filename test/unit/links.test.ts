@@ -27,7 +27,7 @@ test("«Журнал сменился»: ключ только из карты �
 test("ключи `constructor` и `__proto__` и `toString` файла не открывают, даже если карта есть", () => {
   for (const key of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
     assert.equal(resolveLink(A, key, ROOT), null, key);
-    assert.equal(linkOf(A, `\`${key}\``.slice(1, -1)), null, key);
+    assert.equal(linkOf(A, key), null, key);
   }
 });
 

@@ -12,7 +12,7 @@ export function splitLink(text: string): { key: string; line: number | null } {
   return { key: text.slice(0, m.index), line: line >= 1 ? line : null };
 }
 
-/** Только свои ключи карты: `constructor` и `__proto__` ес、у любого объекта. */
+/** Только свои ключи карты: `constructor` и `__proto__` есть у любого объекта. */
 export function ownLink(links: FileLinks | null | undefined, key: string): string | null {
   if (!links || typeof links !== "object" || !Object.hasOwn(links, key)) return null;
   const v = links[key];

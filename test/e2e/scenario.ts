@@ -1133,7 +1133,16 @@ export async function run(): Promise<void> {
     assert.ok(group.activeTab?.input instanceof vscode.TabInputWebview, "фокус ушёл из просмотрщика");
     const beside = vscode.window.tabGroups.all.find((g) => g.viewColumn !== group.viewColumn)!;
     assert.ok(beside.tabs.some((t) => nameOf(t).endsWith("b.md") && t.isPreview), "b.md не в соседней колонке предпросмотром");
-    assert.doesNotMatch(await drive("cardHtml", { id: "F-02" }), /checked=""/, "ссылка выбрала вариант");
+    // Проверка не вхолостую: клик по самому варианту выбор даёт, после снятия выбора клик по ссылке его не возвращает.
+    await drive("choose", { id: "F-02", letter: "A" });
+    assert.equal(await drive("checkedLetter", { id: "F-02" }), "A", "клик по варианту выбора не дал");
+    await drive("click", { id: "F-02", text: "снять выбор A" });
+    assert.equal(await drive("checkedLetter", { id: "F-02" }), null);
+    await drive("link", { id: "F-02", key: "ссылки/b.md" });
+    assert.equal(await drive("checkedLetter", { id: "F-02" }), null, "ссылка выбрала вариант");
+    const draftFile = path.join(root, ".symphysis", "viewer", "со-ссылками.json");
+    await sleep(500);
+    assert.ok(!fs.existsSync(draftFile) || !JSON.parse(fs.readFileSync(draftFile, "utf8")).decisions["F-02"]?.choice, "в черновике появился выбор");
   });
 
   await step("«Следующий клик» и «Ссылка со строкой»: новый файл заменил предпросмотр на строке 2, новых вкладок нет", async () => {

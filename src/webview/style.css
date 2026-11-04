@@ -182,6 +182,6 @@ mark { color: inherit; background: var(--vscode-editor-findMatchHighlightBackgro
 #canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 #canvas g.node { cursor: pointer; }
 #source { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; padding: 8px 10px; font-family: var(--vscode-editor-font-family, monospace); }
-a.filelink { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; background: none; }
+a.filelink { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; }
 a.filelink:hover { color: var(--vscode-textLink-activeForeground); }
 a.filelink code { color: inherit; }

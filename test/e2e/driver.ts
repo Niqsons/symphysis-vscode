@@ -147,6 +147,9 @@ async function drive(m: any): Promise<unknown> {
       b.click();
       break;
     }
+    case "checkedLetter":
+      // Выбор живёт в свойстве радиокнопки, в атрибуте `checked` его нет.
+      return card!.querySelector<HTMLInputElement>("input[type=radio]:checked")?.value ?? null;
     case "cardHtml":
       return card?.outerHTML ?? null;
     case "choose": {

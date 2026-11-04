@@ -20,6 +20,9 @@ const OC_MODEL = "ollama-cloud/deepseek-v4.1-flash";
 const EVENT = "КАЛИНА-6161";
 const SCHEME = "РЯБИНА-7272";
 const FOREIGN = "ЧУЖОЙ-5151";
+const EXIT2 = "БУЗИНА-8383";
+const CRASH = "ЛИПА-9494";
+const CRASH_CAUSE = "падение-хука-проба";
 const CLAUDE_QUESTION = "Перечисли имена изменений из служебных сообщений в твоём контексте (о внесённых решениях и о правке scheme.md) и служебные метки вида «Служебная метка: …». Только имена и метки. Если ничего нет, ответь словом НЕТ.";
 const OC_QUESTION = "Есть ли в твоём контексте служебное сообщение о решениях, которые человек внёс кнопкой в журнал? Если есть, ответь только именем изменения из него. Если нет, ответь словом НЕТ.";
 const MARK = "// symphysis-vscode: хук opencode, файл пишет и заменяет плагин, не правь";
@@ -35,7 +38,7 @@ const python = resolvePython(process.env, []);
 
 function clean(text) {
   let out = String(text);
-  const marks = [[work, "<проект>"], [os.tmpdir(), "<tmp>"], [os.homedir(), "<home>"], [repo, "<плагин>"], [python.ok ? path.dirname(python.path) : "", "<python>"], [os.userInfo().username, "<user>"]];
+  const marks = [[work, "<проект>"], [os.tmpdir(), "<tmp>"], [os.homedir(), "<home>"], [repo, "<плагин>"], [python.ok ? path.dirname(python.path) : "", "<python>"]];
   for (const [value, mark] of marks) {
     if (!value) continue;
     for (const form of new Set([value, value.replaceAll("\\", "\\\\"), value.replaceAll("\\", "\\\\\\\\"), value.replaceAll("\\", "/")])) out = out.replaceAll(form, mark);
@@ -44,8 +47,10 @@ function clean(text) {
 }
 const note = (row) => log.push(clean(JSON.stringify(row)));
 
-function check(name, ok, detail) {
+/** Каждая проверка идёт в след с флагом ok: по следу видно, зелёный прогон или красный. `data` — что показал прямой запуск. */
+function check(name, ok, detail, data = {}) {
   tests.push({ name, ok, detail });
+  note({ check: name, ok, ...data, ...(ok ? {} : { detail: String(detail).slice(0, 300) }) });
   console.log(`${ok ? "✔" : "✖"} ${name}${ok ? "" : `\n   ${detail}`}`);
 }
 
@@ -141,14 +146,17 @@ function claudeOnce(cwd, session) {
     reply = { result: String(run.stdout).slice(0, 400), is_error: null };
   }
   const text = typeof reply.result === "string" ? reply.result : "";
-  return { code: run.status ?? `сбой запуска: ${run.error?.message}`, is_error: reply.is_error, text, stdout: String(run.stdout), stderr: String(run.stderr).slice(0, 400), ok: run.status === 0 && reply.is_error === false && text.trim() !== "" };
+  // Заблокированный хуком запрос клиент отдаёт как «ответ» с кодом 0 и текстом об отказе.
+  const blocked = /operation blocked by hook/i.test(text);
+  return { code: run.status ?? `сбой запуска: ${run.error?.message}`, is_error: reply.is_error, text, stdout: String(run.stdout), stderr: String(run.stderr).slice(0, 400), blocked, ok: run.status === 0 && reply.is_error === false && text.trim() !== "" && !blocked };
 }
 
 /** Один запрос; повтор один раз и только при сбое самого клиента. Повтор виден в следе. */
-function claudeAsk(name, cwd, session) {
+function claudeAsk(name, cwd, session, { retry = true } = {}) {
   let r = claudeOnce(cwd, session);
   const first = r;
-  const retried = !r.ok;
+  // Только при сбое самого клиента (код не 0): после ответа хук мог продвинуть курсор, и повтор уже не тот запрос.
+  const retried = retry && r.code !== 0;
   if (retried) r = claudeOnce(cwd, session);
   note({ client: "claude", case: name, code: r.code, is_error: r.is_error, reply: r.text.slice(0, 300), stderr: r.stderr, retried: retried ? { first_code: first.code, first_is_error: first.is_error, first_reply: first.text.slice(0, 200) } : false });
   sessionsToClean.push(cwd);
@@ -172,17 +180,19 @@ function openCodeOnce(cwd, session) {
     if (typeof row.text === "string") texts.push(row.text);
     else if (typeof row.part?.text === "string") texts.push(row.part.text);
   }
-  const errors = String(run.stderr).split(/\r?\n/).filter((l) => /level=(ERROR|WARN)|loading plugin|instructions/i.test(l)).map((l) => l.slice(0, 220)).slice(0, 8);
+  const lines = String(run.stderr).split(/\r?\n/).filter((l) => /level=(ERROR|WARN)|loading plugin|instructions/i.test(l));
+  const errors = lines.map((l) => l.slice(0, 220)).slice(0, 8);
   const text = texts.join("");
-  return { code: run.status ?? `сбой запуска: ${run.error?.message}`, id, text, errors, ok: run.status === 0 && text.trim() !== "" };
+  const loaded = lines.some((l) => /loading plugin/.test(l) && l.includes("symphysis-hook.js"));
+  return { code: run.status ?? `сбой запуска: ${run.error?.message}`, id, text, errors, loaded, ok: run.status === 0 && text.trim() !== "" };
 }
 
 function openCodeAsk(name, cwd, session) {
   let r = openCodeOnce(cwd, session);
   const first = r;
-  const retried = !r.ok;
+  const retried = r.code !== 0;
   if (retried) r = openCodeOnce(cwd, session);
-  note({ client: "opencode", case: name, code: r.code, session_known: !!r.id, reply: r.text.slice(0, 300), log_lines: r.errors, retried: retried ? { first_code: first.code, first_reply: first.text.slice(0, 200), first_log_lines: first.errors } : false });
+  note({ client: "opencode", case: name, code: r.code, session_known: !!r.id, plugin_loaded: r.loaded, reply: r.text.slice(0, 300), log_lines: r.errors, retried: retried ? { first_code: first.code, first_reply: first.text.slice(0, 200), first_log_lines: first.errors } : false });
   return r;
 }
 
@@ -209,7 +219,7 @@ function claudeScenarios() {
   seedSession(root, s1direct, before);
   const direct = spawnSync(python.path, ["-I", "-X", "utf8", path.join(viewerOf(root), "hook.py")], { input: JSON.stringify({ session_id: s1direct, prompt: "x" }), encoding: "utf8" });
   const schemeLine = direct.stdout.split("\n").find((l) => l.includes(SCHEME)) ?? "";
-  check("«Только сигнал»: строка о схеме называет изменение и не просит остановиться", direct.status === 0 && schemeLine !== "" && /сигнал/.test(schemeLine) && !/останов|прекрати|немедленно|сразу/i.test(schemeLine), `код ${direct.status}, строка: ${schemeLine}`);
+  check("«Только сигнал»: строка о схеме называет изменение и не просит остановиться", direct.status === 0 && schemeLine !== "" && /сигнал/.test(schemeLine) && !/останов|прекрати|немедленно|сразу/i.test(schemeLine), `код ${direct.status}, строка: ${schemeLine}`, { direct_code: direct.status, scheme_line: schemeLine });
   let r = claudeAsk("путь с пробелом и кириллицей, чужой хук, правка схемы", root, s1);
   const seen = (label) => r.text.toLowerCase().includes(label.toLowerCase());
   check("«Путь с пробелом и кириллицей»: хук сработал, вывод виден модели", r.ok && seen(EVENT), `ответ: ${r.text.slice(0, 200)}`);
@@ -217,36 +227,49 @@ function claudeScenarios() {
   check("«Только сигнал»: код 0, запрос дошёл до модели, изменение схемы названо", r.ok && seen(SCHEME), `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
   check("Claude Code: курсор сессии продвинут хуком клиента", JSON.parse(fs.readFileSync(cursorFile(root, s1), "utf8")).offset === Buffer.byteLength(eventLine()), "курсор не в конце файла");
 
-  // Остальные сценарии без чужого хука: ответ должен быть НЕТ либо любой, но дойти.
-  fs.writeFileSync(settings, "", "utf8");
-  must(installClaudeHook(root, python.path), "запись Claude Code");
+  // Дальше чужой хук стоит рядом с записью плагина: его метка в ответе доказывает, что файл настроек прочитан и хуки запускались.
+  const install = (pythonPath) => {
+    withForeign();
+    must(installClaudeHook(root, pythonPath), "запись Claude Code");
+  };
+  const reached = (extra = true) => r.ok && seen(FOREIGN) && extra;
+  const why = () => `код ${r.code}, is_error ${r.is_error}, ответ: ${r.text.slice(0, 200)}`;
 
   // «Файла скрипта нет»: запись на месте, `.symphysis/viewer/` снят.
+  install(python.path);
   removeTree(viewerOf(root));
   r = claudeAsk("Файла скрипта нет у Claude Code", root, session());
-  check("«Файла скрипта нет у Claude Code»: запрос доходит до модели", r.ok, `код ${r.code}, is_error ${r.is_error}, ответ: ${r.text.slice(0, 200)}`);
+  check("«Файла скрипта нет у Claude Code»: запрос доходит до модели, файл настроек прочитан", reached(), why());
+  // Контроль: та же картина с голым `python hook.py`. Если и он не блокирует, обёртка ничего не доказывает.
+  const bare = { type: "command", command: python.path, args: ["-I", "-X", "utf8", "${CLAUDE_PROJECT_DIR}/.symphysis/viewer/hook.py"], timeout: 5 };
+  fs.writeFileSync(settings, JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [foreign] }, { hooks: [bare] }] } }, null, 2), "utf8");
+  r = claudeAsk("контроль: файла скрипта нет, запись без обёртки", root, session(), { retry: false });
+  check("контроль: без обёртки Python выходит с кодом 2, и клиент блокирует запрос", r.blocked, `запрос не заблокирован: ${why()}`, { blocked: r.blocked, code: r.code, is_error: r.is_error, reply: r.text.slice(0, 200) });
 
-  // «Скрипт вышел с кодом 2».
+  // «Скрипт вышел с кодом 2»: метка скрипта у модели, значит, он отработал до выхода.
+  install(python.path);
   reset(root);
-  fs.writeFileSync(path.join(viewerOf(root), "hook.py"), `import sys\nsys.stdout.reconfigure(encoding="utf-8")\nprint("Служебная метка: ${FOREIGN}")\nsys.exit(2)\n`, "utf8");
+  fs.writeFileSync(path.join(viewerOf(root), "hook.py"), `import sys\nsys.stdout.reconfigure(encoding="utf-8")\nprint("Служебная метка: ${EXIT2}")\nsys.exit(2)\n`, "utf8");
   r = claudeAsk("Скрипт вышел с кодом 2", root, session());
-  check("«Скрипт вышел с кодом 2»: запрос доходит до модели", r.ok, `код ${r.code}, is_error ${r.is_error}, ответ: ${r.text.slice(0, 200)}`);
+  check("«Скрипт вышел с кодом 2»: запрос доходит до модели, скрипт отработал (его метка у модели)", reached(seen(EXIT2)), why());
 
-  // «Скрипт упал»: на месте каталога курсоров лежит файл, запись курсора падает.
+  // «Скрипт упал»: прямой запуск настоящего скрипта, когда на месте каталога курсоров лежит файл.
   reset(root);
   fs.writeFileSync(path.join(viewerOf(root), "sessions"), "не каталог", "utf8");
   const crashed = spawnSync(python.path, ["-I", "-X", "utf8", path.join(viewerOf(root), "hook.py")], { input: JSON.stringify({ session_id: session() }), encoding: "utf8" });
-  check("«Скрипт упал»: код 0, причина в stderr скрипта", crashed.status === 0 && /^symphysis hook: /.test(crashed.stderr), `код ${crashed.status}, stderr: ${crashed.stderr.slice(0, 200)}`);
+  check("«Скрипт упал»: код 0, причина в stderr настоящего скрипта", crashed.status === 0 && /^symphysis hook: /.test(crashed.stderr), `код ${crashed.status}, stderr: ${crashed.stderr.slice(0, 200)}`, { direct_code: crashed.status, stderr_first_line: crashed.stderr.split("\n", 1)[0].slice(0, 160) });
+  // В клиенте падает скрипт с меткой в stdout до падения и причиной в stderr (настоящий скрипт до падения ничего не печатает).
+  fs.writeFileSync(path.join(viewerOf(root), "hook.py"), `import sys\nsys.stdout.reconfigure(encoding="utf-8")\nprint("Служебная метка: ${CRASH}", flush=True)\nsys.stderr.write("symphysis hook: RuntimeError: ${CRASH_CAUSE}\\n")\nraise RuntimeError("${CRASH_CAUSE}")\n`, "utf8");
   r = claudeAsk("Скрипт упал", root, session());
-  const leaked = /symphysis hook:|NotADirectory|WinError|Traceback/.test(r.stdout);
-  check("«Скрипт упал»: запрос доходит до модели", r.ok, `код ${r.code}, is_error ${r.is_error}, ответ: ${r.text.slice(0, 200)}`);
-  check("«Скрипт упал»: stderr скрипта в ответе модели и в выводе клиента нет", r.ok && !leaked, `в выводе: ${r.stdout.slice(0, 300)}`);
+  const leaked = /symphysis hook:|NotADirectory|WinError|Traceback|RuntimeError/.test(`${r.stdout}\n${r.stderr}`) || r.text.includes(CRASH_CAUSE);
+  check("«Скрипт упал»: запрос доходит до модели, метка скрипта до падения у модели", reached(seen(CRASH)), why());
+  check("«Скрипт упал»: причина из stderr скрипта в ответе модели, выводе и stderr клиента не видна", r.ok && !leaked, `в выводе: ${r.stdout.slice(0, 300)} | stderr: ${r.stderr.slice(0, 200)}`, { leaked });
 
-  // «Python переехал»: запись указывает на путь, которого нет.
+  // «Python переехал»: запись указывает на путь, которого нет; чужой хук рядом показывает, что клиент хуки запускал.
   reset(root);
-  must(installClaudeHook(root, path.join(work, "нет такого", "python.exe")), "запись с мёртвым путём");
+  install(path.join(work, "нет такого", "python.exe"));
   r = claudeAsk("Python переехал", root, session());
-  check("«Python переехал»: запрос доходит до модели", r.ok, `код ${r.code}, is_error ${r.is_error}, ответ: ${r.text.slice(0, 200)}`);
+  check("«Python переехал»: запрос доходит до модели, чужой хук рядом сработал", reached(), why());
 }
 
 // --- opencode ---
@@ -299,7 +322,7 @@ function opencodeScenarios() {
   must(installOpencodeHook(root, python.path), "файл opencode");
   check("контроль: настоящий файл плагина возвращён", fs.readFileSync(pluginFile(root), "utf8") === real, "файл отличается");
   r = openCodeAsk("Новых событий нет и Та же сессия", root, session);
-  check("«Новых событий нет»: запись снята, модель события не видит", r.ok && !r.text.includes(EVENT), `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
+  check("«Новых событий нет»: плагин загружен, запись снята, модель события не видит", r.ok && r.loaded && !r.text.includes(EVENT), `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
   check("«Новых событий нет»: в журнале клиента нет ошибки remove", r.errors.every((l) => !/ERROR/.test(l)), r.errors.join(" | "));
   check("«Та же сессия»: события в инструкциях нет", r.ok && !r.text.includes(EVENT), `ответ: ${r.text.slice(0, 200)}`);
 
@@ -309,11 +332,11 @@ function opencodeScenarios() {
   // «Сбой в оболочке opencode»: мёртвый путь к Python, затем файла скрипта нет.
   must(installOpencodeHook(root, path.join(work, "нет такого", "python.exe")), "файл с мёртвым путём");
   r = openCodeAsk("Сбой в оболочке opencode: мёртвый путь к Python", root);
-  check("«Сбой в оболочке opencode»: мёртвый путь к Python, запрос доходит до модели", r.ok, `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
+  check("«Сбой в оболочке opencode»: мёртвый путь к Python, плагин загружен, запрос доходит до модели", r.ok && r.loaded, `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
   must(installOpencodeHook(root, python.path), "файл opencode");
   removeTree(viewerOf(root));
   r = openCodeAsk("Сбой в оболочке opencode: файла скрипта нет", root);
-  check("«Сбой в оболочке opencode»: файла скрипта нет, запрос доходит до модели", r.ok, `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
+  check("«Сбой в оболочке opencode»: файла скрипта нет, плагин загружен, запрос доходит до модели", r.ok && r.loaded, `код ${r.code}, ответ: ${r.text.slice(0, 200)}`);
 }
 
 function cleanClaudeSessions() {
@@ -362,6 +385,7 @@ if (!missing) {
     check("opencode: прогон дошёл до конца", false, String(e.stack ?? e));
   }
   cleanClaudeSessions();
+  note({ итог: { проверок: tests.length, упало: tests.filter((t) => !t.ok).length } });
   const file = logPath();
   fs.writeFileSync(file, `${log.join("\n")}\n`, { encoding: "utf8" });
   console.log(`след: ${path.basename(file)}`);

@@ -164,6 +164,15 @@ async function drive(m: any): Promise<unknown> {
       await settle();
       return helpSnapshot();
     }
+    case "helpFileLink": {
+      // Настоящий клик по ссылке на файл шага.
+      const links = [...document.querySelectorAll<HTMLElement>(".help-page [data-file-link]")];
+      const link = m.key ? links.find((x) => x.dataset.fileLink === m.key) : links[0];
+      if (!link) throw new Error(`нет ссылки на файл шага ${m.key ?? ""}`);
+      link.click();
+      await settle();
+      return { key: link.dataset.fileLink, links: links.map((x) => x.dataset.fileLink) };
+    }
     case "helpChoose": {
       const b = [...document.querySelectorAll<HTMLButtonElement>(".help-choices button")].find((x) => x.textContent === m.text);
       if (!b) throw new Error(`нет строки «${m.text}»`);

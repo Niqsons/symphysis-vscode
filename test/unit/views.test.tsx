@@ -26,7 +26,7 @@ function helpOutput(over: Partial<StepHelpOutput> = {}): StepHelpOutput {
   const page = (id: string) => ({ id, state: null, turn: "human", optional: false, blocks: [], stops_apply: false, waits_for: [], files: [], file_note: null, texts: { title: "", why: "", mechanics: "", if_skipped: "", what_to_check: "", command: "", how_to_prepare: "" }, text_note: null, prev: null, next: null, skills: [] } as StepHelpOutput["steps"][number]);
   return { contract: 2, taken_at: "", versions: { openspec: null, symphysis: null }, change: null, changes: [], error: null, current_step: "intent", current_text: "Активных изменений нет: следующий шаг по файлам — `intent`, ход человека.", turn: "human", next_by_status: null, forks: null, tasks: null, steps: [page("intent"), page("specs")], file_links: {}, ...over };
 }
-const help = (view: Partial<HelpView>) => renderToStaticMarkup(<HelpBody view={{ panel: "help", name: null, outcome: null, pluginVersion: "0.2.0", ...view }} choose={noop} openPythonSetting={noop} />);
+const help = (view: Partial<HelpView>) => renderToStaticMarkup(<HelpBody view={{ panel: "help", name: null, outcome: null, pluginVersion: "0.2.0", key: null, ...view }} choose={noop} openPythonSetting={noop} />);
 
 function attack(p: ViewPayload, lens = "all", draft: Draft = emptyDraft()): string {
   return renderToStaticMarkup(<AttackView payload={p} draft={draft} flags={buildPrompt(p, draft, DATE)} lens={lens} update={noop} />);

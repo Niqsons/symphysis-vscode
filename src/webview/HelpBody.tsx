@@ -24,14 +24,16 @@ export interface HelpActions {
 
 const NO_ACTIONS: HelpActions = { select: () => {}, toggleRules: () => {}, openFile: () => {}, openSkill: () => {} };
 
-/** Подписи разделов текста шага; сами тексты приходят из вывода. */
+/** Подписи разделов текста шага: слова подразделов `steps.md` ядра, человек сверяет страницу с файлом. Сами тексты приходят из вывода. */
 const SECTIONS: { key: keyof StepHelpPage["texts"]; label: string; code?: boolean }[] = [
   { key: "why", label: "Зачем" },
-  { key: "mechanics", label: "Как работает" },
-  { key: "if_skipped", label: "Что будет без шага" },
-  { key: "what_to_check", label: "Что проверить" },
+  { key: "mechanics", label: "Механики" },
+  { key: "if_skipped", label: "Если пропустить" },
+  { key: "what_to_check", label: "Что смотреть" },
   { key: "command", label: "Команда", code: true },
 ];
+
+export const SECTION_LABELS = SECTIONS.map((s) => s.label);
 
 type Links = StepHelpOutput["file_links"];
 

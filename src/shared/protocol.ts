@@ -114,6 +114,8 @@ export type SchemePageMessage =
 /** Справка на той же вкладке. `panel: "scheme"` здесь значит схему без изменения: рисовать нечего, и mermaid страница не грузит. `outcome: null` — ответа ещё нет. */
 export interface HelpView {
   panel: PanelView;
+  /** Каталог изменения: по нему страница узнаёт то же изменение, имя у двух папок может совпасть. */
+  key: string | null;
   name: string | null;
   outcome: HelpOutcome | null;
   /** Версия плагина для малозаметной строки внизу (F-37). */

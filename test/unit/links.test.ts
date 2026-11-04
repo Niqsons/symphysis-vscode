@@ -1,7 +1,9 @@
 // Открытие файла по сообщению страницы: путь берётся только из карты последнего показанного вывода (F-44, F-54).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
+import { tempDir } from "../temp-dir.mjs";
 import { lineOf, resolveLink, resolveSkill } from "../../src/host/links";
 import { linkOf, splitLink } from "../../src/shared/links";
 
@@ -55,29 +57,55 @@ test("номер строки из сообщения: только целое �
   for (const v of [0, -1, 1.5, "2", null, undefined, NaN]) assert.equal(lineOf(v), null);
 });
 
-const INSTALL = path.resolve("каталог установки");
-const SKILLS = [
-  { name: "symphysis-proj", path: ".claude/skills/symphysis-proj/SKILL.md", base: "project" as const },
-  { name: "symphysis-inst", path: "skills/symphysis-inst/SKILL.md", base: "install" as const },
-  { name: "symphysis-stub", path: "skills/symphysis-stub/SKILL.md", base: "install" as const },
-  { name: "symphysis-lost", path: null, base: null },
-  { name: "symphysis-escape", path: "../чужое/SKILL.md", base: "install" as const },
-];
+// Скиллы установки лежат на настоящем диске: проверка идёт по реальным путям, поэтому тесты берут настоящие файлы.
+const tmp = () => tempDir("symphysis-установка с пробелом-");
+const real = (p: string) => fs.realpathSync.native(p);
+function skillFile(base: string, rel: string, text = "---\nname: x\n---\n"): string {
+  const file = path.join(base, rel);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text, "utf8");
+  return file;
+}
+const install = (name: string, rel: string | null): { name: string; path: string | null; base: "install" | null } => ({ name, path: rel, base: rel ? "install" : null });
 
 test("«Скилл в проекте»: путь скилла от корня проекта открывается через общую карту", () => {
   const links = { ".claude/skills/symphysis-proj/SKILL.md": ".claude/skills/symphysis-proj/SKILL.md" };
-  assert.equal(resolveLink(links, SKILLS[0].path, ROOT), path.join(ROOT, ".claude", "skills", "symphysis-proj", "SKILL.md"));
-  assert.equal(resolveSkill(SKILLS, "symphysis-proj", INSTALL), null, "проектный скилл не открывается как скилл установки");
+  assert.equal(resolveLink(links, ".claude/skills/symphysis-proj/SKILL.md", ROOT), path.join(ROOT, ".claude", "skills", "symphysis-proj", "SKILL.md"));
+  const project = { name: "symphysis-proj", path: ".claude/skills/symphysis-proj/SKILL.md", base: "project" as const };
+  assert.equal(resolveSkill([project], "symphysis-proj", ROOT), null, "проектный скилл не открывается как скилл установки");
 });
 
 test("«Скилл по настройке»: файл из каталога symphysis.toolsPath; заглушка открывается как есть", () => {
-  assert.equal(resolveSkill(SKILLS, "symphysis-inst", INSTALL), path.join(INSTALL, "skills", "symphysis-inst", "SKILL.md"));
-  assert.equal(resolveSkill(SKILLS, "symphysis-stub", INSTALL), path.join(INSTALL, "skills", "symphysis-stub", "SKILL.md"));
+  const dir = tmp();
+  skillFile(dir, "skills/symphysis-inst/SKILL.md");
+  skillFile(dir, "skills/symphysis-stub/SKILL.md", "Заглушка: скилл в этой установке не развёрнут\n");
+  const skills = [install("symphysis-inst", "skills/symphysis-inst/SKILL.md"), install("symphysis-stub", "skills/symphysis-stub/SKILL.md")];
+  assert.equal(resolveSkill(skills, "symphysis-inst", dir), real(path.join(dir, "skills", "symphysis-inst", "SKILL.md")));
+  assert.equal(resolveSkill(skills, "symphysis-stub", dir), real(path.join(dir, "skills", "symphysis-stub", "SKILL.md")));
 });
 
-test("скилл установки: имени нет в выводе, путь вышел из каталога, настройки или поля нет — файл не открыт", () => {
-  for (const name of ["symphysis-escape", "symphysis-lost", "нет такого", "constructor", "__proto__", "", 1, null, { a: 1 }]) assert.equal(resolveSkill(SKILLS, name, INSTALL), null, String(name));
-  assert.equal(resolveSkill(SKILLS, "symphysis-inst", undefined), null);
-  assert.equal(resolveSkill(undefined, "symphysis-inst", INSTALL), null);
-  assert.equal(resolveSkill([{ name: "symphysis-abs", path: path.resolve("чужое", "SKILL.md"), base: "install" }], "symphysis-abs", INSTALL), null);
+test("скилл установки: имени нет в выводе, путь вышел из каталога, настройки или поля нет, файла нет — файл не открыт", () => {
+  const dir = tmp(), outside = tmp();
+  skillFile(dir, "skills/symphysis-inst/SKILL.md");
+  skillFile(outside, "SKILL.md");
+  const skills = [install("symphysis-inst", "skills/symphysis-inst/SKILL.md"), install("symphysis-lost", null), install("symphysis-escape", path.relative(dir, path.join(outside, "SKILL.md"))),
+    install("symphysis-absent", "skills/symphysis-absent/SKILL.md"), install("symphysis-abs", path.join(outside, "SKILL.md"))];
+  for (const name of ["symphysis-escape", "symphysis-lost", "symphysis-absent", "symphysis-abs", "нет такого", "constructor", "__proto__", "", 1, null, { a: 1 }]) assert.equal(resolveSkill(skills, name, dir), null, String(name));
+  assert.equal(resolveSkill(skills, "symphysis-inst", undefined), null);
+  assert.equal(resolveSkill(undefined, "symphysis-inst", dir), null);
+});
+
+test("скилл установки: junction внутри каталога на каталог снаружи файл не открывает", () => {
+  const dir = tmp(), outside = tmp();
+  skillFile(outside, "symphysis-leak/SKILL.md");
+  fs.mkdirSync(path.join(dir, "skills"), { recursive: true });
+  fs.symlinkSync(outside, path.join(dir, "skills", "linked"), "junction");
+  assert.ok(fs.existsSync(path.join(dir, "skills", "linked", "symphysis-leak", "SKILL.md")), "junction не создалась");
+  assert.equal(resolveSkill([install("symphysis-leak", "skills/linked/symphysis-leak/SKILL.md")], "symphysis-leak", dir), null);
+});
+
+test("скилл установки: каталог с именем `..x` внутри установки не принимают за выход наружу", () => {
+  const dir = tmp();
+  skillFile(dir, "..x/symphysis-dots/SKILL.md");
+  assert.equal(resolveSkill([install("symphysis-dots", "..x/symphysis-dots/SKILL.md")], "symphysis-dots", dir), real(path.join(dir, "..x", "symphysis-dots", "SKILL.md")));
 });

@@ -817,6 +817,45 @@ export async function run(): Promise<void> {
     await schemeState("svg");
   });
 
+  await step("«Файл шага в справке»: страница отдаёт ссылку на существующий файл, клик открывает его рядом предпросмотром, фокус остаётся", async () => {
+    const shown = key("со-схемой");
+    const file = path.join(shown, "intent.md");
+    fs.writeFileSync(file, "# Намерение\n", "utf8");
+    const forkFile = path.join(process.env.SYMPHYSIS_E2E_FORK!, "scenario.json");
+    const before = fs.readFileSync(forkFile, "utf8");
+    const scenario = JSON.parse(before);
+    const paths = (id: string, existing: string[]) => ({ outputPath: `${id}.md`, resolvedOutputPath: path.join(shown, `${id}.md`), existingOutputPaths: existing });
+    scenario.status = { stdout: JSON.stringify({
+      changeName: "со-схемой", schemaName: "symphysis", planningHome: { root }, applyRequires: [],
+      artifacts: [{ id: "intent", outputPath: "intent.md", status: "done", requires: [] }, { id: "decisions", outputPath: "decisions.md", status: "ready", requires: ["intent"] }],
+      artifactPaths: { intent: paths("intent", [file]), decisions: paths("decisions", []) },
+    }) };
+    fs.writeFileSync(forkFile, JSON.stringify(scenario), "utf8");
+    try {
+      await openJournal("со-схемой");
+      await schemeDrive("panelSwitch", { text: "схема" });
+      await schemeState("svg");
+      await schemeDrive("panelSwitch", { text: "справка" });
+      await helpShown("шаг intent с файлом", (r) => r.name === "со-схемой" && r.steps.includes("intent"));
+      await schemeDrive("helpClick", { text: "intent" });
+      const tabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs);
+      const count = tabs().length;
+      // Расчёт мог ещё не прийти: страница с прежним ответом ссылки не имеет, ждём новый.
+      const clicked = await until("ссылка на файл шага", async () => schemeDrive("helpFileLink", {}).catch(() => null));
+      assert.match(clicked.key, /intent\.md$/);
+      await until("intent.md открыт", () => tabs().some((t) => t.label === "intent.md"));
+      assert.equal(tabs().length, count + 1);
+      assert.ok(tabs().find((t) => t.label === "intent.md")!.isPreview, "файл открыт не предпросмотром");
+      assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputWebview, "фокус ушёл из справки");
+      await vscode.window.tabGroups.close(tabs().find((t) => t.label === "intent.md")!);
+    } finally {
+      fs.writeFileSync(forkFile, before, "utf8");
+      fs.unlinkSync(file);
+    }
+    await schemeDrive("panelSwitch", { text: "схема" });
+    await schemeState("svg");
+  });
+
   await step("«Журнал сменился»: справка следует за просмотрщиком, заголовок и страница называют новое изменение", async () => {
     await schemeDrive("panelSwitch", { text: "справка" });
     await helpShown("первое изменение", (r) => r.name === "со-схемой" && r.current);

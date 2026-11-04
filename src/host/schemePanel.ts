@@ -204,7 +204,7 @@ export class SchemePanel {
       const m: SchemeHostMessage = { type: "scheme", view: { name, ...readScheme(this.key) } };
       void this.panel.webview.postMessage(m);
     } else {
-      const m: HelpHostMessage = { type: "help", view: { panel: this.view, name, outcome: this.outcome, pluginVersion: String(this.deps.context.extension.packageJSON.version) } };
+      const m: HelpHostMessage = { type: "help", view: { panel: this.view, key: this.key, name, outcome: this.outcome, pluginVersion: String(this.deps.context.extension.packageJSON.version) } };
       void this.panel.webview.postMessage(m);
     }
   }

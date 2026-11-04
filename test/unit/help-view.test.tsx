@@ -6,7 +6,8 @@ import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { HelpView } from "../../src/shared/protocol";
 import type { HelpSkill, StepHelpOutput, StepHelpPage } from "../../src/shared/types";
-import { HelpBody, type HelpActions, type ShownPage } from "../../src/webview/HelpBody";
+import { HelpBody, SECTION_LABELS, type HelpActions, type ShownPage } from "../../src/webview/HelpBody";
+import { noCoreReason, SYMPHYSIS } from "./fixture-project";
 
 const noop = () => {};
 const IDS = ["intent", "decisions", "specs", "archive"];
@@ -30,7 +31,7 @@ function output(over: Partial<StepHelpOutput> = {}, pages: Record<string, Partia
 }
 
 function render(out: StepHelpOutput, shown: ShownPage = { step: null, rules: false }, actions: Partial<HelpActions> = {}, pluginVersion = "0.2.0"): string {
-  const view: HelpView = { panel: "help", name: "демо", outcome: { kind: "output", root: "D:/п", output: out }, pluginVersion };
+  const view: HelpView = { panel: "help", key: "D:/п/openspec/changes/демо", name: "демо", outcome: { kind: "output", root: "D:/п", output: out }, pluginVersion };
   return renderToStaticMarkup(<HelpBody view={view} shown={shown} actions={{ select: noop, toggleRules: noop, openFile: noop, openSkill: noop, ...actions }} choose={noop} openPythonSetting={noop} />);
 }
 const flat = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
@@ -162,4 +163,13 @@ test("в справке нет `dangerouslySetInnerHTML`", () => {
   for (const f of ["HelpBody.tsx", "help.tsx", "Text.tsx"]) {
     assert.ok(!fs.readFileSync(path.join(process.cwd(), "src", "webview", f), "utf8").includes("dangerouslySetInnerHTML"), f);
   }
+});
+
+test("подписи разделов те же слова, что заголовки `steps.md` ядра", { skip: noCoreReason }, () => {
+  const steps = fs.readFileSync(path.join(SYMPHYSIS, "openspec", "schemas", "symphysis", "steps.md"), "utf8");
+  const headings = new Set([...steps.matchAll(/^### (.+)$/gm)].map((m) => m[1].trim()));
+  assert.ok(SECTION_LABELS.length >= 5);
+  for (const label of SECTION_LABELS) assert.ok(headings.has(label), `в steps.md нет подраздела «${label}»`);
+  const html = render(output());
+  for (const label of ["Механики", "Если пропустить", "Что смотреть"]) assert.ok(html.includes(`<b>${label}</b>`), label);
 });

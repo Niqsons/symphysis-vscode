@@ -1,4 +1,5 @@
 // Какой файл открывать по клику на ссылку. Без vscode: так же будет открывать вкладка справки.
+import fs from "node:fs";
 import path from "node:path";
 import { ownLink, type FileLinks } from "../shared/links";
 import type { HelpSkill } from "../shared/types";
@@ -20,14 +21,19 @@ export function lineOf(line: unknown): number | null {
 
 /**
  * Скилл из каталога установки (F-91): страница называет имя, путь берётся из поля `skills` показанного вывода, от каталога настройки `symphysis.toolsPath`.
- * Скилл проекта идёт через карту ссылок, здесь он не открывается. Путь, вышедший из каталога установки, не открывается.
+ * Скилл проекта идёт через карту ссылок, здесь он не открывается. Сравниваются настоящие пути обеих сторон: junction или ссылка внутри каталога наружу не ведёт.
+ * Файла нет (настройка сменилась после расчёта) — открывать нечего.
  */
 export function resolveSkill(skills: HelpSkill[] | undefined, name: unknown, installDir: string | null | undefined): string | null {
   if (typeof name !== "string" || !installDir || !Array.isArray(skills)) return null;
   const skill = skills.find((s) => s.name === name && s.base === "install" && typeof s.path === "string" && s.path !== "");
   if (!skill) return null;
-  const base = path.resolve(installDir);
-  const file = path.resolve(base, skill.path!);
-  const inside = path.relative(base, file);
-  return inside === "" || inside.startsWith("..") || path.isAbsolute(inside) ? null : file;
+  try {
+    const base = fs.realpathSync.native(path.resolve(installDir));
+    const file = fs.realpathSync.native(path.resolve(base, skill.path!));
+    const inside = path.relative(base, file);
+    return inside === "" || inside === ".." || inside.startsWith(".." + path.sep) || path.isAbsolute(inside) ? null : file;
+  } catch {
+    return null;
+  }
 }

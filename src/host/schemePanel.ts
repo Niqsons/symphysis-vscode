@@ -110,6 +110,11 @@ export class SchemePanel {
     return !!this.panel && this.panel.visible && this.view === "help";
   }
 
+  /** Для тестов: вкладка на виду, а не под другой. */
+  visible(): boolean {
+    return !!this.panel && this.panel.visible;
+  }
+
   /** Что считать для справки сейчас: за просмотрщиком, затем последнее показанное, затем все папки (F-41). */
   helpTarget(): HelpTarget {
     return this.target();

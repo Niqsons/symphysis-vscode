@@ -11,7 +11,7 @@ import { driver, results, sleep, step, until } from "./steps";
 interface Api {
   store: { list(): any[]; get(key: string): any; sync(): void };
   viewer: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; currentKey: string | null; findWidget: boolean; restore(panel: vscode.WebviewPanel): void };
-  scheme: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; restore(panel: vscode.WebviewPanel): void };
+  scheme: { messages: vscode.EventEmitter<any>; webview: vscode.Webview | null; restore(panel: vscode.WebviewPanel): void; visible(): boolean };
   changes: { getTreeItem(state: any): vscode.TreeItem };
   toc: { getTreeItem(rec: any): vscode.TreeItem };
   attackToc: { getChildren(node?: any): any[]; getTreeItem(node: any): vscode.TreeItem; message(): string | undefined };
@@ -907,9 +907,15 @@ export async function run(): Promise<void> {
     await seesFile();
     await quiet();
     assert.equal(api.viewRuns(), runs, "запись артефакта вызвала view-json");
-    // Контроль: счётчик считает, запись журнала его двигает.
-    fs.appendFileSync(path.join(watched, "decisions.json"), "\n");
-    await until("view-json после записи журнала", () => api.viewRuns() > runs);
+    // Контроль: счётчик считает, запись журнала его двигает. Фикстура после проверки возвращается.
+    const journalFile = path.join(watched, "decisions.json");
+    const original = fs.readFileSync(journalFile);
+    try {
+      fs.appendFileSync(journalFile, "\n");
+      await until("view-json после записи журнала", () => api.viewRuns() > runs);
+    } finally {
+      fs.writeFileSync(journalFile, original);
+    }
   });
 
   await step("«Серия записей»: десять файлов подряд — расчётов меньше десяти, последний видит все файлы", async () => {
@@ -955,7 +961,8 @@ export async function run(): Promise<void> {
     await quiet();
     const column = vscode.window.tabGroups.all.find((g) => g.tabs.some((t) => t.label.startsWith("Справка")))!.viewColumn;
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(path.join(watched, "decisions.json")), { viewColumn: column, preview: false });
-    await until("вкладка под другой", () => !panelTab()?.isActive);
+    await until("вкладка под другой", () => !api.scheme.visible());
+    assert.equal(api.scheme.visible(), false);
     await quiet();
     const hidden = calcs();
     setFork({ file: true });
@@ -963,6 +970,7 @@ export async function run(): Promise<void> {
     await sleep(900);
     assert.equal(calcs(), hidden, "расчёт пошёл под чужой вкладкой");
     await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+    await until("вкладка снова на виду", () => api.scheme.visible());
     await until("расчёт при показе", () => calcs() > hidden);
     await seesFile();
   });
@@ -977,9 +985,11 @@ export async function run(): Promise<void> {
     await helpShown("справка изменения", (r) => r.name === "со-схемой" && r.steps.includes("intent"));
     await schemeDrive("helpClick", { text: "intent" });
     await seesFile();
-    setFork({ file: false, hang: 2 });
+    // Расчёт висит дольше всего ожидания шага: «старые данные на месте» проверяется безусловно.
+    setFork({ file: false, hang: 4 });
+    const started = calcs();
     if (fs.existsSync(stepFile)) fs.unlinkSync(stepFile);
-    await sleep(500);
+    await until("расчёт начался", () => calcs() > started);
     const t0 = Date.now();
     const turned = await schemeDrive("helpClick", { text: "decisions" });
     const s = await snap();
@@ -988,7 +998,8 @@ export async function run(): Promise<void> {
     assert.ok(turned.steps.length > 0 && turned.isHelp, "старые данные пропали");
     assert.equal(s.cards.length, 4, "просмотрщик не отвечает");
     await schemeDrive("helpClick", { text: "intent" });
-    if (Date.now() - t0 < 1700) assert.ok((await stepLinks()).some((k: string) => k.endsWith("intent.md")), "до нового ответа старые данные пропали");
+    assert.ok((await stepLinks()).some((k: string) => k.endsWith("intent.md")), "до нового ответа старые данные пропали");
+    assert.equal(calcs(), started + 1, "расчёта в этот момент нет или он не один");
     await until("новый ответ без файла", async () => !(await stepLinks())?.some((k: string) => k.endsWith("intent.md")), 10000);
     setFork({ file: false });
   });

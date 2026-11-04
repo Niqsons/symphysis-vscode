@@ -1,7 +1,9 @@
 // Состав режимов «проверка» и «атака» по SKILL просмотрщика: рендер в HTML без браузера.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
+import { findTools } from "../../src/host/project";
 import { attackAnchor, lensAnchor, rowAnchor } from "../../src/shared/attack";
 import { buildPrompt, emptyDraft } from "../../src/shared/logic";
 import { search } from "../../src/shared/search";
@@ -13,6 +15,7 @@ import { FailureText } from "../../src/webview/FailureText";
 import { HelpBody } from "../../src/webview/HelpBody";
 import { SearchResults } from "../../src/webview/SearchResults";
 import { Segmented } from "../../src/webview/Segmented";
+import { tempDir } from "../temp-dir.mjs";
 import { fact, fork, option, payload } from "./helpers";
 
 const DATE = "2026-11-01";
@@ -330,4 +333,18 @@ test("справка при настройке мимо инструментов
   const verbatim = "openspec: не найден <b>как есть</b> `код`";
   const out = help({ outcome: { kind: "output", root: "D:/п", output: helpOutput({ error: verbatim }) } });
   assert.ok(out.includes("openspec: не найден &lt;b&gt;как есть&lt;/b&gt; `код`"), out);
+});
+
+test("настоящий `findTools` с настройкой мимо инструментов: причина в справке называет настройку и путь", () => {
+  const project = tempDir("symphysis-проект без инструментов-");
+  const install = tempDir("symphysis-установка с пробелом-");
+  for (const toolsPath of [install, "tools"]) {
+    const found = findTools(project, toolsPath);
+    assert.ok("kind" in found && found.kind === "tools-path", JSON.stringify(found));
+    const html = help({ outcome: { kind: "failure", failure: found as Extract<typeof found, { kind: "tools-path" }> } });
+    const text = html.replace(/<[^>]+>/g, "");
+    assert.ok(text.includes("symphysis.toolsPath"), text);
+    assert.ok(text.includes(toolsPath), text);
+  }
+  assert.ok(path.isAbsolute(install));
 });

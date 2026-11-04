@@ -2,3 +2,4 @@
 registry.npmjs.org  # адреса пакетов в package-lock.json
 bevry.me  # ссылка на финансирование пакета в package-lock.json
 opencollective.com  # адрес финансирования пакета katex в package-lock.json
+claude.ai  # ссылка на сессию в подписи коммита

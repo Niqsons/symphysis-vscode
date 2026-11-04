@@ -46,7 +46,8 @@ export class SchemePanel {
   /** Кнопка и команды: вторая вкладка не появляется, открытая получает фокус. `view` — положение, которое просит команда; кнопка его не просит: последний выбор. */
   open(key: string | null, view?: PanelView): void {
     if (view) void this.memory.update(PANEL_KEY, view);
-    const shown = key ?? this.liveKey();
+    // Ключ приходит и со страницы, и из команды: только из того, что есть на диске (`security.md`).
+    const shown = key && this.isActive(key) ? key : this.liveKey();
     if (shown) this.remember(shown);
     else this.forget();
     this.view = this.positionFor(shown);
@@ -276,7 +277,8 @@ export class SchemePanel {
         return;
       case "schemeOpenFile": {
         if (!this.key) return;
-        const at = m.line ? new vscode.Position(m.line - 1, 0) : null;
+        const line = lineOf(m.line);
+        const at = line ? new vscode.Position(line - 1, 0) : null;
         await vscode.window.showTextDocument(vscode.Uri.file(schemeFile(this.key)), { viewColumn: vscode.ViewColumn.Active, preview: false, selection: at ? new vscode.Range(at, at) : undefined });
         return;
       }

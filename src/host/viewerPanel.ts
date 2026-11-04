@@ -237,6 +237,8 @@ export class ViewerPanel {
     const env = this.deps.coreEnv(state.ref.root);
     if (isFailure(env)) return void report({ stage: "error", text: `ядро недоступно (${env.kind})` });
     this.applying = true;
+    // Дата приходит со страницы и становится именем файла в `answers/`. На хосте её не считать: при удалённом хосте сменится пояс.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(m.date)) return void report({ stage: "error", text: "дата не в форме ГГГГ-ММ-ДД" });
     try {
       const result = await applyFlow({ env, ref: state.ref, text: m.text, shownSha: m.shownSha, date: m.date });
       await report(result);

@@ -1151,6 +1151,42 @@ export async function run(): Promise<void> {
     await schemeDrive("schemeNode", { id: "A" });
     await until("условие снято", async () => (await snap()).nodeFilter === null);
   });
+  await step("поддельные значения страницы: `date` не становится путём записи, чужой `key` схемы не читается и не открывается, негодная строка не мешает открыть scheme.md (`security.md`)", async () => {
+    const answers = path.join(withScheme, "answers");
+    const answersNow = () => (fs.existsSync(answers) ? fs.readdirSync(answers).length : 0);
+    const before = answersNow();
+    const journalBefore = fs.readFileSync(path.join(withScheme, "decisions.json"));
+    const shownSha = api.store.get(withScheme).payload.sha256;
+    for (const date of ["../../../../вне-ответов", "2026-11-04/../../вне-ответов", "2026-1-4", "2026-11-04\n", null]) {
+      await drive("post", { message: { type: "apply", key: withScheme, text: "# Ответы\n", shownSha, date } });
+      await until(`отказ по дате ${JSON.stringify(date)}`, async () => /Внесение не выполнено: дата/.test((await snap()).report ?? ""));
+      assert.equal(answersNow(), before);
+    }
+    assert.ok(journalBefore.equals(fs.readFileSync(path.join(withScheme, "decisions.json"))), "журнал изменился");
+    assert.equal(fs.existsSync(path.join(root, "вне-ответов.md")), false);
+
+    const foreign = path.join(root, "..", "чужая схема");
+    fs.mkdirSync(foreign, { recursive: true });
+    fs.writeFileSync(path.join(foreign, "scheme.md"), "```mermaid\nflowchart TD\n  Ч --> Ж\n```\n", "utf8");
+    await drive("post", { message: { type: "openScheme", key: foreign } });
+    await sleep(500);
+    assert.equal(panelLabel(), "Схема: со-схемой", "страница открыла чужую схему");
+    await vscode.commands.executeCommand("symphysis.openScheme", foreign);
+    await sleep(500);
+    assert.equal(panelLabel(), "Схема: со-схемой", "команда открыла чужую схему");
+    assert.equal((await schemeState("svg")).nodes.length, 5);
+
+    for (const [line, at] of [[-5, 0], ["три", 0], [1.5, 0], [3, 2]] as const) {
+      await schemeDrive("post", { message: { type: "schemeOpenFile", line } });
+      const editor = await until(`scheme.md при строке ${line}`, () => vscode.window.visibleTextEditors.find((e) => e.document.fileName === schemePath));
+      assert.equal(editor!.selection.active.line, at);
+      await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+      await until("scheme.md закрыт", () => !vscode.window.visibleTextEditors.some((e) => e.document.fileName === schemePath));
+      await until("вкладка снова на виду", () => api.scheme.visible());
+    }
+    await schemeState("svg");
+  });
+
 
   await step("условие не прячет открытые: шапка считает по всему журналу и говорит, сколько скрыто (F-104)", async () => {
     await schemeDrive("schemeNode", { id: "B" });

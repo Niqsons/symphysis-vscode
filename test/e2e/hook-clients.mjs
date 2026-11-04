@@ -326,8 +326,8 @@ function opencodeScenarios() {
   check("«Новых событий нет»: в журнале клиента нет ошибки remove", r.errors.every((l) => !/ERROR/.test(l)), r.errors.join(" | "));
   check("«Та же сессия»: события в инструкциях нет", r.ok && !r.text.includes(EVENT), `ответ: ${r.text.slice(0, 200)}`);
 
-  // Замер: execFileSync блокирует процесс opencode на время вызова скрипта.
-  note({ client: "opencode", case: "замер вызова скрипта", ...timeHookCalls(root) });
+  // Замер самого скрипта: вызов идёт из Node этого теста, а не из клиента. Числа говорят о скрипте и машине, о клиенте не говорят.
+  note({ client: "нет, вызов из Node теста", case: "замер вызова скрипта", ...timeHookCalls(root) });
 
   // «Сбой в оболочке opencode»: мёртвый путь к Python, затем файла скрипта нет.
   must(installOpencodeHook(root, path.join(work, "нет такого", "python.exe")), "файл с мёртвым путём");

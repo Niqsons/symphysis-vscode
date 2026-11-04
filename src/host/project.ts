@@ -40,8 +40,10 @@ export function findTools(root: string, toolsPath?: string): ToolsLookup {
   return dir ? { dir, installDir: toolsPath } : { kind: "tools-path", reason: `в каталоге ${toolsPath} из настройки symphysis.toolsPath нет journal.py: ни в .symphysis/tools, ни в tools, ни в нём самом` };
 }
 
+export const changeDir = (root: string, name: string) => path.join(root, CHANGES, name);
+
 export function changeRef(root: string, name: string): ChangeRef {
-  const dir = path.join(root, CHANGES, name);
+  const dir = changeDir(root, name);
   const journal = path.join(dir, "decisions.json");
   let attacks: string[] = [];
   try {

@@ -1,7 +1,7 @@
 // Сообщения между хостом расширения и страницами: просмотрщиком и поиском в боковой панели.
 import type { ParsedScheme } from "./scheme";
 import type { SearchOutcome } from "./search";
-import type { Draft, ViewPayload } from "./types";
+import type { Draft, StepHelpOutput, ViewPayload } from "./types";
 
 export type CoreFailure =
   | { kind: "no-journal" }
@@ -16,6 +16,19 @@ export type CoreFailure =
 
 /** Отказы справки сверх отказов журнала: `command` — что запустить в терминале, `root` — папка без `openspec/`. */
 export type HelpFailure = CoreFailure | { kind: "unreadable"; command: string } | { kind: "no-openspec"; root: string };
+
+/** Строка списка изменений. `key` — каталог изменения; `folder` — имя папки, только когда папок в рабочей области несколько. */
+export interface HelpChoice {
+  key: string;
+  change: string;
+  folder: string | null;
+}
+
+/** Чем кончился расчёт: вывод ядра, список на выбор (активных несколько) или отказ. Случаи различаются по полям вывода, а не по тексту. */
+export type HelpOutcome =
+  | { kind: "output"; root: string; output: StepHelpOutput }
+  | { kind: "choice"; choices: HelpChoice[] }
+  | { kind: "failure"; failure: HelpFailure };
 
 export interface Colors {
   signal: string;

@@ -2,14 +2,54 @@
 // Без `vscode`: окружение и получатель ответа приходят параметрами, связь с окном живёт не здесь.
 import fs from "node:fs";
 import path from "node:path";
-import type { HelpFailure } from "../shared/protocol";
+import type { CoreFailure, HelpFailure, HelpOutcome } from "../shared/protocol";
 import type { StepHelpOutput } from "../shared/types";
 import { contractFailure, type CoreEnv } from "./core";
+import { changeDir, type ChangeRef } from "./project";
 import { runPython } from "./python";
 
-/** Что считать: папка проекта и изменение; `change: null` — вызов без `--change`, одно активное ядро возьмёт само (F-41). */
-export interface HelpTarget { root: string; change: string | null }
+/** Что считать: выбранное изменение или, если его нет, все папки без `--change` (F-41, F-83). */
+export type HelpTarget = { root: string; change: string } | { roots: string[] };
 export type HelpResult = { ok: true; output: StepHelpOutput } | { ok: false; failure: HelpFailure };
+
+/** За просмотрщиком, затем последнее показанное, затем расчёт без `--change` (F-41). Изменения в `active` уже нет — как будто его не показывали: архивирование видно по пропаже каталога. */
+export function chooseTarget(viewerKey: string | null, shownKey: string | null, roots: string[], active: ChangeRef[]): HelpTarget {
+  const ref = active.find((r) => r.dir === viewerKey) ?? active.find((r) => r.dir === shownKey);
+  return ref ? { root: ref.root, change: ref.name } : { roots };
+}
+
+async function ask(root: string, change: string | null, envOf: (root: string) => CoreEnv | CoreFailure): Promise<HelpResult & { root: string }> {
+  const env = envOf(root);
+  return { root, ...("kind" in env ? { ok: false, failure: env } : await stepHelp(env, change)) };
+}
+
+/**
+ * Ответы папок без `--change` в один исход. Различает случаи только по полям `changes` и `change` (F-41): текст ядра может меняться.
+ * Активных больше одного на всю рабочую область — список, папка названа при нескольких папках (F-83). Одно — ответ той папки: ядро его уже посчитало. Нет ни одного — начало конвейера.
+ * Отказ папки без инструментов не прячет ответ соседней; отказ виден, только когда ответов нет совсем.
+ */
+function settle(answers: (HelpResult & { root: string })[]): HelpOutcome {
+  const outputs = answers.flatMap((a) => (a.ok ? [{ root: a.root, output: a.output }] : []));
+  const choices = outputs.flatMap(({ root, output }) => (output.changes ?? []).map((change) => ({
+    key: changeDir(root, change), change, folder: answers.length > 1 ? path.basename(root) : null,
+  })));
+  if (choices.length > 1) return { kind: "choice", choices };
+  const best = outputs.find((a) => a.output.changes?.length) ?? outputs.find((a) => !a.output.error) ?? outputs[0];
+  if (best) return { kind: "output", ...best };
+  const refused = answers.find((a) => !a.ok);
+  return { kind: "failure", failure: refused && !refused.ok ? refused.failure : { kind: "no-tools", root: "" } };
+}
+
+/** Один расчёт на папку и по очереди: одновременно не больше одного (F-83). */
+export async function computeHelp(target: HelpTarget, envOf: (root: string) => CoreEnv | CoreFailure): Promise<HelpOutcome> {
+  if ("roots" in target) {
+    const answers: (HelpResult & { root: string })[] = [];
+    for (const root of target.roots) answers.push(await ask(root, null, envOf));
+    return settle(answers);
+  }
+  const answer = await ask(target.root, target.change, envOf);
+  return answer.ok ? { kind: "output", root: answer.root, output: answer.output } : { kind: "failure", failure: answer.failure };
+}
 
 const isDir = (p: string) => !!fs.statSync(p, { throwIfNoEntry: false })?.isDirectory();
 const quoted = (arg: string) => (/\s/.test(arg) ? `"${arg}"` : arg);
@@ -40,11 +80,11 @@ export async function stepHelp(env: CoreEnv, change: string | null, opts: { time
   return mismatch ? { ok: false, failure: mismatch } : { ok: true, output: output as StepHelpOutput };
 }
 
-const sameTarget = (a: HelpTarget, b: HelpTarget | null) => !!b && a.root === b.root && a.change === b.change;
+export const sameTarget = (a: HelpTarget, b: HelpTarget | null) => !!b && JSON.stringify(a) === JSON.stringify(b);
 
 export interface StepHelpDeps {
-  compute(target: HelpTarget): Promise<HelpResult>;
-  onResult(target: HelpTarget, result: HelpResult): void;
+  compute(target: HelpTarget): Promise<HelpOutcome>;
+  onResult(target: HelpTarget, result: HelpOutcome): void;
 }
 
 /**
@@ -84,11 +124,11 @@ export class StepHelpRunner {
     this.running = null;
   }
 
-  private async once(target: HelpTarget): Promise<HelpResult> {
+  private async once(target: HelpTarget): Promise<HelpOutcome> {
     try {
       return await this.deps.compute(target);
     } catch (e) {
-      return { ok: false, failure: { kind: "crash", text: String(e) } };
+      return { kind: "failure", failure: { kind: "crash", text: String(e) } };
     }
   }
 }

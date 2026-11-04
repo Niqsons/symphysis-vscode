@@ -4,11 +4,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { copyCore, noCoreReason } from "./fixture-project";
-import { FORK_APPLY, ForkShim, forkStatus, python, type ForkReplies } from "./fork-shim";
+import { FORK_APPLY, forkShim, forkStatus, forkStatusAll, python, type ForkReplies, type ForkShim } from "./fork-shim";
 import { EXPECTED_CONTRACT, type CoreEnv } from "../../src/host/core";
-import { findTools } from "../../src/host/project";
+import { changeDir, findTools, listChanges } from "../../src/host/project";
 import { runPython } from "../../src/host/python";
-import { stepHelp, StepHelpRunner, type HelpResult, type HelpTarget } from "../../src/host/stepHelp";
+import { chooseTarget, computeHelp, stepHelp, StepHelpRunner, type HelpResult, type HelpTarget } from "../../src/host/stepHelp";
+import type { CoreFailure, HelpOutcome } from "../../src/shared/protocol";
 import { tempDir } from "../temp-dir.mjs";
 
 const opts = { skip: noCoreReason };
@@ -53,7 +54,7 @@ function envOf(root: string, toolsPath?: string): CoreEnv {
 }
 
 function shimOf(project: string, replies: ForkReplies = {}, change = CHANGE): ForkShim {
-  return new ForkShim(path.join(tempDir("symphysis-шим-"), "шим с пробелом"), { status: forkStatus(project, change), apply: FORK_APPLY, ...replies });
+  return forkShim(path.join(tempDir("symphysis-шим-"), "шим с пробелом"), { status: forkStatus(project, change), apply: FORK_APPLY, ...replies });
 }
 
 /** Подменяет `step_help.py` по месту: старое ядро или упавший Python. */
@@ -98,7 +99,7 @@ test("«Инструменты только по настройке»: спра�
 
 test("без `--change`: одно активное берётся само, несколько — список из поля `changes`", opts, async () => {
   const project = installedProject("изменение-два");
-  shimOf(project, { status_all: { stdout: JSON.stringify({ changes: [{ changeName: CHANGE }, { changeName: "изменение-два" }] }) } });
+  shimOf(project, { status_all: forkStatusAll(CHANGE, "изменение-два") });
   const output = ok(await stepHelp(envOf(project), null));
   assert.deepEqual(output.changes, [CHANGE, "изменение-два"]);
   assert.equal(output.current_step, null);
@@ -132,7 +133,7 @@ test("«Папка без `openspec/`»: у родителя он есть, ин
 test("папка без `openspec/`, инструменты в самой папке: расчёт идёт, как у `step_help.py` из терминала", opts, async () => {
   const folder = home("symphysis-справка-", "без openspec");
   copyCore(folder);
-  const shim = new ForkShim(path.join(tempDir("symphysis-шим-"), "шим"), { status_all: { stdout: JSON.stringify({ changes: [] }) } });
+  const shim = forkShim(path.join(tempDir("symphysis-шим-"), "шим"), { status_all: forkStatusAll() });
   const output = ok(await stepHelp(envOf(folder), null));
   assert.equal(output.current_step, "intent");
   assert.ok(shim.calls().length > 0);
@@ -235,10 +236,20 @@ test("Python снят по пределу: отказ `timeout`, тот же, ч
 
 interface Harness {
   runner: StepHelpRunner;
-  results: { target: HelpTarget; result: HelpResult }[];
+  results: { target: HelpTarget; result: HelpOutcome }[];
   runs: HelpTarget[];
   mostAtOnce(): number;
 }
+
+const shown = (o: HelpOutcome) => {
+  assert.ok(o.kind === "output", JSON.stringify(o));
+  return o.output;
+};
+const refused = (o: HelpOutcome) => {
+  assert.ok(o.kind === "failure", JSON.stringify(o));
+  return o.failure;
+};
+const changeOf = (t: HelpTarget) => ("change" in t ? t.change : null);
 
 function harness(env: CoreEnv, onResult?: () => void): Harness {
   const results: Harness["results"] = [];
@@ -249,7 +260,7 @@ function harness(env: CoreEnv, onResult?: () => void): Harness {
       runs.push(target);
       most = Math.max(most, ++active);
       try {
-        return await stepHelp(env, target.change);
+        return await computeHelp(target, () => env);
       } finally {
         active--;
       }
@@ -283,7 +294,7 @@ test("«Запись во время расчёта»: после него ещ�
   await runner.whenIdle();
   assert.equal(runs.length, 2, "записи склеились в один следующий расчёт");
   assert.equal(mostAtOnce(), 1);
-  assert.deepEqual(results.map((r) => ok(r.result).current_step), ["intent", "decisions"]);
+  assert.deepEqual(results.map((r) => shown(r.result).current_step), ["intent", "decisions"]);
 });
 
 test("«Расчёт прежнего закончился позже»: идёт расчёт для А, открыт журнал Б: ответ для А не показан, Б показан", opts, async () => {
@@ -299,7 +310,7 @@ test("«Расчёт прежнего закончился позже»: идё�
   assert.deepEqual(runs, [a, b], "расчёт А шёл до конца, следующий — для Б");
   assert.equal(mostAtOnce(), 1);
   assert.deepEqual(results.map((r) => r.target), [b]);
-  assert.equal(ok(results[0].result).change, "изменение-два");
+  assert.equal(shown(results[0].result).change, "изменение-два");
 });
 
 test("цель вернулась, пока шёл расчёт другой: последней просьбе ответ, просьба посередине не считается", opts, async () => {
@@ -312,8 +323,8 @@ test("цель вернулась, пока шёл расчёт другой: п
   runner.request({ root: project, change: "изменение-два" });
   runner.request({ root: project, change: "изменение-три" });
   await runner.whenIdle();
-  assert.deepEqual(runs.map((t) => t.change), [CHANGE, "изменение-три"]);
-  assert.deepEqual(results.map((r) => r.target.change), ["изменение-три"]);
+  assert.deepEqual(runs.map(changeOf), [CHANGE, "изменение-три"]);
+  assert.deepEqual(results.map((r) => changeOf(r.target)), ["изменение-три"]);
 });
 
 test("цели в двух папках с одним именем изменения разные: ответ для прежней папки отброшен", opts, async () => {
@@ -325,7 +336,7 @@ test("цели в двух папках с одним именем измене�
   await untilCall(shim, "status");
   runner.request({ root: second, change: CHANGE });
   await runner.whenIdle();
-  assert.deepEqual(results.map((r) => r.target.root), [second]);
+  assert.deepEqual(results.map((r) => r.target), [{ root: second, change: CHANGE }]);
 });
 
 test("исключение в расчёте становится отказом, следующий расчёт идёт", opts, async () => {
@@ -335,11 +346,11 @@ test("исключение в расчёте становится отказом
   // Настоящий отказ `execFile`: нулевой байт в аргументе.
   runner.request({ root: project, change: "имя\0с нулём" });
   await runner.whenIdle();
-  const refused = failure(results[0].result);
-  assert.ok(refused.kind === "crash" && refused.text.length > 0, JSON.stringify(refused));
+  const crash = refused(results[0].result);
+  assert.ok(crash.kind === "crash" && crash.text.length > 0, JSON.stringify(crash));
   runner.request({ root: project, change: CHANGE });
   await runner.whenIdle();
-  assert.equal(ok(results[1].result).change, CHANGE);
+  assert.equal(shown(results[1].result).change, CHANGE);
 });
 
 test("получатель ответа упал: следующий расчёт идёт", opts, async () => {
@@ -365,12 +376,140 @@ test("просьба не ждёт расчёта: возврат до запу�
   const runner = new StepHelpRunner({
     compute: async (target) => {
       started.push(target);
-      return { ok: false, failure: { kind: "timeout" } };
+      return { kind: "failure", failure: { kind: "timeout" } };
     },
     onResult: () => undefined,
   });
-  runner.request({ root: "папка", change: null });
+  runner.request({ roots: ["папка"] });
   assert.deepEqual(started, []);
   await runner.whenIdle();
-  assert.deepEqual(started, [{ root: "папка", change: null }]);
+  assert.deepEqual(started, [{ roots: ["папка"] }]);
+});
+
+// --- какое изменение показать: за просмотрщиком, затем последнее показанное, затем расчёт без `--change` (F-41, F-83) ---
+
+/** Окружение папки, как его собирает хост: нет инструментов — отказ. */
+function hostEnv(root: string): CoreEnv | CoreFailure {
+  const found = findTools(root);
+  return "kind" in found ? found : { python, tools: found.dir, cwd: root, installDir: found.installDir };
+}
+
+/** Папка со своим именем, настоящее ядро. */
+function folder(name: string, ...changes: string[]): string {
+  const dir = home("symphysis-папки-", name);
+  for (const change of changes) fs.mkdirSync(path.join(dir, "openspec", "changes", change), { recursive: true });
+  copyCore(dir);
+  return dir;
+}
+
+/** Ответ расчёта по папке, когда шим у всех один и нужен разный: подмена скрипта вывода. */
+function answers(root: string, fields: Record<string, unknown>): void {
+  const output = { contract: EXPECTED_CONTRACT, change: null, changes: [], error: null, current_step: "intent", current_text: null, turn: "human", steps: [], file_links: {}, ...fields };
+  stubScript(envOf(root), `import json\nprint(json.dumps(json.loads(r'''${JSON.stringify(output)}''')))\n`);
+}
+
+test("выбор: за просмотрщиком, затем последнее показанное, затем все папки без `--change`", () => {
+  const project = bareProject("изменение-два");
+  const active = listChanges(project);
+  const [one, two] = active;
+  assert.deepEqual(chooseTarget(two.dir, one.dir, [project], active), { root: project, change: two.name });
+  assert.deepEqual(chooseTarget(null, one.dir, [project], active), { root: project, change: one.name });
+  assert.deepEqual(chooseTarget(null, null, [project], active), { roots: [project] });
+  assert.deepEqual(chooseTarget(path.join(project, "нет такого"), one.dir, [project], active), { root: project, change: one.name }, "просмотрщик на изменении, которого нет, не в счёт");
+});
+
+test("«Показанного больше нет»: А заархивировано, активных не осталось: расчёт без `--change`, вкладка на шаге `intent`", opts, async () => {
+  const project = installedProject();
+  const dir = changeDir(project, CHANGE);
+  fs.mkdirSync(path.join(project, "openspec", "changes", "archive"));
+  fs.renameSync(dir, path.join(project, "openspec", "changes", "archive", `2026-11-04-${CHANGE}`));
+  const target = chooseTarget(null, dir, [project], listChanges(project));
+  assert.deepEqual(target, { roots: [project] });
+  shimOf(project, { status_all: forkStatusAll() });
+  const output = shown(await computeHelp(target, hostEnv));
+  assert.equal(output.change, null);
+  assert.equal(output.current_step, "intent");
+  assert.equal(output.turn, "human");
+});
+
+test("«Одно активное»: последнего показанного нет, ядро берёт его само", opts, async () => {
+  const project = installedProject();
+  shimOf(project, { status_all: forkStatusAll(CHANGE) });
+  const outcome = await computeHelp(chooseTarget(null, null, [project], listChanges(project)), hostEnv);
+  assert.equal(shown(outcome).change, CHANGE);
+  assert.ok(outcome.kind === "output" && outcome.root === project);
+});
+
+test("«Несколько активных»: список из двух имён без имени папки; выбор запоминается и показывает изменение", opts, async () => {
+  const project = installedProject("изменение-два");
+  shimOf(project, { status_all: forkStatusAll(CHANGE, "изменение-два") });
+  const outcome = await computeHelp({ roots: [project] }, hostEnv);
+  assert.deepEqual(outcome, { kind: "choice", choices: [
+    { key: changeDir(project, CHANGE), change: CHANGE, folder: null },
+    { key: changeDir(project, "изменение-два"), change: "изменение-два", folder: null },
+  ] });
+  assert.ok(outcome.kind === "choice");
+  // Запомненный выбор становится последним показанным: следующий расчёт идёт уже для него.
+  const target = chooseTarget(null, outcome.choices[1].key, [project], listChanges(project));
+  assert.deepEqual(target, { root: project, change: "изменение-два" });
+  assert.equal(shown(await computeHelp(target, hostEnv)).change, "изменение-два");
+});
+
+test("случаи различаются по полям `changes` и `change`, а не по тексту", async () => {
+  const project = folder("папка");
+  answers(project, { changes: ["а", "б"], current_step: null, turn: null, current_text: "Активных изменений нет: следующий шаг по файлам — `intent`, ход человека." });
+  assert.equal((await computeHelp({ roots: [project] }, hostEnv)).kind, "choice");
+  answers(project, { changes: [], current_text: "Активных изменений несколько, шаг считается для одного: укажи его в --change." });
+  assert.equal((await computeHelp({ roots: [project] }, hostEnv)).kind, "output");
+  answers(project, { changes: ["а"], change: "а", current_step: "specs", current_text: "Активных изменений несколько." });
+  assert.equal(shown(await computeHelp({ roots: [project] }, hostEnv)).current_step, "specs");
+});
+
+test("«Две папки рабочей области»: список изменений обеих папок с именем папки, по одному расчёту на папку", opts, async () => {
+  const first = folder("первая папка", CHANGE);
+  const second = folder("вторая папка", CHANGE);
+  const shim = shimOf(first, { status_all: forkStatusAll(CHANGE) });
+  const outcome = await computeHelp({ roots: [first, second] }, hostEnv);
+  assert.deepEqual(outcome, { kind: "choice", choices: [
+    { key: changeDir(first, CHANGE), change: CHANGE, folder: "первая папка" },
+    { key: changeDir(second, CHANGE), change: CHANGE, folder: "вторая папка" },
+  ] });
+  const askedIn = shim.calls().filter((c) => c.argv.includes("--all")).map((c) => path.basename(c.cwd));
+  assert.deepEqual(askedIn, ["первая папка", "вторая папка"]);
+  assert.ok(outcome.kind === "choice");
+  assert.deepEqual(chooseTarget(null, outcome.choices[1].key, [first, second], [...listChanges(first), ...listChanges(second)]), { root: second, change: CHANGE }, "выбор показывает изменение своей папки");
+});
+
+test("две папки, активное одно на обе: берётся оно, папка та, где оно лежит", async () => {
+  const first = folder("первая папка");
+  const second = folder("вторая папка", "а");
+  answers(first, { changes: [] });
+  answers(second, { changes: ["а"], change: "а", current_step: "specs" });
+  const outcome = await computeHelp({ roots: [first, second] }, hostEnv);
+  assert.equal(shown(outcome).change, "а");
+  assert.ok(outcome.kind === "output" && outcome.root === second);
+});
+
+test("две папки, активных нет: начало конвейера; отказ одной папки не прячет ответ другой", async () => {
+  const noTools = home("symphysis-папки-", "без инструментов");
+  const second = folder("вторая папка");
+  answers(second, { changes: [] });
+  const outcome = await computeHelp({ roots: [noTools, second] }, hostEnv);
+  assert.equal(shown(outcome).current_step, "intent");
+  assert.ok(outcome.kind === "output" && outcome.root === second);
+});
+
+test("сбой расчёта в папке, где изменение одно, не прячется за пустой папкой: `error` виден", async () => {
+  const first = folder("первая папка");
+  const broken = folder("вторая папка", "а");
+  answers(first, { changes: [] });
+  answers(broken, { changes: ["а"], error: "сбой форка", current_step: null, turn: null });
+  assert.equal(shown(await computeHelp({ roots: [first, broken] }, hostEnv)).error, "сбой форка");
+});
+
+test("«Нет инструментов»: одна папка или все без них: отказ первой папки; папок нет вовсе: тот же отказ", async () => {
+  const empty = home("symphysis-папки-", "пустая");
+  assert.deepEqual(refused(await computeHelp({ roots: [empty, home("symphysis-папки-", "вторая")] }, hostEnv)), { kind: "no-tools", root: empty });
+  assert.deepEqual(refused(await computeHelp({ roots: [] }, hostEnv)), { kind: "no-tools", root: "" });
+  assert.deepEqual(refused(await computeHelp({ root: empty, change: CHANGE }, hostEnv)), { kind: "no-tools", root: empty });
 });

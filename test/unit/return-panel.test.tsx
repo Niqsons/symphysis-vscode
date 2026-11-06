@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildPrompt, emptyDraft } from "../../src/shared/logic";
-import { ReturnPanel, savedAnswerLine, type ReturnPanelProps } from "../../src/webview/ReturnPanel";
+import { buildPrompt, emptyDraft } from "../../src/journal/logic";
+import { ReturnPanel, savedAnswerLine, type ReturnPanelProps } from "../../src/viewer/ReturnPanel";
 import { payload } from "./helpers";
 
 const noop = () => {};

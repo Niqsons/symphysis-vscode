@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { tempDir } from "../temp-dir.mjs";
-import { hookAcceptsChange } from "../../src/host/project";
+import { hookAcceptsChange } from "../../src/core/project";
 
 const SCRIPT = path.resolve("hook", "hook.py");
 const H1 = "a".repeat(64);

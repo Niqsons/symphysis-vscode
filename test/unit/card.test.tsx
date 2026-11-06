@@ -2,10 +2,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildPrompt, emptyDraft } from "../../src/shared/logic";
-import type { Draft, JournalRecord, ViewPayload } from "../../src/shared/types";
-import { Card, type CardContext } from "../../src/webview/Card";
-import { clickLink, LinksContext } from "../../src/webview/Text";
+import { buildPrompt, emptyDraft } from "../../src/journal/logic";
+import type { Draft, JournalRecord, ViewPayload } from "../../src/protocol/types";
+import { Card, type CardContext } from "../../src/viewer/Card";
+import { clickLink, LinksContext } from "../../src/ui/Text";
 import { fact, fork, option, payload } from "./helpers";
 
 const DATE = "2026-11-01";

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { ViewResult } from "../../src/host/core";
-import type { ChangeRef } from "../../src/host/project";
-import { JournalStore } from "../../src/host/store";
+import type { ViewResult } from "../../src/core/core";
+import type { ChangeRef } from "../../src/core/project";
+import { JournalStore } from "../../src/changes/store";
 import { payload } from "./helpers";
 
 const ref = (name: string): ChangeRef => ({ root: "R", name, dir: `R/${name}`, journal: `R/${name}/decisions.json`, hasJournal: true, attacks: [] });

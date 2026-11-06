@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   allOptions, antipodesOf, buildPrompt, chosenAntipodes, chosen, cleanupIngested, effectiveDeps, emptyDraft, nextLetter, normalizeDraft,
-} from "../../src/shared/logic";
-import type { AttackRow, Draft } from "../../src/shared/types";
+} from "../../src/journal/logic";
+import type { AttackRow, Draft } from "../../src/protocol/types";
 import { fact, fork, option, payload } from "./helpers";
 
 const DATE = "2026-11-01";

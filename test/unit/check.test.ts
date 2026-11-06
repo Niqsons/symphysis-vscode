@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkSnapshot } from "../../src/shared/check";
-import type { JournalRecord } from "../../src/shared/types";
+import { checkSnapshot } from "../../src/viewer/check";
+import type { JournalRecord } from "../../src/protocol/types";
 import { fact, fork, option, payload } from "./helpers";
 
 const decided = (id: string, date: string, over: Partial<JournalRecord> = {}) => fork(id, { decision: { option: "A", word: "слово", date }, ...over });

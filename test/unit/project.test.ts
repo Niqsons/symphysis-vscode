@@ -8,8 +8,8 @@ import { spawnSync } from "node:child_process";
 import { tempDir } from "../temp-dir.mjs";
 import { DOCS_FILES, TOOLS_FILES } from "../core-files.mjs";
 import { coreRoot, noCoreReason, SYMPHYSIS } from "./fixture-project";
-import { appendEvent, deleteDraft, findTools, installDirOf, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
-import { emptyDraft } from "../../src/shared/logic";
+import { appendEvent, deleteDraft, findTools, installDirOf, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/core/project";
+import { emptyDraft } from "../../src/journal/logic";
 
 const tmp = () => tempDir("symphysis-проект-");
 

@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, sevBase, sevReason, verdictState,
-} from "../../src/shared/attack";
-import { emptyDraft } from "../../src/shared/logic";
-import type { AttackFile, AttackRow } from "../../src/shared/types";
+} from "../../src/journal/attack";
+import { emptyDraft } from "../../src/journal/logic";
+import type { AttackFile, AttackRow } from "../../src/protocol/types";
 import { fork, payload } from "./helpers";
 
 const row = (over: Partial<AttackRow> = {}): AttackRow =>

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { resolvePython, runPython } from "../../src/host/python";
+import { resolvePython, runPython } from "../../src/core/python";
 import { tempDir } from "../temp-dir.mjs";
 
 const real = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();

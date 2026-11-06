@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { EXPECTED_CONTRACT } from "../../src/host/core";
-import { applyFlow } from "../../src/host/apply";
-import { changeRef, sha256File } from "../../src/host/project";
+import { EXPECTED_CONTRACT } from "../../src/core/core";
+import { applyFlow } from "../../src/viewer/apply";
+import { changeRef, sha256File } from "../../src/core/project";
 import { tempDir } from "../temp-dir.mjs";
 import { addAttack, makeProject, noCoreReason } from "./fixture-project";
 

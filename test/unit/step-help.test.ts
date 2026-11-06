@@ -5,12 +5,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { copyCore, noCoreReason } from "./fixture-project";
 import { FORK_APPLY, forkShim, forkStatus, forkStatusAll, python, type ForkReplies, type ForkShim } from "./fork-shim";
-import { EXPECTED_CONTRACT, type CoreEnv } from "../../src/host/core";
-import { resolveSkill } from "../../src/host/links";
-import { changeDir, findTools, listChanges } from "../../src/host/project";
-import { runPython } from "../../src/host/python";
-import { chooseTarget, computeHelp, stepHelp, StepHelpRunner, type HelpResult, type HelpTarget } from "../../src/host/stepHelp";
-import type { CoreFailure, HelpOutcome } from "../../src/shared/protocol";
+import { EXPECTED_CONTRACT, type CoreEnv } from "../../src/core/core";
+import { resolveSkill } from "../../src/file-links/resolve";
+import { changeDir, findTools, listChanges } from "../../src/core/project";
+import { runPython } from "../../src/core/python";
+import { chooseTarget, computeHelp, stepHelp, StepHelpRunner, type HelpResult, type HelpTarget } from "../../src/step-help/stepHelp";
+import type { CoreFailure, HelpOutcome } from "../../src/protocol/protocol";
 import { tempDir } from "../temp-dir.mjs";
 
 const opts = { skip: noCoreReason };

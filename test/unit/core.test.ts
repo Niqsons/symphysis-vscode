@@ -5,8 +5,8 @@ import cp, { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { mock } from "node:test";
-import { applyAnswers, EXPECTED_CONTRACT, rebuild, viewJson } from "../../src/host/core";
-import { changeRef, sha256File } from "../../src/host/project";
+import { applyAnswers, EXPECTED_CONTRACT, rebuild, viewJson } from "../../src/core/core";
+import { changeRef, sha256File } from "../../src/core/project";
 import { addAttack, makeProject, noCoreReason } from "./fixture-project";
 
 const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();

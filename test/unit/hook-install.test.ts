@@ -5,11 +5,11 @@ import childProcess, { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { hookCondition, installClaudeHook, installHookScript, installOpencodeHook, isOwnClaudeHandler, isOwnOpencodeFile, writeProjectFile } from "../../src/host/hook";
-import { installClient, removeHook, resolveGit } from "../../src/host/hookGit";
-import { HookRunner, syncHook, type HookDeps } from "../../src/host/hookRunner";
-import { appendEvent, findTools } from "../../src/host/project";
-import { resolvePython } from "../../src/host/python";
+import { hookCondition, installClaudeHook, installHookScript, installOpencodeHook, isOwnClaudeHandler, isOwnOpencodeFile, writeProjectFile } from "../../src/hook/hook";
+import { installClient, removeHook, resolveGit } from "../../src/hook/hookGit";
+import { HookRunner, syncHook, type HookDeps } from "../../src/hook/hookRunner";
+import { appendEvent, findTools } from "../../src/core/project";
+import { resolvePython } from "../../src/core/python";
 import { tempDir } from "../temp-dir.mjs";
 
 const tmp = () => tempDir("хук установка ");

@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { HelpView } from "../../src/shared/protocol";
-import type { HelpSkill, StepHelpOutput, StepHelpPage } from "../../src/shared/types";
-import { HelpBody, SECTION_LABELS, type HelpActions, type ShownPage } from "../../src/webview/HelpBody";
+import type { HelpView } from "../../src/protocol/protocol";
+import type { HelpSkill, StepHelpOutput, StepHelpPage } from "../../src/protocol/types";
+import { HelpBody, SECTION_LABELS, type HelpActions, type ShownPage } from "../../src/step-help/HelpBody";
 import { noCoreReason, SYMPHYSIS } from "./fixture-project";
 
 const noop = () => {};
@@ -160,8 +160,8 @@ test("счётчика задач и чисел развилок на стран
 });
 
 test("в справке нет `dangerouslySetInnerHTML`", () => {
-  for (const f of ["HelpBody.tsx", "help.tsx", "Text.tsx"]) {
-    assert.ok(!fs.readFileSync(path.join(process.cwd(), "src", "webview", f), "utf8").includes("dangerouslySetInnerHTML"), f);
+  for (const f of ["step-help/HelpBody.tsx", "step-help/page.tsx", "ui/Text.tsx"]) {
+    assert.ok(!fs.readFileSync(path.join(process.cwd(), "src", f), "utf8").includes("dangerouslySetInnerHTML"), f);
   }
 });
 

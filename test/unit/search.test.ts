@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emptyDraft } from "../../src/shared/logic";
-import { rowAnchor } from "../../src/shared/attack";
-import { search } from "../../src/shared/search";
-import type { SearchOutcome } from "../../src/shared/protocol";
-import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../../src/shared/types";
+import { emptyDraft } from "../../src/journal/logic";
+import { rowAnchor } from "../../src/journal/attack";
+import { search } from "../../src/search/search";
+import type { SearchOutcome } from "../../src/protocol/protocol";
+import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../../src/protocol/types";
 import { fact, fork, option, payload } from "./helpers";
 
 const asText = (o: SearchOutcome) => {

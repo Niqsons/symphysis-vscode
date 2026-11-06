@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { HelpView } from "../../src/protocol/protocol";
-import type { HelpSkill, StepHelpOutput, StepHelpPage } from "../../src/protocol/types";
-import { HelpBody, SECTION_LABELS, type HelpActions, type ShownPage } from "../../src/step-help/HelpBody";
-import { noCoreReason, SYMPHYSIS } from "./fixture-project";
+import type { HelpView } from "../../protocol/protocol";
+import type { HelpSkill, StepHelpOutput, StepHelpPage } from "../../protocol/types";
+import { HelpBody, SECTION_LABELS, type HelpActions, type ShownPage } from "../HelpBody";
+import { noCoreReason, SYMPHYSIS } from "../../../test/unit/fixture-project";
 
 const noop = () => {};
 const IDS = ["intent", "decisions", "specs", "archive"];

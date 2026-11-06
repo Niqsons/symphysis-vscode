@@ -4,11 +4,11 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { EXPECTED_CONTRACT } from "../../src/core/core";
-import { applyFlow } from "../../src/viewer/apply";
-import { changeRef, sha256File } from "../../src/core/project";
-import { tempDir } from "../temp-dir.mjs";
-import { addAttack, makeProject, noCoreReason } from "./fixture-project";
+import { EXPECTED_CONTRACT } from "../../core/core";
+import { applyFlow } from "../apply";
+import { changeRef, sha256File } from "../../core/project";
+import { tempDir } from "../../../test/temp-dir.mjs";
+import { addAttack, makeProject, noCoreReason } from "../../../test/unit/fixture-project";
 
 const python = spawnSync("python", ["-c", "import sys;print(sys.executable)"], { encoding: "utf8" }).stdout.trim();
 const opts = { skip: noCoreReason };

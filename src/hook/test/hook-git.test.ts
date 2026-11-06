@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { installClient, removeExcludeLines, resolveGit, type HookClient } from "../../src/hook/hookGit";
-import { tempDir } from "../temp-dir.mjs";
+import { installClient, removeExcludeLines, resolveGit, type HookClient } from "../hookGit";
+import { tempDir } from "../../../test/temp-dir.mjs";
 
 const GIT = resolveGit(process.env, []) as string;
 const PY = "C:\\путь с пробелом\\python.exe";

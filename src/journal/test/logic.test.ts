@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   allOptions, antipodesOf, buildPrompt, chosenAntipodes, chosen, cleanupIngested, effectiveDeps, emptyDraft, nextLetter, normalizeDraft,
-} from "../../src/journal/logic";
-import type { AttackRow, Draft } from "../../src/protocol/types";
-import { fact, fork, option, payload } from "./helpers";
+} from "../logic";
+import type { AttackRow, Draft } from "../../protocol/types";
+import { fact, fork, option, payload } from "../../../test/unit/helpers";
 
 const DATE = "2026-11-01";
 const lines = (p: ReturnType<typeof payload>, d: Draft) => buildPrompt(p, d, DATE).text.split("\n").slice(1);

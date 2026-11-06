@@ -2,7 +2,6 @@
 // Исходники разложены по модулям `src/<модуль>/` (F-31): у страницы точка сборки `page.ts(x)` в каталоге её модуля.
 import { build } from "esbuild";
 import fs from "node:fs";
-import path from "node:path";
 
 const production = { "process.env.NODE_ENV": '"production"' };
 const node = { bundle: true, platform: "node", format: "cjs", target: "node20", external: ["vscode"], logLevel: "warning" };
@@ -16,10 +15,26 @@ const PAGES = [
   ["src/step-help/page.tsx", "media/help.js"],
 ];
 
+/**
+ * Юнит-тесты: тесты модуля — в `src/<модуль>/test/`, общие и сквозные для нескольких модулей — в `test/unit/` (F-23, F-62).
+ * Собираются в один плоский `out/test/`: `__dirname` теста везде один, имя файла теста одно на репозиторий.
+ */
+function unitTests() {
+  const modules = fs.readdirSync("src", { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => `src/${e.name}/test`);
+  const found = new Map();
+  for (const dir of ["test/unit", ...modules].filter((d) => fs.existsSync(d))) {
+    for (const f of fs.readdirSync(dir).filter((f) => /\.test\.tsx?$/.test(f))) {
+      const name = f.replace(/\.tsx?$/, "");
+      if (found.has(name)) throw new Error(`юнит-тест ${name} в двух местах: ${found.get(name)} и ${dir}/${f}`);
+      found.set(name, `${dir}/${f}`);
+    }
+  }
+  return [...found].map(([out, entry]) => ({ in: entry, out }));
+}
+
 async function buildUnits() {
   fs.rmSync("out/test", { recursive: true, force: true });
-  const units = fs.readdirSync("test/unit").filter((f) => /\.test\.tsx?$/.test(f)).map((f) => path.join("test/unit", f));
-  await build({ ...node, entryPoints: units, outdir: "out/test", jsx: "automatic", define: production });
+  await build({ ...node, entryPoints: unitTests(), outdir: "out/test", jsx: "automatic", define: production });
 }
 
 if (process.argv.includes("--unit")) {

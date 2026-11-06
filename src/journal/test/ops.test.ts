@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDep, addNewFork, addOption, choose, clampPromptHeight, clearChoice, evidenceLevel, matchesRecordFilter, park, recordMark, removeDep, removeNewFork, restoreDep, setWord, stats, unpark } from "../../src/journal/ops";
-import { emptyDraft } from "../../src/journal/logic";
-import type { RecordFilter } from "../../src/protocol/protocol";
-import { fact, fork, option, payload } from "./helpers";
+import { addDep, addNewFork, addOption, choose, clampPromptHeight, clearChoice, evidenceLevel, matchesRecordFilter, park, recordMark, removeDep, removeNewFork, restoreDep, setWord, stats, unpark } from "../ops";
+import { emptyDraft } from "../logic";
+import type { RecordFilter } from "../../protocol/protocol";
+import { fact, fork, option, payload } from "../../../test/unit/helpers";
 
 const DATE = "2026-11-01";
 

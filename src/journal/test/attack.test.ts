@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, sevBase, sevReason, verdictState,
-} from "../../src/journal/attack";
-import { emptyDraft } from "../../src/journal/logic";
-import type { AttackFile, AttackRow } from "../../src/protocol/types";
-import { fork, payload } from "./helpers";
+} from "../attack";
+import { emptyDraft } from "../logic";
+import type { AttackFile, AttackRow } from "../../protocol/types";
+import { fork, payload } from "../../../test/unit/helpers";
 
 const row = (over: Partial<AttackRow> = {}): AttackRow =>
   ({ claim: "утверждение", section: "—", lens: "coverage", invariant: "—", severity: "блокер", support: "нет", fix: "правка", ...over });

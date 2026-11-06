@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { emptyDraft } from "../../src/journal/logic";
-import { rowAnchor } from "../../src/journal/attack";
-import { search } from "../../src/search/search";
-import type { SearchOutcome } from "../../src/protocol/protocol";
-import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../../src/protocol/types";
-import { fact, fork, option, payload } from "./helpers";
+import { emptyDraft } from "../../journal/logic";
+import { rowAnchor } from "../../journal/attack";
+import { search } from "../search";
+import type { SearchOutcome } from "../../protocol/protocol";
+import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../../protocol/types";
+import { fact, fork, option, payload } from "../../../test/unit/helpers";
 
 const asText = (o: SearchOutcome) => {
   if (o.kind !== "text") throw new Error(`ожидался текстовый поиск, а не ${o.kind}`);

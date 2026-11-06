@@ -3,10 +3,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { hasNodes, inNode } from "../../src/journal/ops";
-import { blocksNote, fitScale, isClick, MAX_SCALE, MIN_SCALE, nodeIdOf, nodeInScheme, parseScheme, zoomIn, zoomOut } from "../../src/scheme/scheme";
-import { noCoreReason, SYMPHYSIS } from "./fixture-project";
-import { fork, payload } from "./helpers";
+import { hasNodes, inNode } from "../../journal/ops";
+import { blocksNote, fitScale, isClick, MAX_SCALE, MIN_SCALE, nodeIdOf, nodeInScheme, parseScheme, zoomIn, zoomOut } from "../scheme";
+import { noCoreReason, SYMPHYSIS } from "../../../test/unit/fixture-project";
+import { fork, payload } from "../../../test/unit/helpers";
 
 const opts = { skip: noCoreReason };
 

@@ -5,8 +5,8 @@ import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { tempDir } from "../temp-dir.mjs";
-import { hookAcceptsChange } from "../../src/core/project";
+import { tempDir } from "../../../test/temp-dir.mjs";
+import { hookAcceptsChange } from "../../core/project";
 
 const SCRIPT = path.resolve("hook", "hook.py");
 const H1 = "a".repeat(64);

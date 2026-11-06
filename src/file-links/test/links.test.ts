@@ -3,9 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { tempDir } from "../temp-dir.mjs";
-import { lineOf, resolveLink, resolveSkill } from "../../src/file-links/resolve";
-import { linkOf, splitLink } from "../../src/file-links/links";
+import { tempDir } from "../../../test/temp-dir.mjs";
+import { lineOf, resolveLink, resolveSkill } from "../resolve";
+import { linkOf, splitLink } from "../links";
 
 const ROOT = path.resolve("проект с пробелом");
 const A = { "док ументы/файл один.md": "док ументы/файл один.md", "vscode/a.ts": "../symphysis-vscode/src/a.ts", "логотип.png": "media/логотип.png" };

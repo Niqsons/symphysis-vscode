@@ -5,11 +5,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { tempDir } from "../temp-dir.mjs";
-import { DOCS_FILES, TOOLS_FILES } from "../core-files.mjs";
-import { coreRoot, noCoreReason, SYMPHYSIS } from "./fixture-project";
-import { appendEvent, deleteDraft, findTools, installDirOf, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/core/project";
-import { emptyDraft } from "../../src/journal/logic";
+import { tempDir } from "../../../test/temp-dir.mjs";
+import { DOCS_FILES, TOOLS_FILES } from "../../../test/core-files.mjs";
+import { coreRoot, noCoreReason, SYMPHYSIS } from "../../../test/unit/fixture-project";
+import { appendEvent, deleteDraft, findTools, installDirOf, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../project";
+import { emptyDraft } from "../../journal/logic";
 
 const tmp = () => tempDir("symphysis-проект-");
 

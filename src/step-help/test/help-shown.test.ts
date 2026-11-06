@@ -1,9 +1,9 @@
 // Листание справки живёт, пока показано то же изменение (ключ каталога, а не имя): решение вынесено из страницы в чистую функцию.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { HelpView } from "../../src/protocol/protocol";
-import type { StepHelpOutput } from "../../src/protocol/types";
-import { keepShown, type ShownState } from "../../src/step-help/helpShown";
+import type { HelpView } from "../../protocol/protocol";
+import type { StepHelpOutput } from "../../protocol/types";
+import { keepShown, type ShownState } from "../helpShown";
 
 const output = (...ids: string[]) => ({ steps: ids.map((id) => ({ id })) } as unknown as StepHelpOutput);
 const view = (key: string | null, out: StepHelpOutput | null): HelpView => ({

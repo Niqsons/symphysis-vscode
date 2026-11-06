@@ -104,7 +104,7 @@ test("«Скилл по настройке»: настройка на `<клон
   const clone = home("symphysis-клон-", "клон с пробелами");
   fs.mkdirSync(path.join(clone, "tools"));
   for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-    if (/^(journal.*\.(py|json)|step_help\.py)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(clone, "tools", f));
+    if (/^(journal.*\.(py|json)|step_help\.py|openspec_run\.py)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(clone, "tools", f));
   }
   fs.mkdirSync(path.join(clone, "docs"));
   fs.copyFileSync(path.join(SYMPHYSIS, "docs", "journal.schema.json"), path.join(clone, "docs", "journal.schema.json"));

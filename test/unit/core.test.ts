@@ -145,14 +145,14 @@ function patchContract(tools: string, literal: string | null) {
   const text = fs.readFileSync(file, "utf8");
   const next = literal === null
     ? text.replace(/^ *payload\["contract"\] = CONTRACT\r?\n/m, "")
-    : text.replace(/^CONTRACT = 2\r?$/m, `CONTRACT = ${literal}`);
+    : text.replace(/^CONTRACT = 3\r?$/m, `CONTRACT = ${literal}`);
   assert.notEqual(next, text, "код ядра не подменён");
   fs.writeFileSync(file, next, "utf8");
 }
 
 test("Номер совпал: журнал показан, отказа нет", opts, async () => {
   const { env, ref } = setup();
-  assert.equal(EXPECTED_CONTRACT, 2);
+  assert.equal(EXPECTED_CONTRACT, 3);
   const r = await viewJson(env, ref);
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.payload.contract, EXPECTED_CONTRACT);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, sevBase, sevReason, verdictState,
+  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, sevBase, sevReason, verdictState,
 } from "../../src/shared/attack";
 import { emptyDraft } from "../../src/shared/logic";
 import type { AttackFile, AttackRow } from "../../src/shared/types";
@@ -25,6 +25,18 @@ test("подпись линзы: у каждого файла свой закр�
   assert.equal(lensLabel(journalFile([]), "coverage"), "покрытие разделов");
   assert.equal(lensLabel(artifactsFile([]), "coverage"), "");
   assert.equal(lensLabel(artifactsFile([]), "scenario-run"), "прогон сценария");
+  assert.equal(lensLabel(artifactsFile([]), "trace-link"), "связи изменения");
+  assert.equal(lensLabel(journalFile([]), "trace-link"), "");
+});
+
+test("линза trace-link: третья в списке артефактов; без строк группы нет, со строкой — после claim-extraction", () => {
+  assert.equal(isKnownLens(artifactsFile([]), "trace-link"), true);
+  assert.equal(isKnownLens(journalFile([]), "trace-link"), false);
+  assert.deepEqual(fileGroups(artifactsFile([row({ lens: "scenario-run" })])).groups.map((g) => g.slug), ["scenario-run"]);
+  assert.deepEqual(fileGroups(artifactsFile([])).groups, []);
+  const g = fileGroups(artifactsFile([row({ lens: "trace-link" }), row({ lens: "claim-extraction" }), row({ lens: "scenario-run" })]));
+  assert.deepEqual(g.groups.map((x) => x.slug), ["scenario-run", "claim-extraction", "trace-link"]);
+  assert.deepEqual(g.lensCounts, [["scenario-run", 1], ["claim-extraction", 1], ["trace-link", 1]]);
 });
 
 test("тяжесть — первое слово ячейки, регистр не важен, причина — в скобках", () => {

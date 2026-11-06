@@ -12,6 +12,7 @@ const LENSES = {
   artifacts: [
     { slug: "scenario-run", label: "прогон сценария" },
     { slug: "claim-extraction", label: "существование имён" },
+    { slug: "trace-link", label: "связи изменения" },
   ],
 };
 

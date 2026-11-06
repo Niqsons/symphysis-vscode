@@ -17,7 +17,7 @@ export function copyCore(project: string): string {
   const tools = path.join(project, ".symphysis", "tools");
   fs.mkdirSync(tools, { recursive: true });
   for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-    if (/^(journal.*\.(py|json)|step_help\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
+    if (/^(journal.*\.(py|json)|step_help\.py|openspec_run\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
   }
   // Как у установщика: у файла корней репозитория нет корня для всего проекта, и улики там дают «корня для пути нет».
   fs.writeFileSync(path.join(tools, "journal-roots.json"), JSON.stringify({ "": "<root>/.." }), "utf8");

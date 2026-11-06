@@ -2,24 +2,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { installCore, resolveCore } from "../core-files.mjs";
 import { keepTemp } from "../temp-dir.mjs";
 
 export const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const CODE = process.env.SYMPHYSIS_CODE ?? path.join(process.env.LOCALAPPDATA ?? "", "Programs", "Microsoft VS Code", "Code.exe");
-export const SYMPHYSIS = process.env.SYMPHYSIS_ROOT || path.resolve(repo, "..", "symphysis");
-if (process.env.SYMPHYSIS_ROOT && !fs.existsSync(path.join(SYMPHYSIS, "tools", "journal.py"))) throw new Error(`SYMPHYSIS_ROOT=${SYMPHYSIS}: нет tools/journal.py`);
+// Без `SYMPHYSIS_ROOT` — соседний клон; заданный путь без ядра модульной раскладки — отказ сразу (F-09, F-61).
+const core = resolveCore(process.env, path.resolve(repo, "..", "symphysis"));
+export const SYMPHYSIS = core.root;
 export const fixtures = path.join(repo, "test", "fixtures");
 
 /** Проект с установленными инструментами symphysis: как после `symphysis install`, корень для улик — сам проект. */
 export function projectWithTools(project) {
-  const tools = path.join(project, ".symphysis", "tools");
-  fs.mkdirSync(tools, { recursive: true });
-  for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-    if (/^(journal.*\.(py|json)|step_help\.py|openspec_run\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
-  }
+  if (core.missing) throw new Error(`${core.missing}; укажи SYMPHYSIS_ROOT`);
+  const tools = installCore(SYMPHYSIS, project);
   fs.writeFileSync(path.join(tools, "journal-roots.json"), '{"": "<root>/.."}\n', "utf8");
-  fs.mkdirSync(path.join(project, ".symphysis", "docs"), { recursive: true });
-  fs.copyFileSync(path.join(SYMPHYSIS, "docs", "journal.schema.json"), path.join(project, ".symphysis", "docs", "journal.schema.json"));
   fs.writeFileSync(path.join(project, "intent.md"), "Надо показать журнал человеку.\n", "utf8");
 }
 

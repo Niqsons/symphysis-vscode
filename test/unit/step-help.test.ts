@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { copyCore, noCoreReason, SYMPHYSIS } from "./fixture-project";
+import { copyCore, noCoreReason } from "./fixture-project";
 import { FORK_APPLY, forkShim, forkStatus, forkStatusAll, python, type ForkReplies, type ForkShim } from "./fork-shim";
 import { EXPECTED_CONTRACT, type CoreEnv } from "../../src/host/core";
 import { resolveSkill } from "../../src/host/links";
@@ -98,25 +98,23 @@ test("«Инструменты только по настройке»: спра�
   assert.deepEqual(intent.skills, [{ name: "symphysis-проба", path: ".claude/skills/symphysis-проба/SKILL.md", base: "install" }]);
 });
 
-test("«Скилл по настройке»: настройка на `<клон>/tools`: ядро ищет скилл в `<клон>`, клик открывает его же файл", opts, async () => {
+test("«Скилл по настройке»: клон модульной раскладки, установленный в себя: ядро ищет скилл в каталогах модулей клона, клик открывает его же файл (F-42, F-45)", opts, async () => {
   const project = bareProject();
   write(project, "openspec/schemas/symphysis/steps.md", "## intent\n\nНамерение\n\n### Зачем\n\nЗови `symphysis-проба`.\n");
   const clone = home("symphysis-клон-", "клон с пробелами");
-  fs.mkdirSync(path.join(clone, "tools"));
-  for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-    if (/^(journal.*\.(py|json)|step_help\.py|openspec_run\.py)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(clone, "tools", f));
-  }
-  fs.mkdirSync(path.join(clone, "docs"));
-  fs.copyFileSync(path.join(SYMPHYSIS, "docs", "journal.schema.json"), path.join(clone, "docs", "journal.schema.json"));
-  const skill = path.join(clone, "skills", "symphysis-проба", "SKILL.md");
-  write(clone, "skills/symphysis-проба/SKILL.md");
+  copyCore(clone);
+  const skill = path.join(clone, "viewer", "skills", "symphysis-проба", "SKILL.md");
+  write(clone, "viewer/skills/symphysis-проба/SKILL.md");
   shimOf(project);
-  const env = envOf(project, path.join(clone, "tools"));
-  assert.equal(env.installDir, clone);
-  const output = ok(await stepHelp(env, CHANGE));
-  const skills = output.steps.find((s) => s.id === "intent")!.skills!;
-  assert.deepEqual(skills, [{ name: "symphysis-проба", path: "skills/symphysis-проба/SKILL.md", base: "install" }]);
-  assert.equal(resolveSkill(skills, "symphysis-проба", env.installDir), fs.realpathSync.native(skill));
+  // Настройка на клон и на его `.symphysis/tools` значит одну установку; `<клон>/tools` ядра больше не держит (F-45).
+  for (const setting of [clone, path.join(clone, ".symphysis", "tools")]) {
+    const env = envOf(project, setting);
+    assert.equal(env.installDir, clone);
+    const output = ok(await stepHelp(env, CHANGE));
+    const skills = output.steps.find((s) => s.id === "intent")!.skills!;
+    assert.deepEqual(skills, [{ name: "symphysis-проба", path: "viewer/skills/symphysis-проба/SKILL.md", base: "install" }]);
+    assert.equal(resolveSkill(skills, "symphysis-проба", env.installDir), fs.realpathSync.native(skill));
+  }
 });
 
 test("без `--change`: одно активное берётся само, несколько — список из поля `changes`", opts, async () => {
@@ -440,6 +438,14 @@ function folder(name: string, ...changes: string[]): string {
   return dir;
 }
 
+/** Папка, где ответ расчёта целиком подменяет `answers`: ядро не нужно, поиску инструментов хватает файла `journal.py`. */
+function stubFolder(name: string, ...changes: string[]): string {
+  const dir = home("symphysis-папки-", name);
+  for (const change of changes) fs.mkdirSync(path.join(dir, "openspec", "changes", change), { recursive: true });
+  write(dir, ".symphysis/tools/journal.py");
+  return dir;
+}
+
 /** Ответ расчёта по папке, когда шим у всех один и нужен разный: подмена скрипта вывода. */
 function answers(root: string, fields: Record<string, unknown>): void {
   const output = { contract: EXPECTED_CONTRACT, change: null, changes: [], error: null, current_step: "intent", current_text: null, turn: "human", steps: [], file_links: {}, ...fields };
@@ -494,7 +500,7 @@ test("«Несколько активных»: список из двух имё
 });
 
 test("случаи различаются по полям `changes` и `change`, а не по тексту", async () => {
-  const project = folder("папка");
+  const project = stubFolder("папка");
   answers(project, { changes: ["а", "б"], current_step: null, turn: null, current_text: "Активных изменений нет: следующий шаг по файлам — `intent`, ход человека." });
   assert.equal((await computeHelp({ roots: [project] }, hostEnv)).kind, "choice");
   answers(project, { changes: [], current_text: "Активных изменений несколько, шаг считается для одного: укажи его в --change." });
@@ -519,8 +525,8 @@ test("«Две папки рабочей области»: список изме
 });
 
 test("две папки, активное одно на обе: берётся оно, папка та, где оно лежит", async () => {
-  const first = folder("первая папка");
-  const second = folder("вторая папка", "а");
+  const first = stubFolder("первая папка");
+  const second = stubFolder("вторая папка", "а");
   answers(first, { changes: [] });
   answers(second, { changes: ["а"], change: "а", current_step: "specs" });
   const outcome = await computeHelp({ roots: [first, second] }, hostEnv);
@@ -530,7 +536,7 @@ test("две папки, активное одно на обе: берётся �
 
 test("две папки, активных нет: начало конвейера; отказ одной папки не прячет ответ другой", async () => {
   const noTools = home("symphysis-папки-", "без инструментов");
-  const second = folder("вторая папка");
+  const second = stubFolder("вторая папка");
   answers(second, { changes: [] });
   const outcome = await computeHelp({ roots: [noTools, second] }, hostEnv);
   assert.equal(shown(outcome).current_step, "intent");
@@ -538,8 +544,8 @@ test("две папки, активных нет: начало конвейер�
 });
 
 test("сбой расчёта в папке, где изменение одно, не прячется за пустой папкой: `error` виден", async () => {
-  const first = folder("первая папка");
-  const broken = folder("вторая папка", "а");
+  const first = stubFolder("первая папка");
+  const broken = stubFolder("вторая папка", "а");
   answers(first, { changes: [] });
   answers(broken, { changes: ["а"], error: "сбой форка", current_step: null, turn: null });
   assert.equal(shown(await computeHelp({ roots: [first, broken] }, hostEnv)).error, "сбой форка");
@@ -553,8 +559,8 @@ test("«Нет инструментов»: одна папка или все б�
 });
 
 test("сбой `status --all` соседней папки (`changes: null` и `error`) не прячется за чистой пустой папкой", async () => {
-  const clean = folder("чистая папка");
-  const broken = folder("сломанная папка");
+  const clean = stubFolder("чистая папка");
+  const broken = stubFolder("сломанная папка");
   answers(clean, { changes: [] });
   answers(broken, { changes: null, error: "сбой форка", current_step: null, turn: null });
   for (const roots of [[clean, broken], [broken, clean]]) {
@@ -565,8 +571,8 @@ test("сбой `status --all` соседней папки (`changes: null` и `e
 });
 
 test("папка с изменением важнее чужой ошибки", async () => {
-  const withChange = folder("с изменением", "а");
-  const broken = folder("сломанная папка");
+  const withChange = stubFolder("с изменением", "а");
+  const broken = stubFolder("сломанная папка");
   answers(withChange, { changes: ["а"], change: "а", current_step: "specs" });
   answers(broken, { changes: null, error: "сбой форка", current_step: null, turn: null });
   const outcome = await computeHelp({ roots: [broken, withChange] }, hostEnv);

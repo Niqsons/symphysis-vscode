@@ -8,6 +8,7 @@ import { applyAnswers, viewJson, type CoreEnv } from "../../src/host/core";
 import { changeRef, saveAnswers, type ChangeRef } from "../../src/host/project";
 import { allOptions, buildPrompt, cleanupIngested, disputeKey, emptyDraft, nextLetter, WORD_NEEDED_TEXT } from "../../src/shared/logic";
 import { ADDRESSEES, type Draft, type ViewPayload } from "../../src/shared/types";
+import { coreSource } from "../core-files.mjs";
 import { bigJournal, coreJournals } from "../core-journals.mjs";
 import { addAttack, copyCore, makeProject, noCoreReason, SYMPHYSIS } from "./fixture-project";
 
@@ -211,7 +212,7 @@ test("Тест-страховка F-80: два добавленных вариа
 });
 
 test("«Один текст со страницей»: просьба слова в просмотрщике равна просьбе в шаблоне ядра", opts, () => {
-  const tpl = fs.readFileSync(path.join(SYMPHYSIS, "tools", "playground-template.html"), "utf8");
+  const tpl = fs.readFileSync(coreSource(SYMPHYSIS, "playground-template.html"), "utf8");
   const m = /data-word-needed="' \+ esc\(rec\.id\) \+ '">([^<']+)<\/div>/.exec(tpl);
   assert.ok(m, "в шаблоне ядра не нашлась просьба слова");
   assert.equal(WORD_NEEDED_TEXT, m![1]);

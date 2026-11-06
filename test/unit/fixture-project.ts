@@ -1,28 +1,23 @@
-// Установленный проект во временном каталоге с кириллицей и пробелами: ядро — копия `tools/` соседнего репозитория symphysis.
+// Установленный проект во временном каталоге с кириллицей и пробелами: ядро — файлы модулей соседнего клона symphysis,
+// сведённые в плоские `.symphysis/tools/` и `.symphysis/docs/`, как их ставит установка (`test/core-files.mjs`).
 import fs from "node:fs";
 import path from "node:path";
+import { coreRoot, installCore, resolveCore } from "../core-files.mjs";
 import { tempDir } from "../temp-dir.mjs";
 
-/** Пустая переменная считается незаданной. */
-export const coreRoot = (env: NodeJS.ProcessEnv, sibling: string) => env.SYMPHYSIS_ROOT || sibling;
+export { coreRoot };
 
-export const SYMPHYSIS = coreRoot(process.env, path.resolve(__dirname, "..", "..", "..", "symphysis"));
-export const hasCore = fs.existsSync(path.join(SYMPHYSIS, "tools", "journal.py"));
-// Заданный путь без ядра — опечатка, а не «ядра нет на этой машине»: пропуск здесь был бы ложным зелёным.
-if (process.env.SYMPHYSIS_ROOT && !hasCore) throw new Error(`SYMPHYSIS_ROOT=${SYMPHYSIS}: нет tools/journal.py, тесты на настоящем ядре не запустить`);
-export const noCoreReason = hasCore ? false : `нет ядра symphysis в ${SYMPHYSIS}; укажи SYMPHYSIS_ROOT`;
+// Без `SYMPHYSIS_ROOT` — соседний клон; заданный путь без ядра модульной раскладки — отказ, а не пропуск (F-09, F-61).
+const core = resolveCore(process.env, path.resolve(__dirname, "..", "..", "..", "symphysis"));
+export const SYMPHYSIS = core.root;
+export const hasCore = core.missing === null;
+export const noCoreReason = hasCore ? false : `${core.missing}; укажи SYMPHYSIS_ROOT`;
 const FIXTURES = path.resolve(__dirname, "..", "..", "test", "fixtures");
 
 export function copyCore(project: string): string {
-  const tools = path.join(project, ".symphysis", "tools");
-  fs.mkdirSync(tools, { recursive: true });
-  for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-    if (/^(journal.*\.(py|json)|step_help\.py|openspec_run\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
-  }
+  const tools = installCore(SYMPHYSIS, project);
   // Как у установщика: у файла корней репозитория нет корня для всего проекта, и улики там дают «корня для пути нет».
   fs.writeFileSync(path.join(tools, "journal-roots.json"), JSON.stringify({ "": "<root>/.." }), "utf8");
-  fs.mkdirSync(path.join(project, ".symphysis", "docs"), { recursive: true });
-  fs.copyFileSync(path.join(SYMPHYSIS, "docs", "journal.schema.json"), path.join(project, ".symphysis", "docs", "journal.schema.json"));
   return tools;
 }
 

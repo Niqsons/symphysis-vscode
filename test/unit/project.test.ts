@@ -6,7 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { tempDir } from "../temp-dir.mjs";
-import { coreRoot } from "./fixture-project";
+import { DOCS_FILES, TOOLS_FILES } from "../core-files.mjs";
+import { coreRoot, noCoreReason, SYMPHYSIS } from "./fixture-project";
 import { appendEvent, deleteDraft, findTools, installDirOf, listChanges, readDraft, saveAnswers, sha256File, writeDraft } from "../../src/host/project";
 import { emptyDraft } from "../../src/shared/logic";
 
@@ -217,4 +218,60 @@ test("Опечатка в пути: прогон красный и называ�
   const run = spawnSync(process.execPath, ["--test", path.join(__dirname, "core.test.js")], { encoding: "utf8", env });
   assert.notEqual(run.status, 0, run.stdout);
   assert.match(run.stdout + run.stderr, /SYMPHYSIS_ROOT/);
+});
+
+test("Опечатка в пути: ядро прежней раскладки (`tools/journal.py`) не засчитано — прогон красный и называет раскладку (F-09)", () => {
+  const old = path.join(tmp(), "ядро прежней раскладки");
+  fs.mkdirSync(path.join(old, "tools"), { recursive: true });
+  fs.writeFileSync(path.join(old, "tools", "journal.py"), "", "utf8");
+  const env: NodeJS.ProcessEnv = { ...process.env, SYMPHYSIS_ROOT: old };
+  delete env.NODE_TEST_CONTEXT;
+  const run = spawnSync(process.execPath, ["--test", path.join(__dirname, "core.test.js")], { encoding: "utf8", env });
+  assert.notEqual(run.status, 0, run.stdout);
+  assert.match(run.stdout + run.stderr, /прежней раскладки/);
+});
+
+/** Плагин рядом с клоном ядра (его кладёт `core`): собранный тест ядра и фикстуры — в `<каталог>/symphysis-vscode`, ядро — в `<каталог>/symphysis`. */
+function besideClone(core: (clone: string) => void): string {
+  const base = path.join(tmp(), "каталог клонов");
+  const plugin = path.join(base, "symphysis-vscode");
+  fs.mkdirSync(path.join(plugin, "out", "test"), { recursive: true });
+  fs.copyFileSync(path.join(__dirname, "core.test.js"), path.join(plugin, "out", "test", "core.test.js"));
+  const fixtures = path.resolve(__dirname, "..", "..", "test", "fixtures");
+  fs.mkdirSync(path.join(plugin, "test", "fixtures"), { recursive: true });
+  for (const f of fs.readdirSync(fixtures)) fs.copyFileSync(path.join(fixtures, f), path.join(plugin, "test", "fixtures", f));
+  core(path.join(base, "symphysis"));
+  return path.join(plugin, "out", "test", "core.test.js");
+}
+
+function runBeside(testFile: string) {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.SYMPHYSIS_ROOT;
+  delete env.NODE_TEST_CONTEXT;
+  return spawnSync(process.execPath, ["--test", testFile], { encoding: "utf8", env });
+}
+
+test("«Соседний клон в модульной раскладке»: без SYMPHYSIS_ROOT тесты на настоящем ядре запускаются, а не пропускаются (F-61)", { skip: noCoreReason }, () => {
+  // Сосед — файлы модулей настоящего ядра на их местах в клоне: ровно то, что берёт установка.
+  const testFile = besideClone((clone) => {
+    for (const rel of [...TOOLS_FILES, ...DOCS_FILES]) {
+      fs.mkdirSync(path.join(clone, path.dirname(rel)), { recursive: true });
+      fs.copyFileSync(path.join(SYMPHYSIS, rel), path.join(clone, rel));
+    }
+  });
+  const run = runBeside(testFile);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /^ℹ skipped 0$/m);
+  assert.match(run.stdout, /^ℹ pass [1-9]\d*$/m);
+});
+
+test("Сосед прежней раскладки: тесты на ядре пропущены, причина называет раскладку", () => {
+  const testFile = besideClone((clone) => {
+    fs.mkdirSync(path.join(clone, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(clone, "tools", "journal.py"), "", "utf8");
+  });
+  const run = runBeside(testFile);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.doesNotMatch(run.stdout, /^ℹ pass [1-9]/m);
+  assert.match(run.stdout, /прежней раскладки/);
 });

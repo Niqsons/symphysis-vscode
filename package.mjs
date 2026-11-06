@@ -7,6 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const repo = path.dirname(fileURLToPath(import.meta.url));
+/** README пакета: корневой README.md описывает репозиторий, в `.vsix` идёт этот файл — vsce кладёт его как `extension/readme.md` (F-38). */
+export const PACKAGE_README = "docs/package-readme.md";
 const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
 
 export function buildVersion() {
@@ -16,7 +18,7 @@ export function buildVersion() {
 
 /** Пакет этой версии в `out`; возвращает итог vsce. */
 export function pack(version, out) {
-  const flags = ["--no-update-package-json", "--no-dependencies", "--skip-license", "--allow-missing-repository"];
+  const flags = ["--no-update-package-json", "--no-dependencies", "--skip-license", "--allow-missing-repository", `--readme-path "${PACKAGE_README}"`];
   return spawnSync(`npx vsce package "${version}" ${flags.join(" ")} --out "${out}"`, { cwd: repo, shell: true, encoding: "utf8" });
 }
 

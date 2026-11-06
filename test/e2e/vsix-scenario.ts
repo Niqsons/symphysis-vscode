@@ -11,7 +11,7 @@ const ID = "symphysis.symphysis-vscode";
 /** Корень репозитория: сценарий собран в `out/e2e/`. Отсюда берутся исходники для сверки с пакетом. */
 const REPO = path.resolve(__dirname, "..", "..");
 /** Белый список .vscodeignore: забытый файл молча даёт пустую панель, лишний — утечку исходников. */
-/** vsce кладёт README.md в установленное расширение под именем readme.md. */
+/** vsce кладёт README пакета (`--readme-path`) в установленное расширение под именем readme.md. */
 const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/help.js", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json", "readme.md"];
 
 export async function run(): Promise<void> {
@@ -38,6 +38,11 @@ export async function run(): Promise<void> {
   await step("описание в пакете: README.md называет записи хука, настройку и ручную уборку; недоверенные папки не поддерживаются", async () => {
     assertReadme(readReadme(path.join(ext!.extensionPath, "readme.md")));
     assert.equal(ext!.packageJSON.capabilities.untrustedWorkspaces.supported, false);
+  });
+
+  await step("«Пакет несёт README пакета»: readme.md — текст docs/package-readme.md, а не README корня с каталогами репозитория (F-38)", async () => {
+    const lines = (file: string) => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+    assert.equal(lines(path.join(ext!.extensionPath, "readme.md")), lines(path.join(REPO, "docs", "package-readme.md")));
   });
 
   await step("версия установленного: версия пакета и хеш коммита, как в имени файла", async () => {

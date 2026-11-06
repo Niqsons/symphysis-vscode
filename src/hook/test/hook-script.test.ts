@@ -8,7 +8,7 @@ import path from "node:path";
 import { tempDir } from "../../../test/temp-dir.mjs";
 import { hookAcceptsChange } from "../../core/project";
 
-const SCRIPT = path.resolve("hook", "hook.py");
+const SCRIPT = path.resolve("src", "hook", "hook.py");
 const H1 = "a".repeat(64);
 const H2 = "0123456789abcdef".repeat(4);
 

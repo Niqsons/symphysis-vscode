@@ -290,10 +290,17 @@ test("запись события: обычный случай и сбой за�
 });
 
 // --- скрипт из пакета (F-31, F-63): корень репозитория устроен как установленное расширение, `hook/hook.py` рядом с `out/` ---
+// Исходник лежит в модуле `hook` (`src/hook/hook.py`), сборка кладёт его копию в `hook/hook.py` — путь, который читает код (F-52).
 
 const EXTENSION = path.resolve(".");
 const PACKAGED = fs.readFileSync(path.join(EXTENSION, "hook", "hook.py"));
 const scriptOf = (root: string) => path.join(root, ".symphysis", "viewer", "hook.py");
+
+test("«Файл хука в каталоге своего модуля»: сборка положила `src/hook/hook.py` в `hook/hook.py` байт в байт", () => {
+  assert.ok(PACKAGED.equals(fs.readFileSync(path.join(EXTENSION, "src", "hook", "hook.py"))), "hook/hook.py расходится с src/hook/hook.py: сборка не скопировала исходник");
+  const ignore = fs.readFileSync(path.join(EXTENSION, ".vscodeignore"), "utf8").split(/\r?\n/);
+  assert.ok(ignore.includes("!hook/hook.py"), ".vscodeignore не пропускает hook/hook.py в пакет");
+});
 
 test("«Скрипта нет»: файл появился и совпадает с пакетным, каталог исключает себя из git", () => {
   const root = tmp();

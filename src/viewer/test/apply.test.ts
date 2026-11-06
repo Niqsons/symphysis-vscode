@@ -159,7 +159,7 @@ test("«Внесено»: строку понимает настоящий hook.
   const { env, ref, sha } = setup(SHOWN);
   const project = ref.root;
   fs.mkdirSync(viewerPath(project), { recursive: true });
-  fs.copyFileSync(path.resolve("hook", "hook.py"), viewerPath(project, "hook.py"));
+  fs.copyFileSync(path.resolve("src", "hook", "hook.py"), viewerPath(project, "hook.py"));
   const hook = () => spawnSync("python", ["-I", "-X", "utf8", viewerPath(project, "hook.py")], { input: JSON.stringify({ session_id: "сессия" }), cwd: project, encoding: "utf8" });
   assert.equal(hook().stdout, "");
   const r = await applyFlow({ env, ref, text: "- F-02: A — «так»", shownSha: sha, date: DATE });

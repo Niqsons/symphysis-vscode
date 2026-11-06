@@ -32,8 +32,16 @@ function unitTests() {
   return [...found].map(([out, entry]) => ({ in: entry, out }));
 }
 
+/** Скрипт хука лежит в модуле `hook`, а код читает его по пути `hook/hook.py` пакета (F-52): копия в корне — выход сборки, как `media/`. */
+function copyHook() {
+  fs.mkdirSync("hook", { recursive: true });
+  fs.copyFileSync("src/hook/hook.py", "hook/hook.py");
+}
+
 async function buildUnits() {
   fs.rmSync("out/test", { recursive: true, force: true });
+  // Тесты хука читают корень репозитория как установленное расширение: копия скрипта нужна и им.
+  copyHook();
   await build({ ...node, entryPoints: unitTests(), outdir: "out/test", jsx: "automatic", define: production });
 }
 
@@ -46,6 +54,7 @@ if (process.argv.includes("--unit")) {
   fs.copyFileSync("node_modules/mermaid/dist/mermaid.min.js", "media/mermaid.min.js");
   fs.copyFileSync("node_modules/mermaid/LICENSE", "media/mermaid.LICENSE");
   fs.copyFileSync("src/ui/style.css", "media/viewer.css");
+  copyHook();
   if (process.argv.includes("--tests")) {
     await buildUnits();
     await build({ ...node, entryPoints: ["test/e2e/scenario.ts"], outfile: "out/e2e/scenario.js" });

@@ -8,6 +8,8 @@ import { assertReadme, readReadme } from "../package-readme";
 import { results, sleep, step, until } from "./steps";
 
 const ID = "symphysis.symphysis-vscode";
+/** Корень репозитория: сценарий собран в `out/e2e/`. Отсюда берутся исходники для сверки с пакетом. */
+const REPO = path.resolve(__dirname, "..", "..");
 /** Белый список .vscodeignore: забытый файл молча даёт пустую панель, лишний — утечку исходников. */
 /** vsce кладёт README.md в установленное расширение под именем readme.md. */
 const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/help.js", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json", "readme.md"];
@@ -26,6 +28,11 @@ export async function run(): Promise<void> {
       .map((f) => f.replace(/\\/g, "/"))
       .sort();
     assert.deepEqual(files, PACKAGE);
+  });
+
+  await step("«Файл хука в каталоге своего модуля»: в пакете по пути `hook/hook.py` лежит исходник модуля `hook` байт в байт (F-52)", async () => {
+    const source = fs.readFileSync(path.join(REPO, "src", "hook", "hook.py"));
+    assert.ok(fs.readFileSync(path.join(ext!.extensionPath, "hook", "hook.py")).equals(source), "hook/hook.py пакета расходится с src/hook/hook.py");
   });
 
   await step("описание в пакете: README.md называет записи хука, настройку и ручную уборку; недоверенные папки не поддерживаются", async () => {

@@ -13,7 +13,7 @@ if (fs.existsSync(target) && fs.readdirSync(target).length) throw new Error(`ÐºÐ
 const tools = path.join(target, ".symphysis", "tools");
 fs.mkdirSync(tools, { recursive: true });
 for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-  if (/^(journal.*\.py|step_help\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
+  if (/^(journal.*\.py|step_help\.py|openspec_run\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
 }
 const installed = path.join(SYMPHYSIS, ".symphysis", "tools", "journal-roots.json");
 const roots = fs.existsSync(installed) ? JSON.parse(fs.readFileSync(installed, "utf8")) : {};

@@ -297,7 +297,7 @@ export async function run(): Promise<void> {
     const before = fs.readFileSync(draftFile);
     const shown = (await snap()).cards;
     const notice = /поставь новый \.vsix/;
-    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 2\r?$/m, "CONTRACT = 99"));
+    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 3(\r?)$/m, "CONTRACT = 99$1"));
     fs.writeFileSync(script, fs.readFileSync(script));
     try {
       const s = await until("просьба про .vsix", async () => { const r = await snap(); return r.notes.some((n: string) => notice.test(n)) ? r : null; });

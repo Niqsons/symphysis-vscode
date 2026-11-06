@@ -4,8 +4,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import * as crypto from "node:crypto";
-import { emptyDraft } from "../../src/shared/logic";
-import { search } from "../../src/shared/search";
+import { emptyDraft } from "../../src/journal/logic";
+import { search } from "../../src/search/search";
 import { driver, results, sleep, step, until } from "./steps";
 
 interface Api {

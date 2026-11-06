@@ -1,6 +1,5 @@
 **
 !package.json
-!README.md
 !out/extension.js
 !hook/hook.py
 !media/viewer.js

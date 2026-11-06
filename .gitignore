@@ -60,3 +60,5 @@ media/mermaid.min.js
 media/mermaid.LICENSE
 media/viewer.css
 media/test-driver.js
+# Скрипт хука: исходник — src/hook/hook.py, сборка кладёт копию по пути пакета
+/hook/

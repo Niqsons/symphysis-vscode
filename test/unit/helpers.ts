@@ -1,4 +1,4 @@
-import type { JournalOption, JournalRecord, ViewPayload } from "../../src/shared/types";
+import type { JournalOption, JournalRecord, ViewPayload } from "../../src/protocol/types";
 
 export function option(letter: string, over: Partial<JournalOption> = {}): JournalOption {
   return { letter, text: `вариант ${letter}`, added: false, unlikely: null, evidence: [], ...over };

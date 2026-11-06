@@ -175,6 +175,11 @@ VS Code второй запуск после изменения файлов з�
 
 ## Как повторить
 
+`spike/` удалён из дерева 2026-11-07: его `run.mjs` читал ядро прежней раскладки (`tools/journal*.py`,
+`docs/journal.schema.json`) и журнал `calibration-fixes` до архива. Вернуть каталог — `git checkout a207ee1 -- spike`;
+перед запуском поправить в `run.mjs` пути ядра (список файлов — `test/core-files.mjs`) и журнала
+(`openspec/changes/archive/2026-11-02-calibration-fixes`).
+
 ```
 cd spike
 npm install

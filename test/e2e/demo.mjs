@@ -3,23 +3,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { installCore, resolveCore } from "../core-files.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const SYMPHYSIS = process.env.SYMPHYSIS_ROOT || path.resolve(repo, "..", "symphysis");
+const { root: SYMPHYSIS, missing } = resolveCore(process.env, path.resolve(repo, "..", "symphysis"));
+if (missing) throw new Error(`${missing}; укажи SYMPHYSIS_ROOT`);
 const target = process.argv[2];
 if (!target) throw new Error("нужен каталог: node test/e2e/demo.mjs <каталог>");
 if (fs.existsSync(target) && fs.readdirSync(target).length) throw new Error(`каталог не пуст: ${target}`);
 
-const tools = path.join(target, ".symphysis", "tools");
-fs.mkdirSync(tools, { recursive: true });
-for (const f of fs.readdirSync(path.join(SYMPHYSIS, "tools"))) {
-  if (/^(journal.*\.py|step_help\.py|openspec_run\.py|playground-template\.html)$/.test(f)) fs.copyFileSync(path.join(SYMPHYSIS, "tools", f), path.join(tools, f));
-}
+const tools = installCore(SYMPHYSIS, target);
 const installed = path.join(SYMPHYSIS, ".symphysis", "tools", "journal-roots.json");
 const roots = fs.existsSync(installed) ? JSON.parse(fs.readFileSync(installed, "utf8")) : {};
 fs.writeFileSync(path.join(tools, "journal-roots.json"), JSON.stringify({ ...roots, "": SYMPHYSIS }, null, 1), "utf8");
-fs.mkdirSync(path.join(target, ".symphysis", "docs"), { recursive: true });
-fs.copyFileSync(path.join(SYMPHYSIS, "docs", "journal.schema.json"), path.join(target, ".symphysis", "docs", "journal.schema.json"));
 
 const changes = path.join(SYMPHYSIS, "openspec", "changes");
 for (const name of fs.readdirSync(changes)) {

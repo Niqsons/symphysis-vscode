@@ -1,7 +1,6 @@
 // Страница поиска в боковой панели: поле и результаты. Считает хост: журнал и черновик у него, страница их не держит.
 import { useEffect, useRef, useState } from "react";
-import type { SearchHostMessage, SearchPageMessage } from "../shared/protocol";
-import type { SearchOutcome } from "../shared/search";
+import type { SearchHostMessage, SearchOutcome, SearchPageMessage } from "../shared/protocol";
 import { applyColors } from "./colors";
 import { SearchResults } from "./SearchResults";
 

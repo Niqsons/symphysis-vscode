@@ -1,7 +1,5 @@
 // Сообщения между хостом расширения и страницами: просмотрщиком и поиском в боковой панели.
-import type { ParsedScheme } from "./scheme";
-import type { SearchOutcome } from "./search";
-import type { Draft, StepHelpOutput, ViewPayload } from "./types";
+import type { Draft, JournalRecord, StepHelpOutput, ViewPayload } from "./types";
 
 export type CoreFailure =
   | { kind: "no-journal" }
@@ -96,6 +94,16 @@ export type PageMessage =
   | { type: "openFile"; link: string; line: number | null }
   | { type: "openPythonSetting" };
 
+/** Разобранный `scheme.md`: разбор — `parseScheme` модуля схемы, тип — здесь, его несёт сообщение вкладки (F-44). */
+export interface ParsedScheme {
+  /** Текст первого непустого блока mermaid; блока нет — `null`. */
+  text: string | null;
+  /** Сколько в файле непустых блоков mermaid. */
+  blocks: number;
+  /** Строка файла, с которой начинается блок; нужна для номера строки в ошибке. */
+  first_line: number | null;
+}
+
 /** Вкладка схемы. */
 export interface SchemeView extends ParsedScheme {
   name: string;
@@ -134,6 +142,48 @@ export type HelpPageMessage =
   | { type: "helpOpenFile"; link: string; line: number | null }
   | { type: "helpOpenSkill"; name: string }
   | { type: "openPythonSetting" };
+
+/** Метка записи в оглавлении и поиске: черновик учитывается, как и в карточке. */
+export type RecordMark = "fact" | "open" | "parked" | "decided" | "changed";
+
+// Ответ поиска: считает модуль поиска, несёт сообщение страницы — типы здесь (F-44).
+export interface SearchHit {
+  target: RevealTarget;
+  label: string;
+  /** Где совпало — первое поле по порядку карточки. */
+  field: string;
+  before: string;
+  match: string;
+  after: string;
+  /** Сколько полей записи совпало; показан отрывок первого. */
+  count: number;
+  /** Уровень тяжести — у строки атаки. */
+  level?: string;
+}
+
+export interface LinkedRecord {
+  id: string;
+  question: string;
+  /** `null` — такой записи в журнале нет. */
+  mark: RecordMark | null;
+}
+
+export interface RecordCard {
+  id: string;
+  question: string;
+  kind: JournalRecord["kind"];
+  mark: RecordMark;
+  picked: { letter: string; text: string } | null;
+  dependsOn: LinkedRecord[];
+  dependsOnChain: LinkedRecord[];
+  dependents: LinkedRecord[];
+  dependentsChain: LinkedRecord[];
+}
+
+export type SearchOutcome =
+  | { kind: "empty" }
+  | { kind: "text"; missingRecord?: string; journal: SearchHit[]; attack: SearchHit[] }
+  | { kind: "record"; card: RecordCard; journal: SearchHit[]; attack: SearchHit[] };
 
 /** Страница поиска в боковой панели. `scope` — открытое изменение; `null` — журнал не открыт, искать негде. */
 export type SearchHostMessage = { type: "searchState"; query: string; scope: string | null; outcome: SearchOutcome; colors: Colors };

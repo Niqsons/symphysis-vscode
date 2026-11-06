@@ -1,6 +1,6 @@
 // Правки черновика человеком и счётчики: чистые функции, прежний объект не меняется — React сравнивает записи по ссылке.
 import { chosen, isHumanOption, nextLetter } from "./logic";
-import type { RecordFilter } from "./protocol";
+import type { RecordFilter, RecordMark } from "./protocol";
 import type { DecisionDraft, Draft, Evidence, JournalRecord, ViewPayload } from "./types";
 
 const decision = (d: Draft, id: string): DecisionDraft => d.decisions[id] ?? { choice: null, word: "", parked: [] };
@@ -107,8 +107,6 @@ export function stats(p: ViewPayload, d: Draft): Stats {
     quoteMissing: p.records.flatMap(evidenceOf).filter((ev) => evidenceLevel(ev) === "signal").length,
   };
 }
-
-export type RecordMark = "fact" | "open" | "parked" | "decided" | "changed";
 
 /** Метка записи в оглавлении: черновик учитывается, как и в карточке. */
 export function recordMark(p: ViewPayload, d: Draft, rec: JournalRecord): RecordMark {

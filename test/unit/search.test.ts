@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { emptyDraft } from "../../src/shared/logic";
 import { rowAnchor } from "../../src/shared/attack";
-import { search, type SearchOutcome } from "../../src/shared/search";
+import { search } from "../../src/shared/search";
+import type { SearchOutcome } from "../../src/shared/protocol";
 import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../../src/shared/types";
 import { fact, fork, option, payload } from "./helpers";
 

@@ -1,7 +1,5 @@
 // Результаты поиска боковой панели: попадания по разделам или запись по номеру с зависимостями кратким списком.
-import type { RecordMark } from "../shared/ops";
-import type { RevealTarget } from "../shared/protocol";
-import type { LinkedRecord, RecordCard, SearchHit, SearchOutcome } from "../shared/search";
+import type { LinkedRecord, RecordCard, RecordMark, RevealTarget, SearchHit, SearchOutcome } from "../shared/protocol";
 
 const MARK: Record<RecordMark, { text: string; level: string }> = {
   fact: { text: "факт", level: "muted" },

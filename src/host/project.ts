@@ -4,8 +4,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { emptyDraft, normalizeDraft } from "../shared/logic";
-import type { CoreFailure } from "../shared/protocol";
-import { parseScheme, type ParsedScheme } from "../shared/scheme";
+import type { CoreFailure, ParsedScheme } from "../shared/protocol";
+import { parseScheme } from "../shared/scheme";
 import type { Draft } from "../shared/types";
 
 export interface ChangeRef {

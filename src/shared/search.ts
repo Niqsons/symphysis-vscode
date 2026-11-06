@@ -2,52 +2,14 @@
 // номер — запись с зависимостями. Чистые функции: хост считает, страница поиска показывает.
 import { attackFileName, rowAnchor, severityLevel } from "./attack";
 import { chosen, disputeKey, effectiveDeps, norm } from "./logic";
-import { recordMark, type RecordMark } from "./ops";
-import type { RevealTarget } from "./protocol";
+import { recordMark } from "./ops";
+import type { LinkedRecord, RecordCard, SearchHit, SearchOutcome } from "./protocol";
 import type { AttackRow, Draft, Evidence, JournalRecord, ViewPayload } from "./types";
 
 export const NOTES_ANCHOR = "journal-notes";
 
 const SNIPPET_BEFORE = 30;
 const SNIPPET_AFTER = 80;
-
-export interface SearchHit {
-  target: RevealTarget;
-  label: string;
-  /** Где совпало — первое поле по порядку карточки. */
-  field: string;
-  before: string;
-  match: string;
-  after: string;
-  /** Сколько полей записи совпало; показан отрывок первого. */
-  count: number;
-  /** Уровень тяжести — у строки атаки. */
-  level?: string;
-}
-
-export interface LinkedRecord {
-  id: string;
-  question: string;
-  /** `null` — такой записи в журнале нет. */
-  mark: RecordMark | null;
-}
-
-export interface RecordCard {
-  id: string;
-  question: string;
-  kind: JournalRecord["kind"];
-  mark: RecordMark;
-  picked: { letter: string; text: string } | null;
-  dependsOn: LinkedRecord[];
-  dependsOnChain: LinkedRecord[];
-  dependents: LinkedRecord[];
-  dependentsChain: LinkedRecord[];
-}
-
-export type SearchOutcome =
-  | { kind: "empty" }
-  | { kind: "text"; missingRecord?: string; journal: SearchHit[]; attack: SearchHit[] }
-  | { kind: "record"; card: RecordCard; journal: SearchHit[]; attack: SearchHit[] };
 
 /** Нижний регистр и ё → е, длина строки та же: индекс совпадения годится для исходного текста. */
 function fold(s: string): string {

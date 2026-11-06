@@ -1,8 +1,8 @@
 // Поиск в боковой панели: вид со страницей, потому что поля ввода у TreeView нет. Ищет в журнале, открытом во вкладке; запрос живёт здесь — вид можно закрыть и открыть.
 import * as vscode from "vscode";
 import { emptyDraft } from "../shared/logic";
-import type { Colors, RevealTarget, SearchHostMessage, SearchPageMessage } from "../shared/protocol";
-import { search, type SearchOutcome } from "../shared/search";
+import type { Colors, RevealTarget, SearchHostMessage, SearchOutcome, SearchPageMessage } from "../shared/protocol";
+import { search } from "../shared/search";
 import type { Draft } from "../shared/types";
 import { pageHtml } from "./page";
 import type { JournalStore } from "./store";

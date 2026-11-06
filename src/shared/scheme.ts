@@ -1,14 +1,6 @@
 // `scheme.md` и схема на вкладке: разбор файла и правила масштаба и клика. Без vscode и без DOM.
-// Разбор есть и в ядре (`tools/journal_render.py`): показ у каждой стороны свой, оба сверяются набором `tests/fixtures/scheme/cases.json` ядра.
-
-export interface ParsedScheme {
-  /** Текст первого непустого блока mermaid; блока нет — `null`. */
-  text: string | null;
-  /** Сколько в файле непустых блоков mermaid. */
-  blocks: number;
-  /** Строка файла, с которой начинается блок; нужна для номера строки в ошибке. */
-  first_line: number | null;
-}
+// Разбор есть и в ядре (`viewer_render.py`, модуль `viewer`): показ у каждой стороны свой, оба сверяются набором `tests/fixtures/scheme/cases.json` ядра.
+import type { ParsedScheme } from "./protocol";
 
 const FENCE = /^ {0,3}(`{3,})[ \t]*([^`]*?)[ \t]*$/;
 

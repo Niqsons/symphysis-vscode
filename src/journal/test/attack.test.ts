@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, setAttackSev, severityLevel, sevBase, sevIngested, sevMove, sevReason, verdictState,
+  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, isWarning, lensAnchor, lensFilters, lensLabel, noteHasRead, OUTSIDE, readByNotes, readKey, readText, recordIdOf, rowAnchor, setAttackDispute, setAttackRead, setAttackSev, severityLevel, sevBase, sevIngested, sevMove, sevReason, verdictState,
 } from "../attack";
 import { emptyDraft } from "../logic";
 import type { AttackFile, AttackRow } from "../../protocol/types";
@@ -153,6 +153,39 @@ test("отметка тяжести: пустой ход убирает ключ
   const d = setAttackSev(emptyDraft(), "k", { to: "предупреждение", why: "почему" });
   assert.deepEqual(d.attackSevs.k, { to: "предупреждение", why: "почему" });
   assert.deepEqual(setAttackSev(d, "k", null).attackSevs, {});
+});
+
+test("флаг «прочитано»: только у предупреждения; текст — раздел дословно, ключ — файл и раздел", () => {
+  assert.equal(isWarning(row({ severity: "предупреждение" })), true);
+  assert.equal(isWarning(row({ severity: "предупреждение (причина)" })), true);
+  assert.equal(isWarning(row({ severity: "блокер" })), false);
+  assert.equal(isWarning(row({ severity: "справка" })), false);
+  const r = row({ severity: "предупреждение", section: "F-12, options.B" });
+  assert.equal(readText(r), "предупреждение прочитано: F-12, options.B");
+  assert.equal(readKey(artifactsFile([r]), r), "attack/artifacts.md|F-12, options.B");
+});
+
+test("текст флага — отдельный сегмент заметки через « · », не подстрока", () => {
+  const text = "предупреждение прочитано: F-12, options.B";
+  assert.equal(noteHasRead(text, text), true);
+  assert.equal(noteHasRead(`спор · ${text} · ещё`, text), true);
+  assert.equal(noteHasRead(`${text} · ещё`, text), true);
+  assert.equal(noteHasRead(`ещё · ${text}`, text), true);
+  assert.equal(noteHasRead("ещё · предупреждение прочитано: F-12, options.BX", text), false);
+  assert.equal(noteHasRead("предупреждение прочитано: F-12, options.BX", text), false);
+});
+
+test("флаг по заметкам журнала: только у строк предупреждение и с разделом дословно", () => {
+  const notes = [{ text: "предупреждение прочитано: F-12, options.B · спор" }];
+  assert.equal(readByNotes(notes, row({ severity: "предупреждение", section: "F-12, options.B" })), true);
+  assert.equal(readByNotes(notes, row({ severity: "предупреждение", section: "F-12, options.C" })), false);
+  assert.equal(readByNotes(notes, row({ severity: "блокер", section: "F-12, options.B" })), false);
+});
+
+test("отметка «прочитано»: выключение убирает ключ", () => {
+  const d = setAttackRead(emptyDraft(), "k", true);
+  assert.deepEqual(d.attackReads, { k: true });
+  assert.deepEqual(setAttackRead(d, "k", false).attackReads, {});
 });
 
 test("пустой перечень атак: фильтр пуст", () => {

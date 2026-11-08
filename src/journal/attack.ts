@@ -81,6 +81,41 @@ export function setAttackSev(d: Draft, key: string, mark: SevMark | null): Draft
   return { ...d, attackSevs: next };
 }
 
+// --- флаг «прочитано» у строки предупреждение (warning-read-flag, B-43) ---
+
+export const READ_PREFIX = "предупреждение прочитано: ";
+export const READ_SEP = " · ";
+
+export function isWarning(row: AttackRow): boolean {
+  return sevBase(row.severity) === "предупреждение";
+}
+
+/** Текст отметки в «Замечания к схеме:»: раздел дословно из столбца «Раздел», пробелы схлопнуты. */
+export const readText = (row: AttackRow): string => READ_PREFIX + normText(row.section);
+
+/** Ключ отметки — файл атаки и раздел: две строки одного раздела делят одну отметку (F-21). */
+export const readKey = (att: AttackFile, row: AttackRow): string => `${att.path}|${normText(row.section)}`;
+
+/** Текст флага — отдельный сегмент заметки через « · », не подстрока (F-12). */
+export function noteHasRead(noteText: string, text: string): boolean {
+  const n = normText(noteText);
+  return n === text || n.startsWith(text + READ_SEP) || n.endsWith(READ_SEP + text) || n.includes(READ_SEP + text + READ_SEP);
+}
+
+/** Флаг по заметкам журнала: только у строк предупреждение. */
+export function readByNotes(notes: { text: string }[], row: AttackRow): boolean {
+  if (!isWarning(row)) return false;
+  const t = readText(row);
+  return notes.some((n) => noteHasRead(n.text, t));
+}
+
+export function setAttackRead(d: Draft, key: string, on: boolean): Draft {
+  const next = { ...d.attackReads };
+  if (on) next[key] = true;
+  else delete next[key];
+  return { ...d, attackReads: next };
+}
+
 /** Раздел `F-NN, поле` с записью в журнале — переход к карточке; записи нет — ссылки нет. */
 export function recordIdOf(section: string, records: JournalRecord[]): string | null {
   const id = /^(F-\d+)(?!\d)/.exec(section.trim())?.[1];

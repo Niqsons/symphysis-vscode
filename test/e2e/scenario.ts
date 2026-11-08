@@ -482,6 +482,16 @@ export async function run(): Promise<void> {
     assert.match(description, /artifacts: битый файл/);
   });
 
+  await step("переключатель «прочитано» у предупреждения: текст в «Замечания к схеме:»; после apply — «в журнале», переключатель неактивен", async () => {
+    // Своя строка предупреждения: кнопки тяжести дальше переведут «Мелочь без причины понижения» в блокер, и флагу нужна живая строка.
+    fs.appendFileSync(path.join(attacked, "attack", "decisions.md"), "| Читательское предупреждение | F-04, question | coverage | инвариант | предупреждение | есть | правка цели |\n", "utf8");
+    await until("строка предупреждения", async () => (await drive("attackRows")).some((c: string) => c.includes("Читательское предупреждение")));
+    await drive("readToggle", { claim: "Читательское предупреждение" });
+    const toggled = await snap();
+    assert.match(toggled.prompt, /Замечания к схеме: предупреждение прочитано: F-04, question/);
+    assert.ok((await drive("attackRowHtml", { claim: "Читательское предупреждение" })).includes("прочитано · не внесено"));
+  });
+
   await step("кнопки тяжести: без обоснования строки нет; с обоснованием — строка в промпте, apply меняет ячейку, журнал не тронут, отметка уходит", async () => {
     const file = path.join(attacked, "attack", "decisions.md");
     // Нажатие без обоснования: пометка, поля раскрыто, строки о тяжести в промпте нет.
@@ -507,13 +517,18 @@ export async function run(): Promise<void> {
     });
     assert.ok((await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("блокер (числа сходятся сами)"));
     assert.ok(!(await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("нет обоснования, строки о тяжести не будет"));
+    // Флаг «прочитано» из той же записи вернулся по заметке журнала: «в журнале», переключатель неактивен.
+    assert.ok(fs.readFileSync(attackedJournal, "utf8").includes("предупреждение прочитано: F-04, question"));
+    const flag = await drive("attackRowHtml", { claim: "Читательское предупреждение" });
+    assert.ok(flag.includes("прочитано · в журнале"));
+    assert.match(flag, /<input[^>]*disabled/);
   });
 
   await step("новая строка атаки на диске появляется без кнопки", async () => {
     const file = path.join(attacked, "attack", "decisions.md");
     fs.appendFileSync(file, "| Новая строка от агента | F-04, question | coverage | инвариант | справка | есть | правка цели |\n", "utf8");
     await until("новая строка", async () => (await drive("attackRows")).some((c: string) => c.includes("Новая строка от агента")));
-    assert.match((await snap()).mode, /атака · 6/);
+    assert.match((await snap()).mode, /атака · 7/);
   });
 
   await step("прокрутка у каждого режима своя: вернулся — карточки там же", async () => {

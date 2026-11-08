@@ -344,6 +344,12 @@ async function drive(m: any): Promise<unknown> {
       setValue(attackRow(m.claim).querySelector("textarea.sev-why")!, m.text);
       break;
     }
+    case "readToggle": {
+      const cb = attackRow(m.claim).querySelector<HTMLInputElement>(".readtoggle input");
+      if (!cb) throw new Error(`у строки «${m.claim}» нет переключателя «прочитано»`);
+      cb.click();
+      break;
+    }
     case "attackRowHtml":
       return attackRow(m.claim).outerHTML;
     case "followRow": {

@@ -150,6 +150,17 @@ test("утверждение в строке о тяжести идёт цели
   assert.deepEqual(lines(p, d), [`- тяжесть: attack/decisions.md · F-01, decision · «${claim}» → предупреждение — «почему»`]);
 });
 
+test("отметка «прочитано»: один текст на раздел, в замечания после споров; внесённая в заметки не повторяется", () => {
+  const a = row({ severity: "предупреждение", section: "F-01, options.A", fix: "правка" });
+  const b = row({ severity: "предупреждение", section: "F-01, options.A", claim: "вторая", fix: "правка" });
+  const c = row({ severity: "предупреждение", section: "F-02, options.B", fix: "правка" });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a, b, c] }] });
+  const d = draft({ attackReads: { "attack/decisions.md|F-01, options.A": true, "attack/decisions.md|F-02, options.B": true } });
+  assert.deepEqual(lines(p, d), ["Замечания к схеме: предупреждение прочитано: F-01, options.A · предупреждение прочитано: F-02, options.B"]);
+  const inNotes = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a, b, c] }], notes: [{ date: DATE, text: "предупреждение прочитано: F-01, options.A" }] });
+  assert.deepEqual(lines(inNotes, d), ["Замечания к схеме: предупреждение прочитано: F-02, options.B"]);
+});
+
 test("битый файл атаки промпт не ломает", () => {
   assert.equal(buildPrompt(payload([], { attacks: [{ path: "attack/x.md", error: "битый" }] }), emptyDraft(), DATE).empty, true);
 });
@@ -194,7 +205,7 @@ test("очистка: то, что внесено, из черновика ух�
       "F-03": decision("B", "ещё нет"),
     },
     added: { "F-01": [{ letter: "C", text: "третий" }, { letter: "D", text: "четвёртый" }] },
-    newForks: [], disputes: { "F-02": "не так" }, deps: { "F-01": { add: ["F-02", "F-03"], remove: ["F-09"] } }, notes: "замечание", attackDisputes: {}, attackSevs: {},
+    newForks: [], disputes: { "F-02": "не так" }, deps: { "F-01": { add: ["F-02", "F-03"], remove: ["F-09"] } }, notes: "замечание", attackDisputes: {}, attackSevs: {}, attackReads: {},
   };
   const out = cleanupIngested(p, d);
   assert.deepEqual(out.decisions["F-01"], decision(null, "", [{ text: "другой", addressee: "человек" }]));
@@ -248,6 +259,17 @@ test("очистка: отметка у строки, которую снял п
   assert.deepEqual(cleanupIngested(payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [] }] }), draft({ attackSevs: mark })).attackSevs, {});
   // Файла в сборке нет — отметки этого файла очистка не касается.
   assert.deepEqual(cleanupIngested(payload([fork("F-01")], { attacks: [] }), draft({ attackSevs: mark })).attackSevs, mark);
+});
+
+test("очистка: отметка «прочитано» уходит, когда внесена заметкой или строки предупреждения раздела нет", () => {
+  const a = row({ severity: "предупреждение", section: "F-01, options.A", fix: "правка" });
+  const mark = { "attack/decisions.md|F-01, options.A": true as const };
+  const ingested = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a] }], notes: [{ date: DATE, text: "предупреждение прочитано: F-01, options.A" }] });
+  assert.deepEqual(cleanupIngested(ingested, draft({ attackReads: mark })).attackReads, {});
+  const gone = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [] }] });
+  assert.deepEqual(cleanupIngested(gone, draft({ attackReads: mark })).attackReads, {});
+  const live = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a] }] });
+  assert.deepEqual(cleanupIngested(live, draft({ attackReads: mark })).attackReads, mark);
 });
 
 test("очистка без изменений возвращает тот же объект", () => {

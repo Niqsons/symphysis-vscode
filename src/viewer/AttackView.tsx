@@ -1,13 +1,13 @@
 // Режим «атака»: строки attack/*.md по линзам. Запись журнала и строка атаки — разные сущности: ссылка на запись — переход, не слияние.
 import { memo, useRef, type ChangeEvent } from "react";
-import { ALL_LENSES, attackAnchor, attackKind, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, lensTitle, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, setAttackSev, severityLevel, sevMove, verdictState, type SevMark } from "../journal/attack";
+import { ALL_LENSES, attackAnchor, attackKind, demotion, effectiveLens, fileGroups, isKnownLens, isWarning, lensAnchor, lensFilters, lensLabel, lensTitle, OUTSIDE, readByNotes, readKey, recordIdOf, rowAnchor, setAttackDispute, setAttackRead, setAttackSev, severityLevel, sevMove, verdictState, type SevMark } from "../journal/attack";
 import { disputeKey, norm, type Prompt } from "../journal/logic";
 import { isHumanOption } from "../journal/ops";
 import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../protocol/types";
 import { Text } from "../ui/Text";
 import { Segmented } from "../ui/Segmented";
 
-const HINT = "По спору apply строку атаки не меняет: её закрывает правка цели (журнала или артефакта) и повторная атака. Исключение — тяжесть: у блокера кнопка «понизить», у предупреждения «повысить»; обоснование пишется в своём скрытом поле (не в поле спора), кнопка берёт его при нажатии, без текста строки о тяжести не будет, а повторное нажатие снимает отметку вместе с обоснованием. Отметка уходит строкой «- тяжесть: <файл> · <раздел> · «<утверждение>» → <тяжесть> — «<обоснование>»» над «Замечания к схеме:»; apply вписывает в ячейку «<тяжесть> (<обоснование>)» и пересчитывает status файла атаки, журнал не меняется. У справки и строк покрытия кнопки нет. Спор по строке (почему опора есть, почему не блокер) уходит в промпт возврата одной строкой «Замечания к схеме:» и ложится в notes[] журнала; ответ на строку с закрытием «вопрос человеку» и разделом «F-NN, decision» уходит словом к решению. Фильтр по линзе прячет группы, но не счётчики тяжести в шапке файла.";
+const HINT = "По спору apply строку атаки не меняет: её закрывает правка цели (журнала или артефакта) и повторная атака. Исключение — тяжесть: у блокера кнопка «понизить», у предупреждения «повысить»; обоснование пишется в своём скрытом поле (не в поле спора), кнопка берёт его при нажатии, без текста строки о тяжести не будет, а повторное нажатие снимает отметку вместе с обоснованием. Отметка уходит строкой «- тяжесть: <файл> · <раздел> · «<утверждение>» → <тяжесть> — «<обоснование>»» над «Замечания к схеме:»; apply вписывает в ячейку «<тяжесть> (<обоснование>)» и пересчитывает status файла атаки, журнал не меняется. У справки и строк покрытия кнопки нет. Спор по строке (почему опора есть, почему не блокер) уходит в промпт возврата одной строкой «Замечания к схеме:» и ложится в notes[] журнала; ответ на строку с закрытием «вопрос человеку» и разделом «F-NN, decision» уходит словом к решению. Фильтр по линзе прячет группы, но не счётчики тяжести в шапке файла. Переключатель «прочитано» у строки предупреждение уходит текстом «предупреждение прочитано: <раздел>» в ту же строку «Замечания к схеме:» и после apply возвращается флагом по заметке журнала; тяжесть и вердикт он не меняет.";
 
 export const ShaChip = ({ sha, missing }: { sha?: string; missing: string }) =>
   (sha ? <code title={sha}>{sha.slice(0, 12)}</code> : <span className="muted">{missing}</span>);
@@ -52,6 +52,8 @@ interface RowProps {
   records: JournalRecord[];
   value: string;
   mark: SevMark | null;
+  readJournal: boolean;
+  readState: boolean;
   conflict: boolean;
   undecided: boolean;
   update(fn: (d: Draft) => Draft): void;
@@ -92,7 +94,7 @@ function SevBlock({ att, row, mark, update }: { att: AttackFile; row: AttackRow;
   );
 }
 
-const Row = memo(function Row({ anchor, att, row, records, value, mark, conflict, undecided, update }: RowProps) {
+const Row = memo(function Row({ anchor, att, row, records, value, mark, readJournal, readState, conflict, undecided, update }: RowProps) {
   const id = recordIdOf(row.section, records);
   const rec = id ? records.find((r) => r.id === id) : undefined;
   const lowered = demotion(row);
@@ -104,6 +106,17 @@ const Row = memo(function Row({ anchor, att, row, records, value, mark, conflict
           ? <span className="badge accent">понижено: {lowered.reason}</span>
           : <span className="badge signal">понижение без причины</span>)}
         <span className="badge plain">{id ? <a href={`#${id}`} title={`к записи ${id} в режиме «решения»`}>{row.section}</a> : row.section}</span>
+        {isWarning(row) && (readJournal
+          ? <span className="badge muted" title="заметка notes[] журнала">прочитано · в журнале</span>
+          : readState
+            ? <span className="badge accent" title="отметка в браузере, в журнал ещё не внесена">прочитано · не внесено</span>
+            : null)}
+        {isWarning(row) && (
+          <label className="readtoggle" title={readJournal ? "внесено в журнал" : "отметить прочитанным: текст уйдёт в «Замечания к схеме:» промпта возврата"}>
+            <input type="checkbox" checked={readJournal || readState} disabled={readJournal}
+              onChange={(e) => update((d) => setAttackRead(d, readKey(att, row), e.target.checked))} /> прочитано
+          </label>
+        )}
         {!isKnownLens(att, row.lens) && <span className="badge signal">линза «{row.lens}» вне списка — строка невалидна</span>}
       </header>
       <h3 className="q"><Text s={row.claim} /></h3>
@@ -196,7 +209,7 @@ export function AttackView({ payload, draft, flags, lens, update }: AttackViewPr
                     <h3>{part.severity} · {part.rows.length}</h3>
                     {part.rows.map((row, i) => {
                       const key = disputeKey(att.path, row);
-                      return <Row key={`${key}|${i}`} anchor={rowAnchor(file, index.get(row)!)} att={att} row={row} records={payload.records} value={draft.attackDisputes[key] ?? ""} mark={draft.attackSevs[key] ?? null} conflict={conflict.has(key)} undecided={undecided.has(key)} update={update} />;
+                      return <Row key={`${key}|${i}`} anchor={rowAnchor(file, index.get(row)!)} att={att} row={row} records={payload.records} value={draft.attackDisputes[key] ?? ""} mark={draft.attackSevs[key] ?? null} readJournal={readByNotes(payload.notes, row)} readState={!!draft.attackReads[readKey(att, row)]} conflict={conflict.has(key)} undecided={undecided.has(key)} update={update} />;
                     })}
                   </div>
                 ))}

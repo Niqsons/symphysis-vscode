@@ -160,4 +160,6 @@ export interface Draft {
   attackDisputes: Record<string, string>;
   /** Отметки тяжести кнопками: ключ — файл атаки, раздел и утверждение целиком, как у спора. */
   attackSevs: Record<string, { to: string; why: string }>;
+  /** Отметки «прочитано»: ключ — файл атаки и раздел; значение всегда `true`, как на странице ядра. */
+  attackReads: Record<string, true>;
 }

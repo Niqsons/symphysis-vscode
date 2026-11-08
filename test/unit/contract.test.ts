@@ -119,6 +119,26 @@ test("строка о тяжести: apply принимает, ячейка а�
   assert.deepEqual(cleanupIngested(after, draft).attackSevs, {});
 });
 
+test("отметка «прочитано»: apply кладёт её заметкой notes[], очистка убирает отметку", opts, async () => {
+  const { env, change } = setup();
+  addAttack(change, "decisions.md", [
+    "---", "status: gaps_found", "target: decisions.json", `target_sha256: ${"0".repeat(64)}`, "---", "",
+    "| Утверждение | Раздел | Линза | Инвариант | Тяжесть | Опора | Закрытие |", "| --- | --- | --- | --- | --- | --- | --- |",
+    "| Претензия | F-03, options.B | coverage | инвариант | предупреждение | нет | правка цели |", "",
+  ].join("\n"));
+  const ref = changeRef(env.cwd, path.basename(change));
+  const p = await load(env, ref);
+  const att = p.attacks[0], row = att.rows![0];
+  const draft: Draft = { ...emptyDraft(), attackReads: { [`${att.path}|${row.section}`]: true } };
+  const prompt = buildPrompt(p, draft, DATE);
+  assert.match(prompt.text, /Замечания к схеме: предупреждение прочитано: F-03, options\.B/);
+  const applied = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text));
+  assert.equal(applied.ok, true, applied.report.join("\n"));
+  const after = await load(env, changeRef(env.cwd, ref.name));
+  assert.ok(after.notes.some((n) => n.text.includes("предупреждение прочитано: F-03, options.B")));
+  assert.deepEqual(cleanupIngested(after, draft).attackReads, {});
+});
+
 /** Детерминированный черновик по настоящему журналу: у каждой развилки своё действие по кругу, все варианты, какие есть. */
 function exercise(p: ViewPayload): Draft {
   const d = emptyDraft();

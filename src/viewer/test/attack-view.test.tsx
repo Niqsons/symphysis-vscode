@@ -64,3 +64,27 @@ test("нажатая кнопка с обоснованием: пометки н
   assert.ok(out.includes("опора есть"));
   assert.match(out, /textarea[^>]*class="sev-why"/);
 });
+
+test("переключатель «прочитано»: у предупреждения есть, у блокера и справки нет; отметка — «не внесено»", () => {
+  const r = row({ severity: "предупреждение" });
+  const d: Draft = { ...emptyDraft(), attackReads: { "attack/artifacts.md|—": true } };
+  const out = html([r], d);
+  assert.ok(out.includes("прочитано · не внесено"));
+  assert.match(out, /<input[^>]*type="checkbox"/);
+  assert.ok(!/disabled/.test(out));
+  assert.ok(!one({ severity: "блокер" }).includes("readtoggle"));
+  assert.ok(!one({ severity: "справка" }).includes("readtoggle"));
+});
+
+test("флаг по заметке журнала: «в журнале», переключатель неактивен, отметки состояния нет", () => {
+  const r = row({ severity: "предупреждение" });
+  const p: ViewPayload = { ...basePayload([]), notes: [{ date: "2026-11-01", text: "предупреждение прочитано: —" }], attacks: [file([r])] };
+  const out = renderToStaticMarkup(
+    <LinksContext.Provider value={{ links: p.file_links, open: () => {} }}>
+      <AttackView payload={p} draft={emptyDraft()} flags={buildPrompt(p, emptyDraft(), "2026-11-01")} lens="all" update={() => {}} />
+    </LinksContext.Provider>,
+  );
+  assert.ok(out.includes("прочитано · в журнале"));
+  assert.ok(!out.includes("прочитано · не внесено"));
+  assert.match(out, /<input[^>]*disabled=""[^>]*checked=""/);
+});

@@ -307,6 +307,12 @@ async function drive(m: any): Promise<unknown> {
       b.click();
       break;
     }
+    case "lensSecond": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".lensfilter button")][1];
+      if (!b) throw new Error("нет второй линзы");
+      b.click();
+      break;
+    }
     case "attackRows":
       return [...document.querySelectorAll(".attackrow h3")].map((h) => h.textContent ?? "");
     case "measureMode": {
@@ -349,6 +355,11 @@ async function drive(m: any): Promise<unknown> {
       if (!cb) throw new Error(`у строки «${m.claim}» нет переключателя «прочитано»`);
       cb.click();
       break;
+    }
+    case "firstCardTop": {
+      const main = document.querySelector("main")!;
+      const card = main.querySelector(".attackrow, article.card");
+      return card ? card.getBoundingClientRect().top - main.getBoundingClientRect().top : null;
     }
     case "attackRowHtml":
       return attackRow(m.claim).outerHTML;

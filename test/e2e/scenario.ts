@@ -769,6 +769,29 @@ export async function run(): Promise<void> {
     await drive("mode", { name: "решения" });
   });
 
+  await step("фильтры: выбор переводит к первой карточке, повторное нажатие — вверх страницы (B-32, B-34)", async () => {
+    const scrolled = async (top: number) => { await drive("scrollMain", { top }); return (await snap()).scrollTop; };
+    // Решения: фильтр «развилки» на большом журнале.
+    assert.ok((await scrolled(100000)) > 0, "страница должна прокручиваться");
+    await drive("filter", { name: "развилки" });
+    const first = await drive("firstCardTop");
+    assert.ok(first !== null && first < 10, `первая карточка не у верха: ${first}`);
+    assert.ok((await scrolled(100000)) > 0);
+    await drive("filter", { name: "развилки" });
+    assert.equal((await snap()).scrollTop, 0, "повторное нажатие не вернуло вверх");
+    await drive("filter", { name: "все" });
+    // Атака: повторное нажатие активной линзы «все» — вверх; выбор другой линзы — к первой строке.
+    await drive("mode", { name: "атака" });
+    assert.ok((await scrolled(100000)) > 0);
+    await drive("lens", { name: "все" });
+    assert.equal((await snap()).scrollTop, 0, "повторное нажатие линзы не вернуло вверх");
+    assert.ok((await scrolled(100000)) > 0);
+    await drive("lensSecond");
+    const row = await drive("firstCardTop");
+    assert.ok(row !== null && row < 10, `первая строка не у верха: ${row}`);
+    await drive("lens", { name: "все" });
+  });
+
   // --- вкладка схемы ----------------------------------------------------------------------------------------------
   const schemeDrive = driver(() => api.scheme.webview, api.scheme.messages);
   const schemeSnap = () => schemeDrive("schemeSnapshot");

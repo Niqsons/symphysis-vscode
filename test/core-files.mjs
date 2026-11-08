@@ -19,12 +19,14 @@ export const TOOLS_FILES = [
   "viewer/viewer_render.py",
   "viewer/playground-template.html",
   "attack/attack_table.py",
+  "attack/attack_scope.py",
   "consequences/journal_sites.py",
   "consequences/journal_consequences.py",
   "settings/symphysis_config.py",
   "step-help/step_help.py",
   "openspec-run/openspec_run.py",
   "trace/trace_graph.py",
+  "anchors/anchor_refs.py",
 ];
 
 /** Общие файлы скиллов, которые установка кладёт в `.symphysis/docs/`: `SHARED_FILES` того же файла ядра. */

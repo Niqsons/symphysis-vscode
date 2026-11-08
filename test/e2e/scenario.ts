@@ -2,6 +2,7 @@
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as cp from "node:child_process";
 import * as vscode from "vscode";
 import * as crypto from "node:crypto";
 import { emptyDraft } from "../../src/journal/logic";
@@ -572,7 +573,8 @@ export async function run(): Promise<void> {
     assert.equal(api.attackToc.message(), undefined);
     const files = api.attackToc.getChildren();
     const file = files.find((f) => treeItem(f).label === "decisions.md");
-    assert.match(String(treeItem(file).description), /gaps_found · устарел · блокеров 3 · предупреждений 1/);
+    // Кнопки тяжести перевели «Мелочь без причины понижения» из предупреждения в блокер: блокеров 4, предупреждений нет.
+    assert.match(String(treeItem(file).description), /gaps_found · устарел · блокеров 4/);
     const broken = files.find((f) => treeItem(f).label === "artifacts.md");
     assert.match(String(treeItem(broken).description), /битый файл/);
     assert.deepEqual(api.attackToc.getChildren(broken), []);
@@ -1734,6 +1736,32 @@ export async function run(): Promise<void> {
     await until("png открыт", () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => t.label === "лого.png") || null);
     assert.ok(!vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => nameOf(t).endsWith("a.md")), "a.md остался вкладкой");
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
+
+  await step("панель «Изменения»: в связанном рабочем дереве называет проект и дерево, из основного дерева подписи нет", async () => {
+    const base = path.join(path.dirname(root), "репо-панели");
+    const linked = path.join(path.dirname(root), "дерево-панели");
+    fs.mkdirSync(base, { recursive: true });
+    cp.execFileSync("git", ["init", "-q"], { cwd: base });
+    cp.execFileSync("git", ["-c", "user.email=test@test", "-c", "user.name=test", "commit", "--allow-empty", "-m", "начало", "-q"], { cwd: base });
+    cp.execFileSync("git", ["worktree", "add", "-b", "ветка-панели", linked, "-q"], { cwd: base });
+    fs.mkdirSync(path.join(linked, "openspec", "changes", "изменение-в-дереве"), { recursive: true });
+    fs.copyFileSync(path.join(root, "openspec", "changes", "изменение-один", "decisions.json"), path.join(linked, "openspec", "changes", "изменение-в-дереве", "decisions.json"));
+    vscode.workspace.updateWorkspaceFolders(0, null, { uri: vscode.Uri.file(linked) });
+    try {
+      const item = await until("пункт дерева в панели", async () => {
+        const all = (api.changes as unknown as { getChildren(): any[] }).getChildren();
+        const s = all.find((x) => x.ref.name === "изменение-в-дереве");
+        return s ? api.changes.getTreeItem(s) : null;
+      });
+      assert.ok(item, "пункт дерева в панели не появился");
+      assert.match(String(item.description), /репо-панели · ветка-панели/);
+      // Основное дерево подписи не несёт: у пунктов прежней папки её нет.
+      const first = (api.changes as unknown as { getChildren(): any[] }).getChildren().find((x) => x.ref.name === "изменение-один");
+      assert.ok(!/репо-панели ·/.test(String(api.changes.getTreeItem(first).description)));
+    } finally {
+      vscode.workspace.updateWorkspaceFolders(0, 1);
+    }
   });
 
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures }, null, 1), "utf8");

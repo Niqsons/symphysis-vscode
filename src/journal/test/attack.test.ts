@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, sevBase, sevReason, verdictState,
+  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, setAttackSev, severityLevel, sevBase, sevIngested, sevMove, sevReason, verdictState,
 } from "../attack";
 import { emptyDraft } from "../logic";
 import type { AttackFile, AttackRow } from "../../protocol/types";
@@ -129,6 +129,30 @@ test("спор по строке: пустой убирает ключ", () => {
   const d = setAttackDispute(emptyDraft(), "k", "спор");
   assert.equal(d.attackDisputes.k, "спор");
   assert.deepEqual(setAttackDispute(d, "k", "  ").attackDisputes, {});
+});
+
+test("ход тяжести: у блокера «понизить», у предупреждения «повысить», у справки и строк покрытия кнопки нет", () => {
+  assert.deepEqual(sevMove(row({ severity: "блокер" })), { label: "понизить", to: "предупреждение" });
+  assert.deepEqual(sevMove(row({ severity: "предупреждение (причина)" })), { label: "повысить", to: "блокер" });
+  assert.equal(sevMove(row({ severity: "справка" })), null);
+  assert.equal(sevMove(row({ severity: "Блокер" })), null); // первое слово ячейки строчными, как у _severity_word
+  assert.equal(sevMove(row({ claim: "не пройдено", severity: "блокер" })), null);
+  assert.equal(sevMove(row({ support: "нет: не пройдено", severity: "блокер" })), null);
+  assert.equal(sevMove(row({ support: "нет: файла нет", severity: "блокер" })), null);
+});
+
+test("отметка внесена: ячейка несёт ту же тяжесть и то же обоснование; пробелы схлопнуты", () => {
+  const mark = { to: "предупреждение", why: "решено человеком" };
+  assert.equal(sevIngested(row({ severity: "предупреждение (решено человеком)" }), mark), true);
+  assert.equal(sevIngested(row({ severity: "предупреждение (решено  человеком)" }), mark), true);
+  assert.equal(sevIngested(row({ severity: "предупреждение (иное)" }), mark), false);
+  assert.equal(sevIngested(row({ severity: "блокер" }), mark), false);
+});
+
+test("отметка тяжести: пустой ход убирает ключ, как у спора", () => {
+  const d = setAttackSev(emptyDraft(), "k", { to: "предупреждение", why: "почему" });
+  assert.deepEqual(d.attackSevs.k, { to: "предупреждение", why: "почему" });
+  assert.deepEqual(setAttackSev(d, "k", null).attackSevs, {});
 });
 
 test("пустой перечень атак: фильтр пуст", () => {

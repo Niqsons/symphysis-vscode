@@ -67,7 +67,7 @@ function Report({ result, onCopyAnswer, onDismiss }: { result: ApplyReport; onCo
 }
 
 export function ReturnPanel({ prompt, open, applying, blockedReason, result, copied, height, onHeight, onToggle, onApply, onCopy, onCopyAnswer, onDismiss }: ReturnPanelProps) {
-  const count = prompt.empty ? 0 : prompt.text.split("\n").filter((l) => /^(- F-|Замечания к схеме:)/.test(l)).length;
+  const count = prompt.empty ? 0 : prompt.text.split("\n").filter((l) => /^(- F-|- тяжесть:|Замечания к схеме:)/.test(l)).length;
   const area = useRef<HTMLTextAreaElement>(null);
   const drag = useRef<{ startY: number; startHeight: number; last: number | null } | null>(null);
   // Пока тянут, высота живёт здесь: страница не перерисовывает карточки на каждое движение, запоминается итог.

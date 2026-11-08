@@ -318,7 +318,7 @@ async function drive(m: any): Promise<unknown> {
       return { ms: Math.round(performance.now() - t0), snapshot: snapshot() };
     }
     case "measureDispute": {
-      const area = document.querySelector<HTMLTextAreaElement>(".attackrow textarea")!;
+      const area = document.querySelector<HTMLTextAreaElement>(".attackrow textarea.dispute")!;
       const samples: number[] = [];
       for (let i = 1; i <= 30; i++) {
         const t0 = performance.now();
@@ -331,7 +331,17 @@ async function drive(m: any): Promise<unknown> {
       return { medianMs: samples[15], maxMs: samples[29] };
     }
     case "attackDispute": {
-      setValue(attackRow(m.claim).querySelector("textarea")!, m.text);
+      setValue(attackRow(m.claim).querySelector("textarea.dispute")!, m.text);
+      break;
+    }
+    case "sevPress": {
+      const b = attackRow(m.claim).querySelector<HTMLButtonElement>("button.sev-btn");
+      if (!b) throw new Error(`у строки «${m.claim}» нет кнопки тяжести`);
+      b.click();
+      break;
+    }
+    case "sevWhy": {
+      setValue(attackRow(m.claim).querySelector("textarea.sev-why")!, m.text);
       break;
     }
     case "attackRowHtml":

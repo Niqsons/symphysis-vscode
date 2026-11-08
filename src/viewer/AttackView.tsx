@@ -1,13 +1,13 @@
 // Режим «атака»: строки attack/*.md по линзам. Запись журнала и строка атаки — разные сущности: ссылка на запись — переход, не слияние.
-import { memo } from "react";
-import { ALL_LENSES, attackAnchor, attackKind, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, lensTitle, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, verdictState } from "../journal/attack";
-import { disputeKey, type Prompt } from "../journal/logic";
+import { memo, useRef, type ChangeEvent } from "react";
+import { ALL_LENSES, attackAnchor, attackKind, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, lensTitle, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, setAttackSev, severityLevel, sevMove, verdictState, type SevMark } from "../journal/attack";
+import { disputeKey, norm, type Prompt } from "../journal/logic";
 import { isHumanOption } from "../journal/ops";
 import type { AttackFile, AttackRow, Draft, JournalRecord, ViewPayload } from "../protocol/types";
 import { Text } from "../ui/Text";
 import { Segmented } from "../ui/Segmented";
 
-const HINT = "Строки атаки apply не меняет — их закрывает правка цели (журнала или артефакта) и повторная атака. Спор по строке (почему опора есть, почему не блокер) уходит в промпт возврата одной строкой «Замечания к схеме:» и ложится в notes[] журнала; ответ на строку с закрытием «вопрос человеку» и разделом «F-NN, decision» уходит словом к решению. Фильтр по линзе прячет группы, но не счётчики тяжести в шапке файла.";
+const HINT = "По спору apply строку атаки не меняет: её закрывает правка цели (журнала или артефакта) и повторная атака. Исключение — тяжесть: у блокера кнопка «понизить», у предупреждения «повысить»; обоснование пишется в своём скрытом поле (не в поле спора), кнопка берёт его при нажатии, без текста строки о тяжести не будет, а повторное нажатие снимает отметку вместе с обоснованием. Отметка уходит строкой «- тяжесть: <файл> · <раздел> · «<утверждение>» → <тяжесть> — «<обоснование>»» над «Замечания к схеме:»; apply вписывает в ячейку «<тяжесть> (<обоснование>)» и пересчитывает status файла атаки, журнал не меняется. У справки и строк покрытия кнопки нет. Спор по строке (почему опора есть, почему не блокер) уходит в промпт возврата одной строкой «Замечания к схеме:» и ложится в notes[] журнала; ответ на строку с закрытием «вопрос человеку» и разделом «F-NN, decision» уходит словом к решению. Фильтр по линзе прячет группы, но не счётчики тяжести в шапке файла.";
 
 export const ShaChip = ({ sha, missing }: { sha?: string; missing: string }) =>
   (sha ? <code title={sha}>{sha.slice(0, 12)}</code> : <span className="muted">{missing}</span>);
@@ -51,12 +51,48 @@ interface RowProps {
   row: AttackRow;
   records: JournalRecord[];
   value: string;
+  mark: SevMark | null;
   conflict: boolean;
   undecided: boolean;
   update(fn: (d: Draft) => Draft): void;
 }
 
-const Row = memo(function Row({ anchor, att, row, records, value, conflict, undecided, update }: RowProps) {
+/** Кнопка тяжести, скрытое поле обоснования и пометка без текста (F-39). Обоснование — из поля карточки, набранное до нажатия. */
+function SevBlock({ att, row, mark, update }: { att: AttackFile; row: AttackRow; mark: SevMark | null; update(fn: (d: Draft) => Draft): void }) {
+  const move = sevMove(row);
+  const key = disputeKey(att.path, row);
+  const why = useRef<HTMLTextAreaElement>(null);
+  if (!move) return null;
+  const pressed = !!mark && mark.to === move.to;
+  const onPress = () => {
+    const value = why.current?.value ?? "";
+    update((d) => setAttackSev(d, key, pressed ? null : { to: move.to, why: value }));
+  };
+  const onChangeWhy = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    if (!pressed || !mark) return; // поле пишет в отметку только пока она есть
+    update((d) => setAttackSev(d, key, { to: mark.to, why: e.target.value }));
+  };
+  return (
+    <>
+      <div className="row sevrow">
+        <button type="button" className={`small sev-btn${pressed ? " active" : ""}`} aria-pressed={pressed}
+          title="ход тяжести: строка о тяжести уйдёт в промпт возврата, если есть обоснование"
+          onClick={onPress}>{move.label}</button>
+      </div>
+      {pressed && !norm(mark!.why) && <div className="note accent">нет обоснования, строки о тяжести не будет</div>}
+      <details className="park sevwhy" open={pressed}>
+        <summary>обоснование тяжести — почему {move.label}</summary>
+        <div className="row">
+          <textarea ref={why} className="sev-why" key={String(pressed)} rows={2} defaultValue={pressed ? mark!.why : ""}
+            placeholder="обоснование хода тяжести: уйдёт в промпт возврата и в ячейку тяжести"
+            onChange={onChangeWhy} />
+        </div>
+      </details>
+    </>
+  );
+}
+
+const Row = memo(function Row({ anchor, att, row, records, value, mark, conflict, undecided, update }: RowProps) {
   const id = recordIdOf(row.section, records);
   const rec = id ? records.find((r) => r.id === id) : undefined;
   const lowered = demotion(row);
@@ -75,11 +111,12 @@ const Row = memo(function Row({ anchor, att, row, records, value, conflict, unde
       <div className="cons">опора: <Text s={row.support} /></div>
       <div className="cons">чем закрыть: <Text s={row.fix} /></div>
       {rec && <RecordBlock rec={rec} />}
+      <SevBlock att={att} row={row} mark={mark} update={update} />
       {undecided && <div className="note accent">запись не решена — ответ уйдёт в замечания; выбери вариант в карточке</div>}
       {conflict && <div className="note signal">конфликт ответов к одному решению — оставь один, иначе слово к решению не уйдёт в промпт</div>}
       <div className="row">
         <textarea
-          rows={2} value={value} placeholder="спор: почему опора есть / почему не блокер — уйдёт в промпт возврата; при закрытии «вопрос человеку» и разделе F-NN, decision — слово к решению"
+          className="dispute" rows={2} value={value} placeholder="спор: почему опора есть / почему не блокер — уйдёт в промпт возврата; при закрытии «вопрос человеку» и разделе F-NN, decision — слово к решению"
           onChange={(e) => update((d) => setAttackDispute(d, disputeKey(att.path, row), e.target.value))}
         />
       </div>
@@ -159,7 +196,7 @@ export function AttackView({ payload, draft, flags, lens, update }: AttackViewPr
                     <h3>{part.severity} · {part.rows.length}</h3>
                     {part.rows.map((row, i) => {
                       const key = disputeKey(att.path, row);
-                      return <Row key={`${key}|${i}`} anchor={rowAnchor(file, index.get(row)!)} att={att} row={row} records={payload.records} value={draft.attackDisputes[key] ?? ""} conflict={conflict.has(key)} undecided={undecided.has(key)} update={update} />;
+                      return <Row key={`${key}|${i}`} anchor={rowAnchor(file, index.get(row)!)} att={att} row={row} records={payload.records} value={draft.attackDisputes[key] ?? ""} mark={draft.attackSevs[key] ?? null} conflict={conflict.has(key)} undecided={undecided.has(key)} update={update} />;
                     })}
                   </div>
                 ))}

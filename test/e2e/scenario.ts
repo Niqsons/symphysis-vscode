@@ -481,6 +481,33 @@ export async function run(): Promise<void> {
     assert.match(description, /artifacts: битый файл/);
   });
 
+  await step("кнопки тяжести: без обоснования строки нет; с обоснованием — строка в промпте, apply меняет ячейку, журнал не тронут, отметка уходит", async () => {
+    const file = path.join(attacked, "attack", "decisions.md");
+    // Нажатие без обоснования: пометка, поля раскрыто, строки о тяжести в промпте нет.
+    const pressed = await drive("sevPress", { claim: "Мелочь без причины понижения" });
+    assert.ok(!/- тяжесть:/.test(pressed.prompt));
+    assert.ok((await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("нет обоснования, строки о тяжести не будет"));
+    // Обоснование — в своём поле; строка о тяжести несёт утверждение целиком.
+    await drive("sevWhy", { claim: "Мелочь без причины понижения", text: "числа сходятся сами" });
+    const withWhy = await snap();
+    assert.match(withWhy.prompt, /- тяжесть: openspec\/changes\/с-атакой\/attack\/decisions\.md · F-03, question · «Мелочь без причины понижения» → блокер — «числа сходятся сами»/);
+    // apply: ячейка несёт тяжесть и обоснование, журнал не тронут, отметка из черновика уходит.
+    const journalBefore = fs.readFileSync(attackedJournal);
+    await drive("click", { text: "Внести" });
+    await until("отчёт", async () => {
+      const x = await snap();
+      return x.report && !/Вношу/.test(x.report) ? x : null;
+    }, 20000);
+    assert.ok(fs.readFileSync(attackedJournal).equals(journalBefore), "журнал не должен меняться");
+    assert.ok(fs.readFileSync(file, "utf8").includes("блокер (числа сходятся сами)"));
+    await until("очистка", async () => {
+      const x = await snap();
+      return !/- тяжесть:/.test(x.prompt) ? x : null;
+    });
+    assert.ok((await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("блокер (числа сходятся сами)"));
+    assert.ok(!(await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("нет обоснования, строки о тяжести не будет"));
+  });
+
   await step("новая строка атаки на диске появляется без кнопки", async () => {
     const file = path.join(attacked, "attack", "decisions.md");
     fs.appendFileSync(file, "| Новая строка от агента | F-04, question | coverage | инвариант | справка | есть | правка цели |\n", "utf8");

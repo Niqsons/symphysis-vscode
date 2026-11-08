@@ -158,4 +158,6 @@ export interface Draft {
   deps: Record<string, { add: string[]; remove: string[] }>;
   notes: string;
   attackDisputes: Record<string, string>;
+  /** Отметки тяжести кнопками: ключ — файл атаки, раздел и утверждение целиком, как у спора. */
+  attackSevs: Record<string, { to: string; why: string }>;
 }

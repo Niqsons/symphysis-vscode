@@ -52,6 +52,35 @@ export function demotion(row: AttackRow): { reason: string } | null {
   return !noSupport || sevBase(row.severity) === "блокер" ? null : { reason: sevReason(row.severity) };
 }
 
+const normText = (s: unknown): string => String(s ?? "").replace(/\s+/g, " ").trim();
+
+/** Строка покрытия (F-19.A): тяжесть у неё не меняется; те же признаки, что у `_is_coverage` в attack_table.py ядра. */
+export function isCoverageGap(row: AttackRow): boolean {
+  return row.claim === "не пройдено" || row.support === "нет: не пройдено" || row.support === "нет: файла нет";
+}
+
+/** Ход тяжести: кнопка там, где `set_severity` ядра примет ход — первое слово ячейки, как его пишет атака. */
+export function sevMove(row: AttackRow): { label: string; to: string } | null {
+  if (isCoverageGap(row)) return null;
+  const w = (row.severity ?? "").split(/\s+/).filter(Boolean)[0] || "";
+  return w === "блокер" ? { label: "понизить", to: "предупреждение" } : w === "предупреждение" ? { label: "повысить", to: "блокер" } : null;
+}
+
+export interface SevMark { to: string; why: string }
+
+/** Отметка уже внесена: ячейка несёт ту же тяжесть и то же обоснование (после `apply`: `<тяжесть> (<обоснование>)`). */
+export function sevIngested(row: AttackRow, mark: SevMark): boolean {
+  return sevBase(row.severity) === mark.to && normText(sevReason(row.severity)) === normText(mark.why);
+}
+
+/** Отметка тяжести у строки: пустая причина убирает ключ, как у спора. */
+export function setAttackSev(d: Draft, key: string, mark: SevMark | null): Draft {
+  const next = { ...d.attackSevs };
+  if (mark) next[key] = mark;
+  else delete next[key];
+  return { ...d, attackSevs: next };
+}
+
 /** Раздел `F-NN, поле` с записью в журнале — переход к карточке; записи нет — ссылки нет. */
 export function recordIdOf(section: string, records: JournalRecord[]): string | null {
   const id = /^(F-\d+)(?!\d)/.exec(section.trim())?.[1];

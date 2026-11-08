@@ -1,6 +1,7 @@
 // Правила просмотрщика без DOM и vscode: выбор, антиподы, зависимости, очистка внесённого, промпт возврата.
 // Строки промпта пишутся по грамматике `journal_apply.parse_answers`; контракт держит test/unit/contract.test.ts.
-import type { DecisionDraft, Draft, JournalOption, JournalRecord, ViewPayload } from "../protocol/types";
+import { sevIngested, sevMove } from "./attack";
+import type { AttackRow, DecisionDraft, Draft, JournalOption, JournalRecord, ViewPayload } from "../protocol/types";
 
 export const ADDED_MARK = "(добавлен человеком";
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -10,7 +11,7 @@ export const norm = (s: unknown): string => String(s ?? "").replace(/\s+/g, " ")
 const shorten = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 const withoutMark = (text: string) => norm(text.split(ADDED_MARK)[0]);
 
-export const emptyDraft = (): Draft => ({ decisions: {}, added: {}, newForks: [], disputes: {}, deps: {}, notes: "", attackDisputes: {} });
+export const emptyDraft = (): Draft => ({ decisions: {}, added: {}, newForks: [], disputes: {}, deps: {}, notes: "", attackDisputes: {}, attackSevs: {} });
 
 const isObject = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && !Array.isArray(v);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
@@ -48,6 +49,11 @@ export function normalizeDraft(raw: unknown): Draft {
   }
   out.disputes = stringMap(raw.disputes);
   out.attackDisputes = stringMap(raw.attackDisputes);
+  if (isObject(raw.attackSevs)) {
+    for (const [key, mark] of Object.entries(raw.attackSevs)) {
+      if (isObject(mark) && typeof mark.to === "string" && typeof mark.why === "string") out.attackSevs[key] = { to: mark.to, why: mark.why };
+    }
+  }
   if (typeof raw.notes === "string") out.notes = raw.notes;
   return out;
 }
@@ -102,7 +108,7 @@ export const disputeKey = (path: string, r: { section: string; claim: string }) 
 /** Вычищает из черновика то, что уже стоит в журнале. Ничего не изменилось — возвращает тот же объект. */
 export function cleanupIngested(p: ViewPayload, d: Draft): Draft {
   const out: Draft = {
-    ...d, decisions: { ...d.decisions }, added: { ...d.added }, disputes: { ...d.disputes }, deps: { ...d.deps }, attackDisputes: { ...d.attackDisputes },
+    ...d, decisions: { ...d.decisions }, added: { ...d.added }, disputes: { ...d.disputes }, deps: { ...d.deps }, attackDisputes: { ...d.attackDisputes }, attackSevs: { ...d.attackSevs },
   };
   for (const rec of p.records) {
     const added = out.added[rec.id];
@@ -135,6 +141,16 @@ export function cleanupIngested(p: ViewPayload, d: Draft): Draft {
       const answered = rec?.decision && (out.decisions[rec.id]?.choice ?? rec.decision.option) === rec.decision.option && wordIngested(rec.decision.word, sp);
       if (answered || noteTexts.some((t) => t.includes(sp))) delete out.attackDisputes[k];
     }
+  }
+  // Отметка тяжести уходит, когда ячейка уже несёт эту тяжесть и это обоснование (внесла apply) или строки в текущей
+  // сборке нет (снял повтор атаки, F-35); отметок файлов, которых в сборке нет, очистка не касается.
+  const liveRows = new Map<string, AttackRow>();
+  const livePaths = p.attacks.map((a) => a.path + "|");
+  for (const att of p.attacks) for (const r of att.rows ?? []) liveRows.set(disputeKey(att.path, r), r);
+  for (const k of Object.keys(out.attackSevs)) {
+    const row = liveRows.get(k);
+    if (!row && !livePaths.some((p) => k.startsWith(p))) continue;
+    if (!row || sevIngested(row, out.attackSevs[k])) delete out.attackSevs[k];
   }
   return JSON.stringify(out) === JSON.stringify(d) ? d : out;
 }
@@ -230,6 +246,16 @@ export function buildPrompt(p: ViewPayload, d: Draft, date: string): Prompt {
   if (d.newForks.length) {
     lines.push("Новые развилки:");
     for (const f of d.newForks) lines.push(`- ${f.id}: ${f.question} — варианты: ${f.options.replace(/\n+/g, " | ")}${f.word ? ` — «${f.word}»` : ""}`);
+  }
+  // Строки о тяжести (F-47.A): отметка `{ to, why }` у строки текущей сборки, с обоснованием, с ходом, который примет
+  // `apply`, и ещё не внесённая; после решений и новых развилок, до замечаний. Обоснование в замечания не идёт,
+  // спор в строку не идёт.
+  for (const att of p.attacks) {
+    for (const r of att.rows ?? []) {
+      const mark = d.attackSevs[disputeKey(att.path, r)], mv = sevMove(r);
+      if (!mark || !norm(mark.why) || !mv || mv.to !== mark.to || sevIngested(r, mark)) continue;
+      lines.push(`- тяжесть: ${att.path} · ${r.section} · «${r.claim}» → ${mark.to} — «${norm(mark.why)}»`);
+    }
   }
   const own = d.notes.trim();
   const ingested = own !== "" && p.notes.some((n) => norm(n.text).includes(norm(own)));

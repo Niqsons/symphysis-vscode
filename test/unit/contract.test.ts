@@ -100,6 +100,25 @@ test("ответ на вопрос атаки уходит словом к ре�
   assert.equal(r.ok, true, `${prompt.text}\n---\n${r.report.join("\n")}`);
 });
 
+test("строка о тяжести: apply принимает, ячейка атаки несёт тяжесть и обоснование, журнал не тронут, очистка убирает отметку", opts, async () => {
+  const { env, change } = setup();
+  addAttack(change);
+  const ref = changeRef(env.cwd, path.basename(change));
+  const p = await load(env, ref);
+  const att = p.attacks[0], row = att.rows![0];
+  const draft: Draft = { ...emptyDraft(), attackSevs: { [disputeKey(att.path, row)]: { to: "предупреждение", why: "решено человеком" } } };
+  const prompt = buildPrompt(p, draft, DATE);
+  assert.match(prompt.text, /- тяжесть: openspec\/changes\/[^/]*\/attack\/decisions\.md · F-02, decision · «Хранение решено без улики» → предупреждение — «решено человеком»/);
+  const before = fs.readFileSync(ref.journal);
+  const r = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text));
+  assert.equal(r.ok, true, `${prompt.text}\n---\n${r.report.join("\n")}`);
+  assert.ok(fs.readFileSync(ref.journal).equals(before), "журнал не должен меняться");
+  assert.ok(fs.readFileSync(path.join(change, "attack", "decisions.md"), "utf8").includes("предупреждение (решено человеком)"));
+  const after = await load(env, changeRef(env.cwd, ref.name));
+  assert.equal(after.attacks[0].rows![0].severity, "предупреждение (решено человеком)");
+  assert.deepEqual(cleanupIngested(after, draft).attackSevs, {});
+});
+
 /** Детерминированный черновик по настоящему журналу: у каждой развилки своё действие по кругу, все варианты, какие есть. */
 function exercise(p: ViewPayload): Draft {
   const d = emptyDraft();

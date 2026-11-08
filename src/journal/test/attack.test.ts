@@ -27,6 +27,21 @@ test("подпись линзы: у каждого файла свой закр�
   assert.equal(lensLabel(artifactsFile([]), "scenario-run"), "прогон сценария");
   assert.equal(lensLabel(artifactsFile([]), "trace-link"), "связи изменения");
   assert.equal(lensLabel(journalFile([]), "trace-link"), "");
+  assert.equal(lensLabel(artifactsFile([]), "rule-compliance"), "правила составления");
+  assert.equal(lensLabel(journalFile([]), "rule-compliance"), "");
+});
+
+test("линза rule-compliance: четвёртая в списке артефактов; в файле журнала — «вне списка» (B-48)", () => {
+  assert.equal(isKnownLens(artifactsFile([]), "rule-compliance"), true);
+  assert.equal(isKnownLens(journalFile([]), "rule-compliance"), false);
+  const g = fileGroups(artifactsFile([
+    row({ lens: "rule-compliance" }), row({ lens: "trace-link" }), row({ lens: "claim-extraction" }), row({ lens: "scenario-run" }),
+  ]));
+  assert.deepEqual(g.groups.map((x) => x.slug), ["scenario-run", "claim-extraction", "trace-link", "rule-compliance"]);
+  assert.deepEqual(g.lensCounts, [["scenario-run", 1], ["claim-extraction", 1], ["trace-link", 1], ["rule-compliance", 1]]);
+  const jg = fileGroups(journalFile([row({ lens: "rule-compliance" })]));
+  assert.deepEqual(jg.groups.map((x) => x.slug), [OUTSIDE]);
+  assert.equal(jg.outside, 1);
 });
 
 test("линза trace-link: третья в списке артефактов; без строк группы нет, со строкой — после claim-extraction", () => {
@@ -61,6 +76,8 @@ test("понижение: только при опоре «нет» и тяже�
   assert.equal(demotion(row({ support: "есть", severity: "справка" })), null);
   assert.equal(demotion(row({ support: "по спеке не выводится", severity: "справка" })), null);
   assert.equal(demotion(row({ support: "нету", severity: "справка" })), null);
+  // Собственная тяжесть линзы rule-compliance — показывается тем же значком с причиной, код показа не меняется (F-26.B).
+  assert.deepEqual(demotion(row({ support: "нет", severity: "предупреждение (правило составления)" })), { reason: "правило составления" });
 });
 
 test("запись по разделу: только существующая и только целый номер", () => {

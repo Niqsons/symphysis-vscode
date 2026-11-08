@@ -13,6 +13,7 @@ const LENSES = {
     { slug: "scenario-run", label: "прогон сценария" },
     { slug: "claim-extraction", label: "существование имён" },
     { slug: "trace-link", label: "связи изменения" },
+    { slug: "rule-compliance", label: "правила составления" },
   ],
 };
 

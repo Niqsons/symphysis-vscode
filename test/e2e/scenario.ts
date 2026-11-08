@@ -1787,21 +1787,30 @@ export async function run(): Promise<void> {
     cp.execFileSync("git", ["worktree", "add", "-b", "ветка-панели", linked, "-q"], { cwd: base });
     fs.mkdirSync(path.join(linked, "openspec", "changes", "изменение-в-дереве"), { recursive: true });
     fs.copyFileSync(path.join(root, "openspec", "changes", "изменение-один", "decisions.json"), path.join(linked, "openspec", "changes", "изменение-в-дереве", "decisions.json"));
-    vscode.workspace.updateWorkspaceFolders(0, null, { uri: vscode.Uri.file(linked) });
+    await vscode.workspace.updateWorkspaceFolders(0, null, { uri: vscode.Uri.file(linked) });
     try {
       // Подпись дерева считается асинхронно: ждём именно её, а не только пункт в списке.
-      const item = await until("подпись дерева в панели", async () => {
+      await vscode.commands.executeCommand("symphysis.refresh");
+      let diag = "";
+      const deadline = Date.now() + 15000;
+      let item: any = null;
+      while (!item && Date.now() < deadline) {
+        (api.store as { sync(): void }).sync();
         const all = (api.changes as unknown as { getChildren(): any[] }).getChildren();
         const s = all.find((x) => x.ref.name === "изменение-в-дереве");
         const it = s ? api.changes.getTreeItem(s) : null;
-        return it && /репо-панели · ветка-панели/.test(String(it.description)) ? it : null;
-      });
-      assert.ok(item, "подпись дерева в панели не появилась");
+        const onDisk = fs.existsSync(path.join(linked, "openspec", "changes", "изменение-в-дереве", "decisions.json"));
+        const stored = (api.store.list() as any[]).map((x) => x.ref?.name ?? String(x));
+        diag = `папки=${vscode.workspace.workspaceFolders?.length}, на диске=${onDisk}, store=[${stored.join(", ")}], описание=${it ? String(it.description) : "(нет пункта)"}`;
+        if (it && /репо-панели · ветка-панели/.test(String(it.description))) { item = it; break; }
+        await sleep(40);
+      }
+      assert.ok(item, `подпись дерева не появилась; ${diag}`);
       // Основное дерево подписи не несёт: у пунктов прежней папки её нет.
       const first = (api.changes as unknown as { getChildren(): any[] }).getChildren().find((x) => x.ref.name === "изменение-один");
       assert.ok(!/репо-панели ·/.test(String(api.changes.getTreeItem(first).description)));
     } finally {
-      vscode.workspace.updateWorkspaceFolders(0, 1);
+      await vscode.workspace.updateWorkspaceFolders(0, 1);
     }
   });
 

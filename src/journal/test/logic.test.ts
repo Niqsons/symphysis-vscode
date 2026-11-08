@@ -61,8 +61,8 @@ test("зависимости: добавлена и снята; уже внес�
 
 test("парковка: строка с адресатом, уже внесённая не повторяется", () => {
   const p = payload([fork("F-01", { parking: [{ addressee: "ИБ", text: "старая" }] })]);
-  const d = draft({ decisions: { "F-01": decision(null, "", [{ text: "старая", addressee: "ИБ" }, { text: "новая", addressee: "материалы" }]) } });
-  assert.deepEqual(lines(p, d), ["- F-01: припарковано → материалы — «новая»"]);
+  const d = draft({ decisions: { "F-01": decision(null, "", [{ text: "старая", addressee: "ИБ" }, { text: "новая", addressee: "агент" }]) } });
+  assert.deepEqual(lines(p, d), ["- F-01: припарковано → агент — «новая»"]);
 });
 
 test("факт оспорен", () => {

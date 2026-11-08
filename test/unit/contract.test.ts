@@ -31,7 +31,7 @@ async function load(env: CoreEnv, ref: ChangeRef): Promise<ViewPayload> {
 const FULL: Draft = {
   ...emptyDraft(),
   decisions: {
-    "F-02": { choice: "D", word: "свой вариант лучше", parked: [{ text: "Узнать размер файла", addressee: "материалы" }] },
+    "F-02": { choice: "D", word: "свой вариант лучше", parked: [{ text: "Узнать размер файла", addressee: "агент" }] },
     "F-03": { choice: "B", word: "передумал — «вложенные» кавычки\nи вторая строка", parked: [] },
     "F-04": { choice: null, word: "", parked: [{ text: "Кто решит", addressee: "человек" }] },
   },
@@ -48,7 +48,7 @@ test("все виды строк: apply принимает, отчёт назы�
   const prompt = buildPrompt(p, FULL, DATE);
   const r = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text), true);
   assert.equal(r.ok, true, `${prompt.text}\n---\n${r.report.join("\n")}`);
-  for (const line of ["F-02: добавлен вариант D", "F-02: решено D", "F-02: припарковано → материалы", "F-03: решено B (было A)", "F-01: факт оспорен",
+  for (const line of ["F-02: добавлен вариант D", "F-02: решено D", "F-02: припарковано → агент", "F-03: решено B (было A)", "F-01: факт оспорен",
     "F-03: зависимость добавлена F-01", "F-04: зависимость снята F-02", "F-04: припарковано → человек", "F-N1 -> F-05: новая развилка", "замечание к схеме внесено"]) {
     assert.ok(r.report.some((l) => l.includes(line)), `нет «${line}» в отчёте:\n${r.report.join("\n")}`);
   }

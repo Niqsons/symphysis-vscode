@@ -297,7 +297,7 @@ export async function run(): Promise<void> {
     const before = fs.readFileSync(draftFile);
     const shown = (await snap()).cards;
     const notice = /поставь новый \.vsix/;
-    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 3(\r?)$/m, "CONTRACT = 99$1"));
+    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 6(\r?)$/m, "CONTRACT = 99$1"));
     fs.writeFileSync(script, fs.readFileSync(script));
     try {
       const s = await until("просьба про .vsix", async () => { const r = await snap(); return r.notes.some((n: string) => notice.test(n)) ? r : null; });
@@ -1743,7 +1743,7 @@ export async function run(): Promise<void> {
       await sleep(600);
       await drive("choose", { id: "F-03", letter: "B" });
       await drive("word", { id: "F-03", text: "передумал: расширение пишет само" });
-      await drive("park", { id: "F-03", text: "Сколько весит черновик", addressee: "материалы" });
+      await drive("park", { id: "F-03", text: "Сколько весит черновик", addressee: "агент" });
       await vscode.commands.executeCommand("symphysis.revealRecord", "F-02");
       if (process.env.SYMPHYSIS_E2E_STRETCH) await drive("dragPrompt", { delta: -200 });
     }

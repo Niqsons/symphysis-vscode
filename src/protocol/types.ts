@@ -134,7 +134,7 @@ export interface ViewPayload {
   attacks: AttackFile[];
 }
 
-export const ADDRESSEES = ["материалы", "человек", "ИБ"] as const;
+export const ADDRESSEES = ["агент", "человек", "ИБ"] as const;
 
 export interface DecisionDraft {
   choice: string | null;

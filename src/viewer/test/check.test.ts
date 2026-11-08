@@ -46,11 +46,11 @@ test("счётчики: решено с пробами, открыто, парк
   const miss = { path: "x", quote: "y", found: false, verdict: "цитаты нет дословно" };
   const s = checkSnapshot(payload([
     decided("F-1", "2026-11-01", { outcome: { kind: "проба", value: "Dismiss", reason: "" } }),
-    fork("F-2", { options: [option("A", { evidence: [miss] })], parking: [{ addressee: "материалы", text: "а" }] }),
+    fork("F-2", { options: [option("A", { evidence: [miss] })], parking: [{ addressee: "агент", text: "а" }] }),
     fact("F-3", { dispute: " «спор» ", evidence: [miss, { path: "x", quote: "y", found: true }] }),
     fact("F-4", { dispute: "  " }),
   ]));
-  assert.deepEqual(s.counts, { decided: 1, open: 1, parked: { материалы: 1, человек: 0, ИБ: 0 }, disputedFacts: 1, evidenceMissing: 2, evidenceSignal: 2 });
+  assert.deepEqual(s.counts, { decided: 1, open: 1, parked: { агент: 1, человек: 0, ИБ: 0 }, disputedFacts: 1, evidenceMissing: 2, evidenceSignal: 2 });
 });
 
 test("«корня для пути нет» входит в «не найдено», но сигналом не считается", () => {

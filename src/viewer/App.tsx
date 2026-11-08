@@ -139,6 +139,15 @@ export function App() {
     setNodeFilter(id);
   }, []);
 
+  /** Первая карточка списка наверх: выбор фильтра переводит к ней; карточек нет — к началу (B-32). */
+  const revealFirstCard = useCallback(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const card = main.querySelector(uiRef.current.mode === "attack" ? ".attackrow" : "article.card");
+    if (card) card.scrollIntoView({ block: "start" });
+    else main.scrollTo(0, 0);
+  }, []);
+
   /** Клик по узлу: режим «решения», условие рядом с «показать»; повторный клик снимает (F-27). Данных ещё нет — подождёт их. */
   const onNode = useCallback((id: string) => {
     const p = payloadRef.current;
@@ -147,7 +156,25 @@ export function App() {
     const next = nodeRef.current === id ? null : id;
     if (next && uiRef.current.mode !== "decisions") setMode("decisions");
     putNode(next);
-  }, [putNode, setMode]);
+    // Выбор условия — как выбор фильтра: к первой карточке списка (B-32).
+    if (next) requestAnimationFrame(() => revealFirstCard());
+  }, [putNode, setMode, revealFirstCard]);
+
+  /** Выбор фильтра режима «решения»: к первой карточке; повторное нажатие — вверх страницы (B-32, B-34). */
+  const pickRecordFilter = useCallback((recordFilter: RecordFilter) => {
+    const same = recordFilter === uiRef.current.recordFilter;
+    putUi({ ...uiRef.current, recordFilter });
+    if (same) mainRef.current?.scrollTo(0, 0);
+    else requestAnimationFrame(() => revealFirstCard());
+  }, [putUi, revealFirstCard]);
+
+  /** Выбор линзы режима «атака»: к первой строке; повторное нажатие — вверх страницы (B-32, B-34). */
+  const pickLens = useCallback((attackLens: string) => {
+    const same = attackLens === uiRef.current.attackLens;
+    putUi({ ...uiRef.current, attackLens });
+    if (same) mainRef.current?.scrollTo(0, 0);
+    else requestAnimationFrame(() => revealFirstCard());
+  }, [putUi, revealFirstCard]);
 
   const reveal = useCallback((id: string, mode?: ViewMode) => {
     const show = (next: Partial<UiState>) => {
@@ -297,7 +324,7 @@ export function App() {
         {/* Фильтры в шапке: выбранный на виду при любой прокрутке. */}
         {counts && payload && ui.mode === "decisions" && (
           <Segmented
-            label="показать:" className="recordfilter" value={ui.recordFilter} onChange={(recordFilter) => putUi({ ...uiRef.current, recordFilter })}
+            label="показать:" className="recordfilter" value={ui.recordFilter} onChange={pickRecordFilter}
             items={[
               { value: "all", label: `все · ${payload.records.length}` },
               { value: "forks", label: `развилки · ${counts.forks}` },
@@ -310,7 +337,7 @@ export function App() {
           <div className="nodefilter">только узел <b>{nodeFilter}</b> <button type="button" className="small" title="снять условие" onClick={() => putNode(null)}>×</button></div>
         )}
         {payload && ui.mode === "attack" && payload.attacks.length > 0 && (
-          <LensFilter attacks={payload.attacks} lens={ui.attackLens} onLens={(attackLens) => putUi({ ...uiRef.current, attackLens })} />
+          <LensFilter attacks={payload.attacks} lens={ui.attackLens} onLens={pickLens} />
         )}
         {counts && payload && ui.mode === "decisions" && (
           <div className="stats">

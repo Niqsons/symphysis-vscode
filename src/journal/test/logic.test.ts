@@ -61,8 +61,8 @@ test("зависимости: добавлена и снята; уже внес�
 
 test("парковка: строка с адресатом, уже внесённая не повторяется", () => {
   const p = payload([fork("F-01", { parking: [{ addressee: "ИБ", text: "старая" }] })]);
-  const d = draft({ decisions: { "F-01": decision(null, "", [{ text: "старая", addressee: "ИБ" }, { text: "новая", addressee: "материалы" }]) } });
-  assert.deepEqual(lines(p, d), ["- F-01: припарковано → материалы — «новая»"]);
+  const d = draft({ decisions: { "F-01": decision(null, "", [{ text: "старая", addressee: "ИБ" }, { text: "новая", addressee: "агент" }]) } });
+  assert.deepEqual(lines(p, d), ["- F-01: припарковано → агент — «новая»"]);
 });
 
 test("факт оспорен", () => {
@@ -113,6 +113,54 @@ test("спор по прочей строке атаки — замечание 
     ["Замечания к схеме: атака attack/decisions.md · coverage · «утверждение» — спор: опора есть"]);
 });
 
+test("кнопка тяжести с обоснованием — строка после решений и новых развилок, до замечаний; без обоснования строки нет", () => {
+  const r = row({ fix: "правка" });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  const mark = { [key(r)]: { to: "предупреждение", why: "решено человеком" } };
+  assert.deepEqual(lines(p, draft({ attackSevs: mark, notes: "замечание" })), [
+    "- тяжесть: attack/decisions.md · F-01, decision · «утверждение» → предупреждение — «решено человеком»",
+    "Замечания к схеме: замечание",
+  ]);
+  const withoutWhy = buildPrompt(p, draft({ attackSevs: { [key(r)]: { to: "предупреждение", why: "" } } }), DATE);
+  assert.equal(withoutWhy.empty, true);
+});
+
+test("кнопка тяжести: отметка без хода у строки или с чужой тяжестью строки не даёт", () => {
+  const r = row({ fix: "правка", severity: "справка" });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  const d = draft({ attackSevs: { [key(r)]: { to: "предупреждение", why: "почему" } } });
+  assert.equal(buildPrompt(p, d, DATE).empty, true); // у справки хода нет
+});
+
+test("спор и обоснование у одной строки: спор в замечания, обоснование — только в строке о тяжести", () => {
+  const r = row({ fix: "правка" });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  const d = draft({ attackDisputes: { [key(r)]: "опора есть" }, attackSevs: { [key(r)]: { to: "предупреждение", why: "обоснование" } } });
+  assert.deepEqual(lines(p, d), [
+    "- тяжесть: attack/decisions.md · F-01, decision · «утверждение» → предупреждение — «обоснование»",
+    "Замечания к схеме: атака attack/decisions.md · coverage · «утверждение» — спор: опора есть",
+  ]);
+});
+
+test("утверждение в строке о тяжести идёт целиком, не обрезается как в замечании спора", () => {
+  const claim = "очень длинное утверждение ".repeat(5).trim();
+  const r = row({ fix: "правка", claim });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  const d = draft({ attackSevs: { [key(r)]: { to: "предупреждение", why: "почему" } } });
+  assert.deepEqual(lines(p, d), [`- тяжесть: attack/decisions.md · F-01, decision · «${claim}» → предупреждение — «почему»`]);
+});
+
+test("отметка «прочитано»: один текст на раздел, в замечания после споров; внесённая в заметки не повторяется", () => {
+  const a = row({ severity: "предупреждение", section: "F-01, options.A", fix: "правка" });
+  const b = row({ severity: "предупреждение", section: "F-01, options.A", claim: "вторая", fix: "правка" });
+  const c = row({ severity: "предупреждение", section: "F-02, options.B", fix: "правка" });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a, b, c] }] });
+  const d = draft({ attackReads: { "attack/decisions.md|F-01, options.A": true, "attack/decisions.md|F-02, options.B": true } });
+  assert.deepEqual(lines(p, d), ["Замечания к схеме: предупреждение прочитано: F-01, options.A · предупреждение прочитано: F-02, options.B"]);
+  const inNotes = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a, b, c] }], notes: [{ date: DATE, text: "предупреждение прочитано: F-01, options.A" }] });
+  assert.deepEqual(lines(inNotes, d), ["Замечания к схеме: предупреждение прочитано: F-02, options.B"]);
+});
+
 test("битый файл атаки промпт не ломает", () => {
   assert.equal(buildPrompt(payload([], { attacks: [{ path: "attack/x.md", error: "битый" }] }), emptyDraft(), DATE).empty, true);
 });
@@ -157,7 +205,7 @@ test("очистка: то, что внесено, из черновика ух�
       "F-03": decision("B", "ещё нет"),
     },
     added: { "F-01": [{ letter: "C", text: "третий" }, { letter: "D", text: "четвёртый" }] },
-    newForks: [], disputes: { "F-02": "не так" }, deps: { "F-01": { add: ["F-02", "F-03"], remove: ["F-09"] } }, notes: "замечание", attackDisputes: {},
+    newForks: [], disputes: { "F-02": "не так" }, deps: { "F-01": { add: ["F-02", "F-03"], remove: ["F-09"] } }, notes: "замечание", attackDisputes: {}, attackSevs: {}, attackReads: {},
   };
   const out = cleanupIngested(p, d);
   assert.deepEqual(out.decisions["F-01"], decision(null, "", [{ text: "другой", addressee: "человек" }]));
@@ -193,6 +241,35 @@ test("очистка: прочий спор, похожий на слово ре
   const r = row({ fix: "правка" });
   const p = payload([fork("F-01", { decision: { option: "A", word: "совпало", date: DATE } })], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
   assert.deepEqual(cleanupIngested(p, draft({ attackDisputes: { [key(r)]: "совпало" } })).attackDisputes, { [key(r)]: "совпало" });
+});
+
+test("очистка: отметка тяжести, внесённая apply, уходит — ячейка несёт эту тяжесть и обоснование", () => {
+  const r = row({ fix: "правка", severity: "предупреждение (причина)" });
+  const p = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [r] }] });
+  const d = draft({ attackSevs: { [key(r)]: { to: "предупреждение", why: "причина" } } });
+  assert.deepEqual(cleanupIngested(p, d).attackSevs, {});
+});
+
+test("очистка: отметка у строки, которую снял повтор атаки, уходит; файла в сборке нет — отметка остаётся", () => {
+  const r = row({ fix: "правка" });
+  const mark = { [key(r)]: { to: "предупреждение", why: "причина" } };
+  // Строка в сборке, ячейка не несёт этой тяжести — отметка остаётся.
+  assert.deepEqual(cleanupIngested(payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [r] }] }), draft({ attackSevs: mark })).attackSevs, mark);
+  // Строки в файле нет (повтор атаки её снял), файл в сборке есть — отметка уходит.
+  assert.deepEqual(cleanupIngested(payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [] }] }), draft({ attackSevs: mark })).attackSevs, {});
+  // Файла в сборке нет — отметки этого файла очистка не касается.
+  assert.deepEqual(cleanupIngested(payload([fork("F-01")], { attacks: [] }), draft({ attackSevs: mark })).attackSevs, mark);
+});
+
+test("очистка: отметка «прочитано» уходит, когда внесена заметкой или строки предупреждения раздела нет", () => {
+  const a = row({ severity: "предупреждение", section: "F-01, options.A", fix: "правка" });
+  const mark = { "attack/decisions.md|F-01, options.A": true as const };
+  const ingested = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a] }], notes: [{ date: DATE, text: "предупреждение прочитано: F-01, options.A" }] });
+  assert.deepEqual(cleanupIngested(ingested, draft({ attackReads: mark })).attackReads, {});
+  const gone = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [] }] });
+  assert.deepEqual(cleanupIngested(gone, draft({ attackReads: mark })).attackReads, {});
+  const live = payload([fork("F-01")], { attacks: [{ path: "attack/decisions.md", rows: [a] }] });
+  assert.deepEqual(cleanupIngested(live, draft({ attackReads: mark })).attackReads, mark);
 });
 
 test("очистка без изменений возвращает тот же объект", () => {

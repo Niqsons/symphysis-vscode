@@ -51,6 +51,7 @@ button.secondary, button.small { background: var(--vscode-button-secondaryBackgr
 button.secondary { padding: 3px 12px; }
 button.small { padding: 0 6px; font-size: .9em; }
 button.secondary:hover:not(:disabled), button.small:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button.small.sev-btn.active { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: var(--vscode-button-background); font-weight: 600; }
 button:disabled { opacity: .5; cursor: default; }
 
 textarea, input[type=text], select {

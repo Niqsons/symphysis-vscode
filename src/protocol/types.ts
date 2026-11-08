@@ -134,7 +134,7 @@ export interface ViewPayload {
   attacks: AttackFile[];
 }
 
-export const ADDRESSEES = ["материалы", "человек", "ИБ"] as const;
+export const ADDRESSEES = ["агент", "человек", "ИБ"] as const;
 
 export interface DecisionDraft {
   choice: string | null;
@@ -158,4 +158,8 @@ export interface Draft {
   deps: Record<string, { add: string[]; remove: string[] }>;
   notes: string;
   attackDisputes: Record<string, string>;
+  /** Отметки тяжести кнопками: ключ — файл атаки, раздел и утверждение целиком, как у спора. */
+  attackSevs: Record<string, { to: string; why: string }>;
+  /** Отметки «прочитано»: ключ — файл атаки и раздел; значение всегда `true`, как на странице ядра. */
+  attackReads: Record<string, true>;
 }

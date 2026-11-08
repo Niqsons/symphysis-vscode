@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, lensAnchor, lensFilters, lensLabel, OUTSIDE, recordIdOf, rowAnchor, setAttackDispute, severityLevel, sevBase, sevReason, verdictState,
+  attackAnchor, attackKind, attackOutline, demotion, effectiveLens, fileGroups, isKnownLens, isWarning, lensAnchor, lensFilters, lensLabel, noteHasRead, OUTSIDE, readByNotes, readKey, readText, recordIdOf, rowAnchor, setAttackDispute, setAttackRead, setAttackSev, severityLevel, sevBase, sevIngested, sevMove, sevReason, verdictState,
 } from "../attack";
 import { emptyDraft } from "../logic";
 import type { AttackFile, AttackRow } from "../../protocol/types";
@@ -27,6 +27,21 @@ test("подпись линзы: у каждого файла свой закр�
   assert.equal(lensLabel(artifactsFile([]), "scenario-run"), "прогон сценария");
   assert.equal(lensLabel(artifactsFile([]), "trace-link"), "связи изменения");
   assert.equal(lensLabel(journalFile([]), "trace-link"), "");
+  assert.equal(lensLabel(artifactsFile([]), "rule-compliance"), "правила составления");
+  assert.equal(lensLabel(journalFile([]), "rule-compliance"), "");
+});
+
+test("линза rule-compliance: четвёртая в списке артефактов; в файле журнала — «вне списка» (B-48)", () => {
+  assert.equal(isKnownLens(artifactsFile([]), "rule-compliance"), true);
+  assert.equal(isKnownLens(journalFile([]), "rule-compliance"), false);
+  const g = fileGroups(artifactsFile([
+    row({ lens: "rule-compliance" }), row({ lens: "trace-link" }), row({ lens: "claim-extraction" }), row({ lens: "scenario-run" }),
+  ]));
+  assert.deepEqual(g.groups.map((x) => x.slug), ["scenario-run", "claim-extraction", "trace-link", "rule-compliance"]);
+  assert.deepEqual(g.lensCounts, [["scenario-run", 1], ["claim-extraction", 1], ["trace-link", 1], ["rule-compliance", 1]]);
+  const jg = fileGroups(journalFile([row({ lens: "rule-compliance" })]));
+  assert.deepEqual(jg.groups.map((x) => x.slug), [OUTSIDE]);
+  assert.equal(jg.outside, 1);
 });
 
 test("линза trace-link: третья в списке артефактов; без строк группы нет, со строкой — после claim-extraction", () => {
@@ -61,6 +76,8 @@ test("понижение: только при опоре «нет» и тяже�
   assert.equal(demotion(row({ support: "есть", severity: "справка" })), null);
   assert.equal(demotion(row({ support: "по спеке не выводится", severity: "справка" })), null);
   assert.equal(demotion(row({ support: "нету", severity: "справка" })), null);
+  // Собственная тяжесть линзы rule-compliance — показывается тем же значком с причиной, код показа не меняется (F-26.B).
+  assert.deepEqual(demotion(row({ support: "нет", severity: "предупреждение (правило составления)" })), { reason: "правило составления" });
 });
 
 test("запись по разделу: только существующая и только целый номер", () => {
@@ -112,6 +129,63 @@ test("спор по строке: пустой убирает ключ", () => {
   const d = setAttackDispute(emptyDraft(), "k", "спор");
   assert.equal(d.attackDisputes.k, "спор");
   assert.deepEqual(setAttackDispute(d, "k", "  ").attackDisputes, {});
+});
+
+test("ход тяжести: у блокера «понизить», у предупреждения «повысить», у справки и строк покрытия кнопки нет", () => {
+  assert.deepEqual(sevMove(row({ severity: "блокер" })), { label: "понизить", to: "предупреждение" });
+  assert.deepEqual(sevMove(row({ severity: "предупреждение (причина)" })), { label: "повысить", to: "блокер" });
+  assert.equal(sevMove(row({ severity: "справка" })), null);
+  assert.equal(sevMove(row({ severity: "Блокер" })), null); // первое слово ячейки строчными, как у _severity_word
+  assert.equal(sevMove(row({ claim: "не пройдено", severity: "блокер" })), null);
+  assert.equal(sevMove(row({ support: "нет: не пройдено", severity: "блокер" })), null);
+  assert.equal(sevMove(row({ support: "нет: файла нет", severity: "блокер" })), null);
+});
+
+test("отметка внесена: ячейка несёт ту же тяжесть и то же обоснование; пробелы схлопнуты", () => {
+  const mark = { to: "предупреждение", why: "решено человеком" };
+  assert.equal(sevIngested(row({ severity: "предупреждение (решено человеком)" }), mark), true);
+  assert.equal(sevIngested(row({ severity: "предупреждение (решено  человеком)" }), mark), true);
+  assert.equal(sevIngested(row({ severity: "предупреждение (иное)" }), mark), false);
+  assert.equal(sevIngested(row({ severity: "блокер" }), mark), false);
+});
+
+test("отметка тяжести: пустой ход убирает ключ, как у спора", () => {
+  const d = setAttackSev(emptyDraft(), "k", { to: "предупреждение", why: "почему" });
+  assert.deepEqual(d.attackSevs.k, { to: "предупреждение", why: "почему" });
+  assert.deepEqual(setAttackSev(d, "k", null).attackSevs, {});
+});
+
+test("флаг «прочитано»: только у предупреждения; текст — раздел дословно, ключ — файл и раздел", () => {
+  assert.equal(isWarning(row({ severity: "предупреждение" })), true);
+  assert.equal(isWarning(row({ severity: "предупреждение (причина)" })), true);
+  assert.equal(isWarning(row({ severity: "блокер" })), false);
+  assert.equal(isWarning(row({ severity: "справка" })), false);
+  const r = row({ severity: "предупреждение", section: "F-12, options.B" });
+  assert.equal(readText(r), "предупреждение прочитано: F-12, options.B");
+  assert.equal(readKey(artifactsFile([r]), r), "attack/artifacts.md|F-12, options.B");
+});
+
+test("текст флага — отдельный сегмент заметки через « · », не подстрока", () => {
+  const text = "предупреждение прочитано: F-12, options.B";
+  assert.equal(noteHasRead(text, text), true);
+  assert.equal(noteHasRead(`спор · ${text} · ещё`, text), true);
+  assert.equal(noteHasRead(`${text} · ещё`, text), true);
+  assert.equal(noteHasRead(`ещё · ${text}`, text), true);
+  assert.equal(noteHasRead("ещё · предупреждение прочитано: F-12, options.BX", text), false);
+  assert.equal(noteHasRead("предупреждение прочитано: F-12, options.BX", text), false);
+});
+
+test("флаг по заметкам журнала: только у строк предупреждение и с разделом дословно", () => {
+  const notes = [{ text: "предупреждение прочитано: F-12, options.B · спор" }];
+  assert.equal(readByNotes(notes, row({ severity: "предупреждение", section: "F-12, options.B" })), true);
+  assert.equal(readByNotes(notes, row({ severity: "предупреждение", section: "F-12, options.C" })), false);
+  assert.equal(readByNotes(notes, row({ severity: "блокер", section: "F-12, options.B" })), false);
+});
+
+test("отметка «прочитано»: выключение убирает ключ", () => {
+  const d = setAttackRead(emptyDraft(), "k", true);
+  assert.deepEqual(d.attackReads, { k: true });
+  assert.deepEqual(setAttackRead(d, "k", false).attackReads, {});
 });
 
 test("пустой перечень атак: фильтр пуст", () => {

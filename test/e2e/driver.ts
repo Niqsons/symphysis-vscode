@@ -307,6 +307,12 @@ async function drive(m: any): Promise<unknown> {
       b.click();
       break;
     }
+    case "lensSecond": {
+      const b = [...document.querySelectorAll<HTMLButtonElement>(".lensfilter button")][1];
+      if (!b) throw new Error("нет второй линзы");
+      b.click();
+      break;
+    }
     case "attackRows":
       return [...document.querySelectorAll(".attackrow h3")].map((h) => h.textContent ?? "");
     case "measureMode": {
@@ -318,7 +324,7 @@ async function drive(m: any): Promise<unknown> {
       return { ms: Math.round(performance.now() - t0), snapshot: snapshot() };
     }
     case "measureDispute": {
-      const area = document.querySelector<HTMLTextAreaElement>(".attackrow textarea")!;
+      const area = document.querySelector<HTMLTextAreaElement>(".attackrow textarea.dispute")!;
       const samples: number[] = [];
       for (let i = 1; i <= 30; i++) {
         const t0 = performance.now();
@@ -331,8 +337,29 @@ async function drive(m: any): Promise<unknown> {
       return { medianMs: samples[15], maxMs: samples[29] };
     }
     case "attackDispute": {
-      setValue(attackRow(m.claim).querySelector("textarea")!, m.text);
+      setValue(attackRow(m.claim).querySelector("textarea.dispute")!, m.text);
       break;
+    }
+    case "sevPress": {
+      const b = attackRow(m.claim).querySelector<HTMLButtonElement>("button.sev-btn");
+      if (!b) throw new Error(`у строки «${m.claim}» нет кнопки тяжести`);
+      b.click();
+      break;
+    }
+    case "sevWhy": {
+      setValue(attackRow(m.claim).querySelector("textarea.sev-why")!, m.text);
+      break;
+    }
+    case "readToggle": {
+      const cb = attackRow(m.claim).querySelector<HTMLInputElement>(".readtoggle input");
+      if (!cb) throw new Error(`у строки «${m.claim}» нет переключателя «прочитано»`);
+      cb.click();
+      break;
+    }
+    case "firstCardTop": {
+      const main = document.querySelector("main")!;
+      const card = main.querySelector(".attackrow, article.card");
+      return card ? card.getBoundingClientRect().top - main.getBoundingClientRect().top : null;
     }
     case "attackRowHtml":
       return attackRow(m.claim).outerHTML;

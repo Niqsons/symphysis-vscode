@@ -6,7 +6,7 @@ import type { ChangeRef } from "./project";
 import { runPython, type RunResult } from "./python";
 
 /** Номер контракта, на который рассчитан этот плагин (`docs/repo-contract.md` ядра). */
-export const EXPECTED_CONTRACT = 3;
+export const EXPECTED_CONTRACT = 6;
 
 export type ViewResult = { ok: true; payload: ViewPayload } | { ok: false; failure: CoreFailure };
 /** `installDir` — настройка `symphysis.toolsPath`, если инструменты нашлись по ней; `cwd` и тогда папка проекта. */

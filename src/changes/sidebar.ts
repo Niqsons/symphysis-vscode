@@ -5,6 +5,7 @@ import { recordMark } from "../journal/ops";
 import { emptyDraft } from "../journal/logic";
 import type { CoreFailure } from "../protocol/protocol";
 import type { Draft, JournalRecord } from "../protocol/types";
+import { worktreeLabel } from "./worktree";
 import type { ChangeState, JournalStore } from "./store";
 
 function failureLine(f: CoreFailure): string {
@@ -36,11 +37,42 @@ function attackLine(state: ChangeState): string {
 export class ChangesProvider implements vscode.TreeDataProvider<ChangeState> {
   private readonly emitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.emitter.event;
+  /** Подпись «проект · дерево» на корень рабочей области; `null` — основное дерево или не репозиторий. */
+  private readonly labels = new Map<string, string | null>();
+  private readonly computed = new Set<string>();
 
-  constructor(private readonly store: JournalStore, private readonly multiRoot: () => boolean) {}
+  constructor(
+    private readonly store: JournalStore,
+    private readonly multiRoot: () => boolean,
+    private readonly git: () => string | null,
+  ) {}
 
   refresh(): void {
     this.emitter.fire();
+    this.computeLabels();
+  }
+
+  /** Свежий разбор рабочих деревьев: по команде обновления и при смене папок рабочей области. */
+  recheck(): void {
+    this.computed.clear();
+    this.computeLabels();
+  }
+
+  /** Подписи считаются раз на корень: git зовётся, пока дерево не менялось; при смене папок — `recheck`. */
+  private computeLabels(): void {
+    const git = this.git();
+    if (!git) return;
+    for (const root of new Set(this.store.list().map((s) => s.ref.root))) {
+      const key = `${git}|${root}`;
+      if (this.computed.has(key)) continue;
+      this.computed.add(key);
+      void worktreeLabel(root, git).then((label) => {
+        if (this.labels.get(root) !== label) {
+          this.labels.set(root, label);
+          this.emitter.fire();
+        }
+      });
+    }
   }
 
   getChildren(): ChangeState[] {
@@ -52,6 +84,8 @@ export class ChangesProvider implements vscode.TreeDataProvider<ChangeState> {
     item.id = state.ref.dir;
     item.command = { command: "symphysis.openChange", title: "Открыть журнал", arguments: [state.ref.dir] };
     const parts: string[] = [];
+    const worktree = this.labels.get(state.ref.root);
+    if (worktree) parts.push(worktree);
     const s = state.payload?.stats;
     if (s) parts.push(`открыто ${s.forks - s.decided} · решено ${s.decided}`);
     const attacks = attackLine(state);

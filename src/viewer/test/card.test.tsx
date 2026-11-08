@@ -86,8 +86,8 @@ test("антипод виден на варианте; выбранный ант
   assert.match(html(a, p, both), /антипод уже выбран: F-02\.B/);
 });
 
-test("подсказка адресатов: «материалы» ищет агент, в файлах или пробой (F-41)", () => {
-  assert.match(html(fork("F-01")), /ответ ищет агент, в файлах или пробой/);
+test("подсказка адресатов: «агент» ищет агент исследования, в файлах или пробой (F-41)", () => {
+  assert.match(html(fork("F-01")), /«агент» — ответ ищет агент исследования, в файлах или пробой \(шаг research\)/);
 });
 
 test("улики: сверено побочным, пропавшая цитата сигнальным, с местом и цитатой", () => {
@@ -120,12 +120,12 @@ test("факт: улики, следствия и поле «оспорить»,
 
 test("парковка журнала и черновика с адресатами; журнальную снять нельзя", () => {
   const rec = fork("F-01", { parking: [{ addressee: "ИБ", text: "из журнала", finding: "находка" }] });
-  const d: Draft = { ...emptyDraft(), decisions: { "F-01": { choice: null, word: "", parked: [{ text: "из черновика", addressee: "материалы" }] } } };
+  const d: Draft = { ...emptyDraft(), decisions: { "F-01": { choice: null, word: "", parked: [{ text: "из черновика", addressee: "агент" }] } } };
   const out = html(rec, payload([rec]), d);
   assert.ok(out.includes("из журнала"));
   assert.ok(out.includes("из черновика"));
   assert.ok(out.includes("→ ИБ · в журнале"));
-  assert.ok(out.includes("→ материалы"));
+  assert.ok(out.includes("→ агент"));
   assert.ok(out.includes("находка"));
   assert.equal((out.match(/>снять</g) ?? []).length, 1);
 });

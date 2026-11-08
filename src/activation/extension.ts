@@ -68,7 +68,7 @@ export function activate(context: vscode.ExtensionContext) {
       viewer.journalUpdated(key);
     },
   });
-  const changes = new ChangesProvider(store, () => workspaceDirs().length > 1);
+  const changes = new ChangesProvider(store, () => workspaceDirs().length > 1, () => resolveGit(process.env, workspaceDirs()));
   const toc = new TocProvider(store);
   const tocView = vscode.window.createTreeView("symphysis.toc", { treeDataProvider: toc });
   const attackToc = new AttackTocProvider(store);
@@ -204,7 +204,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider("symphysis.search", search),
     vscode.window.registerWebviewPanelSerializer(VIEWER_TYPE, { deserializeWebviewPanel: async (panel) => viewer.restore(panel) }),
     vscode.window.registerWebviewPanelSerializer(SCHEME_TYPE, { deserializeWebviewPanel: async (panel) => scheme.restore(panel) }),
-    vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }),
+    vscode.commands.registerCommand("symphysis.refresh", () => { python = null; store.refreshAll(); changes.refresh(); changes.recheck(); hookAll(); helpSoon(); }),
     vscode.commands.registerCommand("symphysis.openChange", (key?: string) => {
       const target = key ?? store.list()[0]?.ref.dir;
       if (target) viewer.open(target);
@@ -218,7 +218,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("symphysis.revealRecord", (id: string) => viewer.reveal(id)),
     vscode.commands.registerCommand("symphysis.revealAttack", (anchor: string) => viewer.reveal(anchor, "attack")),
     // Окружение справки сменилось: отказ на вкладке не должен пережить свою причину. Расчёт, шедший в этот момент, отброшен сверкой цели, новый его заменяет.
-    vscode.workspace.onDidChangeWorkspaceFolders(() => { watch(); store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }),
+    // Панель и подписи деревьев — первыми: вотчеры для новой папки могут отказать, но перечень изменений обязан перечитаться (B-37).
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      store.refreshAll(); changes.refresh(); changes.recheck();
+      try { watch(); } catch { /* вотчеры вторичны: панель уже свежая, следующий пересоздаст их */ }
+      hookAll(); helpSoon();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("symphysis.colors")) { viewer.colorsChanged(); search.refresh(); }
       if (e.affectsConfiguration("symphysis.python")) { python = null; store.refreshAll(); changes.refresh(); hookAll(); helpSoon(); }

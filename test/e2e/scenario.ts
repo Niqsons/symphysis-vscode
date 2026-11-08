@@ -2,6 +2,7 @@
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as cp from "node:child_process";
 import * as vscode from "vscode";
 import * as crypto from "node:crypto";
 import { emptyDraft } from "../../src/journal/logic";
@@ -297,7 +298,7 @@ export async function run(): Promise<void> {
     const before = fs.readFileSync(draftFile);
     const shown = (await snap()).cards;
     const notice = /поставь новый \.vsix/;
-    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 3(\r?)$/m, "CONTRACT = 99$1"));
+    fs.writeFileSync(render, good.toString("utf8").replace(/^CONTRACT = 6(\r?)$/m, "CONTRACT = 99$1"));
     fs.writeFileSync(script, fs.readFileSync(script));
     try {
       const s = await until("просьба про .vsix", async () => { const r = await snap(); return r.notes.some((n: string) => notice.test(n)) ? r : null; });
@@ -481,11 +482,53 @@ export async function run(): Promise<void> {
     assert.match(description, /artifacts: битый файл/);
   });
 
+  await step("переключатель «прочитано» у предупреждения: текст в «Замечания к схеме:»; после apply — «в журнале», переключатель неактивен", async () => {
+    // Своя строка предупреждения: кнопки тяжести дальше переведут «Мелочь без причины понижения» в блокер, и флагу нужна живая строка.
+    fs.appendFileSync(path.join(attacked, "attack", "decisions.md"), "| Читательское предупреждение | F-04, question | coverage | инвариант | предупреждение | есть | правка цели |\n", "utf8");
+    await until("строка предупреждения", async () => (await drive("attackRows")).some((c: string) => c.includes("Читательское предупреждение")));
+    await drive("readToggle", { claim: "Читательское предупреждение" });
+    const toggled = await snap();
+    assert.match(toggled.prompt, /Замечания к схеме: предупреждение прочитано: F-04, question/);
+    assert.ok((await drive("attackRowHtml", { claim: "Читательское предупреждение" })).includes("прочитано · не внесено"));
+  });
+
+  await step("кнопки тяжести: без обоснования строки нет; с обоснованием — строка в промпте, apply меняет ячейку, журнал не тронут, отметка уходит", async () => {
+    const file = path.join(attacked, "attack", "decisions.md");
+    // Нажатие без обоснования: пометка, поля раскрыто, строки о тяжести в промпте нет.
+    const pressed = await drive("sevPress", { claim: "Мелочь без причины понижения" });
+    assert.ok(!/- тяжесть:/.test(pressed.prompt));
+    assert.ok((await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("нет обоснования, строки о тяжести не будет"));
+    // Обоснование — в своём поле; строка о тяжести несёт утверждение целиком.
+    await drive("sevWhy", { claim: "Мелочь без причины понижения", text: "числа сходятся сами" });
+    const withWhy = await snap();
+    assert.match(withWhy.prompt, /- тяжесть: openspec\/changes\/с-атакой\/attack\/decisions\.md · F-03, question · «Мелочь без причины понижения» → блокер — «числа сходятся сами»/);
+    // apply: ячейка несёт тяжесть и обоснование; журнал меняется только заметкой «прочитано» (она шла тем же промптом), решения прежние.
+    await drive("click", { text: "Внести" });
+    await until("отчёт", async () => {
+      const x = await snap();
+      return x.report && !/Вношу/.test(x.report) ? x : null;
+    }, 20000);
+    const afterJournal = JSON.parse(fs.readFileSync(attackedJournal, "utf8"));
+    assert.equal(afterJournal.records[1].decision.word, "хранить в проекте");
+    assert.ok(fs.readFileSync(file, "utf8").includes("блокер (числа сходятся сами)"));
+    await until("очистка", async () => {
+      const x = await snap();
+      return !/- тяжесть:/.test(x.prompt) ? x : null;
+    });
+    assert.ok((await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("блокер (числа сходятся сами)"));
+    assert.ok(!(await drive("attackRowHtml", { claim: "Мелочь без причины понижения" })).includes("нет обоснования, строки о тяжести не будет"));
+    // Флаг «прочитано» из той же записи вернулся по заметке журнала: «в журнале», переключатель неактивен.
+    assert.ok(fs.readFileSync(attackedJournal, "utf8").includes("предупреждение прочитано: F-04, question"));
+    const flag = await drive("attackRowHtml", { claim: "Читательское предупреждение" });
+    assert.ok(flag.includes("прочитано · в журнале"));
+    assert.match(flag, /<input[^>]*disabled/);
+  });
+
   await step("новая строка атаки на диске появляется без кнопки", async () => {
     const file = path.join(attacked, "attack", "decisions.md");
     fs.appendFileSync(file, "| Новая строка от агента | F-04, question | coverage | инвариант | справка | есть | правка цели |\n", "utf8");
     await until("новая строка", async () => (await drive("attackRows")).some((c: string) => c.includes("Новая строка от агента")));
-    assert.match((await snap()).mode, /атака · 6/);
+    assert.match((await snap()).mode, /атака · 7/);
   });
 
   await step("прокрутка у каждого режима своя: вернулся — карточки там же", async () => {
@@ -545,7 +588,8 @@ export async function run(): Promise<void> {
     assert.equal(api.attackToc.message(), undefined);
     const files = api.attackToc.getChildren();
     const file = files.find((f) => treeItem(f).label === "decisions.md");
-    assert.match(String(treeItem(file).description), /gaps_found · устарел · блокеров 3 · предупреждений 1/);
+    // Кнопки тяжести перевели «Мелочь без причины понижения» из предупреждения в блокер: блокеров 4, предупреждений нет.
+    assert.match(String(treeItem(file).description), /gaps_found · устарел · блокеров 4/);
     const broken = files.find((f) => treeItem(f).label === "artifacts.md");
     assert.match(String(treeItem(broken).description), /битый файл/);
     assert.deepEqual(api.attackToc.getChildren(broken), []);
@@ -722,6 +766,31 @@ export async function run(): Promise<void> {
     assert.deepEqual(wide.violations, []);
     const number = await searchDrive("searchType", { text: "6" });
     assert.equal(number.overflowPx, 0, "карточка записи не должна вылезать вбок");
+    await drive("mode", { name: "решения" });
+  });
+
+  await step("фильтры: выбор переводит к первой карточке, повторное нажатие — вверх страницы (B-32, B-34)", async () => {
+    const scrolled = async (top: number) => { await drive("scrollMain", { top }); return (await snap()).scrollTop; };
+    // Решения: фильтр «развилки» на большом журнале.
+    assert.ok((await scrolled(100000)) > 0, "страница должна прокручиваться");
+    await drive("filter", { name: "развилки" });
+    const first = await drive("firstCardTop");
+    assert.ok(first !== null && first < 10, `первая карточка не у верха: ${first}`);
+    assert.ok((await scrolled(100000)) > 0);
+    await drive("filter", { name: "развилки" });
+    assert.equal((await snap()).scrollTop, 0, "повторное нажатие не вернуло вверх");
+    await drive("filter", { name: "все" });
+    // Атака: повторное нажатие активной линзы «все» — вверх; выбор другой линзы — к первой строке.
+    await drive("mode", { name: "атака" });
+    assert.ok((await scrolled(100000)) > 0);
+    await drive("lens", { name: "все" });
+    assert.equal((await snap()).scrollTop, 0, "повторное нажатие линзы не вернуло вверх");
+    assert.ok((await scrolled(100000)) > 0);
+    await drive("lensSecond");
+    const row = await drive("firstCardTop");
+    assert.ok(row !== null && row < 10, `первая строка не у верха: ${row}`);
+    await drive("lens", { name: "все" });
+    // Режим остаётся «решения»: следующие разделы сценария открывают журналы в нём (режим помнится между журналами).
     await drive("mode", { name: "решения" });
   });
 
@@ -1709,6 +1778,42 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 
+  await step("панель «Изменения»: в связанном рабочем дереве называет проект и дерево, из основного дерева подписи нет", async () => {
+    const base = path.join(path.dirname(root), "репо-панели");
+    const linked = path.join(path.dirname(root), "дерево-панели");
+    fs.mkdirSync(base, { recursive: true });
+    cp.execFileSync("git", ["init", "-q"], { cwd: base });
+    cp.execFileSync("git", ["-c", "user.email=test@test", "-c", "user.name=test", "commit", "--allow-empty", "-m", "начало", "-q"], { cwd: base });
+    cp.execFileSync("git", ["worktree", "add", "-b", "ветка-панели", linked, "-q"], { cwd: base });
+    fs.mkdirSync(path.join(linked, "openspec", "changes", "изменение-в-дереве"), { recursive: true });
+    fs.copyFileSync(path.join(root, "openspec", "changes", "изменение-один", "decisions.json"), path.join(linked, "openspec", "changes", "изменение-в-дереве", "decisions.json"));
+    await vscode.workspace.updateWorkspaceFolders(0, null, { uri: vscode.Uri.file(linked) });
+    try {
+      // Подпись дерева считается асинхронно: ждём именно её, а не только пункт в списке.
+      await vscode.commands.executeCommand("symphysis.refresh");
+      let diag = "";
+      const deadline = Date.now() + 15000;
+      let item: any = null;
+      while (!item && Date.now() < deadline) {
+        (api.store as { sync(): void }).sync();
+        const all = (api.changes as unknown as { getChildren(): any[] }).getChildren();
+        const s = all.find((x) => x.ref.name === "изменение-в-дереве");
+        const it = s ? api.changes.getTreeItem(s) : null;
+        const onDisk = fs.existsSync(path.join(linked, "openspec", "changes", "изменение-в-дереве", "decisions.json"));
+        const stored = (api.store.list() as any[]).map((x) => x.ref?.name ?? String(x));
+        diag = `папки=${vscode.workspace.workspaceFolders?.length}, на диске=${onDisk}, store=[${stored.join(", ")}], описание=${it ? String(it.description) : "(нет пункта)"}`;
+        if (it && /репо-панели · ветка-панели/.test(String(it.description))) { item = it; break; }
+        await sleep(40);
+      }
+      assert.ok(item, `подпись дерева не появилась; ${diag}`);
+      // Основное дерево подписи не несёт: у пунктов прежней папки её нет.
+      const first = (api.changes as unknown as { getChildren(): any[] }).getChildren().find((x) => x.ref.name === "изменение-один");
+      assert.ok(!/репо-панели ·/.test(String(api.changes.getTreeItem(first).description)));
+    } finally {
+      await vscode.workspace.updateWorkspaceFolders(0, 1);
+    }
+  });
+
   fs.writeFileSync(process.env.SYMPHYSIS_E2E_RESULTS!, JSON.stringify({ tests: results, measures }, null, 1), "utf8");
 
   // Пауза для снимка окна: журнал с открытой развилкой, выбором и словом.
@@ -1743,7 +1848,7 @@ export async function run(): Promise<void> {
       await sleep(600);
       await drive("choose", { id: "F-03", letter: "B" });
       await drive("word", { id: "F-03", text: "передумал: расширение пишет само" });
-      await drive("park", { id: "F-03", text: "Сколько весит черновик", addressee: "материалы" });
+      await drive("park", { id: "F-03", text: "Сколько весит черновик", addressee: "агент" });
       await vscode.commands.executeCommand("symphysis.revealRecord", "F-02");
       if (process.env.SYMPHYSIS_E2E_STRETCH) await drive("dragPrompt", { delta: -200 });
     }

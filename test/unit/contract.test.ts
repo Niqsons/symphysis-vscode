@@ -31,7 +31,7 @@ async function load(env: CoreEnv, ref: ChangeRef): Promise<ViewPayload> {
 const FULL: Draft = {
   ...emptyDraft(),
   decisions: {
-    "F-02": { choice: "D", word: "свой вариант лучше", parked: [{ text: "Узнать размер файла", addressee: "материалы" }] },
+    "F-02": { choice: "D", word: "свой вариант лучше", parked: [{ text: "Узнать размер файла", addressee: "агент" }] },
     "F-03": { choice: "B", word: "передумал — «вложенные» кавычки\nи вторая строка", parked: [] },
     "F-04": { choice: null, word: "", parked: [{ text: "Кто решит", addressee: "человек" }] },
   },
@@ -48,7 +48,7 @@ test("все виды строк: apply принимает, отчёт назы�
   const prompt = buildPrompt(p, FULL, DATE);
   const r = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text), true);
   assert.equal(r.ok, true, `${prompt.text}\n---\n${r.report.join("\n")}`);
-  for (const line of ["F-02: добавлен вариант D", "F-02: решено D", "F-02: припарковано → материалы", "F-03: решено B (было A)", "F-01: факт оспорен",
+  for (const line of ["F-02: добавлен вариант D", "F-02: решено D", "F-02: припарковано → агент", "F-03: решено B (было A)", "F-01: факт оспорен",
     "F-03: зависимость добавлена F-01", "F-04: зависимость снята F-02", "F-04: припарковано → человек", "F-N1 -> F-05: новая развилка", "замечание к схеме внесено"]) {
     assert.ok(r.report.some((l) => l.includes(line)), `нет «${line}» в отчёте:\n${r.report.join("\n")}`);
   }
@@ -98,6 +98,45 @@ test("ответ на вопрос атаки уходит словом к ре�
   assert.match(prompt.text, /- F-02: A — «ответ человека»/);
   const r = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text), true);
   assert.equal(r.ok, true, `${prompt.text}\n---\n${r.report.join("\n")}`);
+});
+
+test("строка о тяжести: apply принимает, ячейка атаки несёт тяжесть и обоснование, журнал не тронут, очистка убирает отметку", opts, async () => {
+  const { env, change } = setup();
+  addAttack(change);
+  const ref = changeRef(env.cwd, path.basename(change));
+  const p = await load(env, ref);
+  const att = p.attacks[0], row = att.rows![0];
+  const draft: Draft = { ...emptyDraft(), attackSevs: { [disputeKey(att.path, row)]: { to: "предупреждение", why: "решено человеком" } } };
+  const prompt = buildPrompt(p, draft, DATE);
+  assert.match(prompt.text, /- тяжесть: openspec\/changes\/[^/]*\/attack\/decisions\.md · F-02, decision · «Хранение решено без улики» → предупреждение — «решено человеком»/);
+  const before = fs.readFileSync(ref.journal);
+  const r = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text));
+  assert.equal(r.ok, true, `${prompt.text}\n---\n${r.report.join("\n")}`);
+  assert.ok(fs.readFileSync(ref.journal).equals(before), "журнал не должен меняться");
+  assert.ok(fs.readFileSync(path.join(change, "attack", "decisions.md"), "utf8").includes("предупреждение (решено человеком)"));
+  const after = await load(env, changeRef(env.cwd, ref.name));
+  assert.equal(after.attacks[0].rows![0].severity, "предупреждение (решено человеком)");
+  assert.deepEqual(cleanupIngested(after, draft).attackSevs, {});
+});
+
+test("отметка «прочитано»: apply кладёт её заметкой notes[], очистка убирает отметку", opts, async () => {
+  const { env, change } = setup();
+  addAttack(change, "decisions.md", [
+    "---", "status: gaps_found", "target: decisions.json", `target_sha256: ${"0".repeat(64)}`, "---", "",
+    "| Утверждение | Раздел | Линза | Инвариант | Тяжесть | Опора | Закрытие |", "| --- | --- | --- | --- | --- | --- | --- |",
+    "| Претензия | F-03, options.B | coverage | инвариант | предупреждение | нет | правка цели |", "",
+  ].join("\n"));
+  const ref = changeRef(env.cwd, path.basename(change));
+  const p = await load(env, ref);
+  const att = p.attacks[0], row = att.rows![0];
+  const draft: Draft = { ...emptyDraft(), attackReads: { [`${att.path}|${row.section}`]: true } };
+  const prompt = buildPrompt(p, draft, DATE);
+  assert.match(prompt.text, /Замечания к схеме: предупреждение прочитано: F-03, options\.B/);
+  const applied = await applyAnswers(env, ref, saveAnswers(change, DATE, prompt.text));
+  assert.equal(applied.ok, true, applied.report.join("\n"));
+  const after = await load(env, changeRef(env.cwd, ref.name));
+  assert.ok(after.notes.some((n) => n.text.includes("предупреждение прочитано: F-03, options.B")));
+  assert.deepEqual(cleanupIngested(after, draft).attackReads, {});
 });
 
 /** Детерминированный черновик по настоящему журналу: у каждой развилки своё действие по кругу, все варианты, какие есть. */

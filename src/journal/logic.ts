@@ -1,6 +1,7 @@
 // Правила просмотрщика без DOM и vscode: выбор, антиподы, зависимости, очистка внесённого, промпт возврата.
 // Строки промпта пишутся по грамматике `journal_apply.parse_answers`; контракт держит test/unit/contract.test.ts.
-import type { DecisionDraft, Draft, JournalOption, JournalRecord, ViewPayload } from "../protocol/types";
+import { isWarning, readByNotes, readKey, readText, sevIngested, sevMove } from "./attack";
+import type { AttackRow, DecisionDraft, Draft, JournalOption, JournalRecord, ViewPayload } from "../protocol/types";
 
 export const ADDED_MARK = "(добавлен человеком";
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -10,7 +11,7 @@ export const norm = (s: unknown): string => String(s ?? "").replace(/\s+/g, " ")
 const shorten = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 const withoutMark = (text: string) => norm(text.split(ADDED_MARK)[0]);
 
-export const emptyDraft = (): Draft => ({ decisions: {}, added: {}, newForks: [], disputes: {}, deps: {}, notes: "", attackDisputes: {} });
+export const emptyDraft = (): Draft => ({ decisions: {}, added: {}, newForks: [], disputes: {}, deps: {}, notes: "", attackDisputes: {}, attackSevs: {}, attackReads: {} });
 
 const isObject = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && !Array.isArray(v);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
@@ -48,6 +49,14 @@ export function normalizeDraft(raw: unknown): Draft {
   }
   out.disputes = stringMap(raw.disputes);
   out.attackDisputes = stringMap(raw.attackDisputes);
+  if (isObject(raw.attackSevs)) {
+    for (const [key, mark] of Object.entries(raw.attackSevs)) {
+      if (isObject(mark) && typeof mark.to === "string" && typeof mark.why === "string") out.attackSevs[key] = { to: mark.to, why: mark.why };
+    }
+  }
+  if (isObject(raw.attackReads)) {
+    for (const [key, on] of Object.entries(raw.attackReads)) if (on === true) out.attackReads[key] = true;
+  }
   if (typeof raw.notes === "string") out.notes = raw.notes;
   return out;
 }
@@ -102,7 +111,7 @@ export const disputeKey = (path: string, r: { section: string; claim: string }) 
 /** Вычищает из черновика то, что уже стоит в журнале. Ничего не изменилось — возвращает тот же объект. */
 export function cleanupIngested(p: ViewPayload, d: Draft): Draft {
   const out: Draft = {
-    ...d, decisions: { ...d.decisions }, added: { ...d.added }, disputes: { ...d.disputes }, deps: { ...d.deps }, attackDisputes: { ...d.attackDisputes },
+    ...d, decisions: { ...d.decisions }, added: { ...d.added }, disputes: { ...d.disputes }, deps: { ...d.deps }, attackDisputes: { ...d.attackDisputes }, attackSevs: { ...d.attackSevs }, attackReads: { ...d.attackReads },
   };
   for (const rec of p.records) {
     const added = out.added[rec.id];
@@ -136,6 +145,28 @@ export function cleanupIngested(p: ViewPayload, d: Draft): Draft {
       if (answered || noteTexts.some((t) => t.includes(sp))) delete out.attackDisputes[k];
     }
   }
+  // Отметка тяжести уходит, когда ячейка уже несёт эту тяжесть и это обоснование (внесла apply) или строки в текущей
+  // сборке нет (снял повтор атаки, F-35); отметок файлов, которых в сборке нет, очистка не касается.
+  const liveRows = new Map<string, AttackRow>();
+  const livePaths = p.attacks.map((a) => a.path + "|");
+  for (const att of p.attacks) for (const r of att.rows ?? []) liveRows.set(disputeKey(att.path, r), r);
+  for (const k of Object.keys(out.attackSevs)) {
+    const row = liveRows.get(k);
+    if (!row && !livePaths.some((p) => k.startsWith(p))) continue;
+    if (!row || sevIngested(row, out.attackSevs[k])) delete out.attackSevs[k];
+  }
+  // Отметка «прочитано» уходит, когда её текст внесён заметкой notes[] или строки предупреждения этого раздела в
+  // текущей сборке нет (снял повтор атаки, F-22).
+  const liveReads = new Set<string>();
+  for (const att of p.attacks) {
+    for (const r of att.rows ?? []) {
+      if (!isWarning(r)) continue;
+      const k = readKey(att, r);
+      if (readByNotes(p.notes, r)) delete out.attackReads[k];
+      else liveReads.add(k);
+    }
+  }
+  for (const k of Object.keys(out.attackReads)) if (!liveReads.has(k)) delete out.attackReads[k];
   return JSON.stringify(out) === JSON.stringify(d) ? d : out;
 }
 
@@ -231,9 +262,29 @@ export function buildPrompt(p: ViewPayload, d: Draft, date: string): Prompt {
     lines.push("Новые развилки:");
     for (const f of d.newForks) lines.push(`- ${f.id}: ${f.question} — варианты: ${f.options.replace(/\n+/g, " | ")}${f.word ? ` — «${f.word}»` : ""}`);
   }
+  // Строки о тяжести (F-47.A): отметка `{ to, why }` у строки текущей сборки, с обоснованием, с ходом, который примет
+  // `apply`, и ещё не внесённая; после решений и новых развилок, до замечаний. Обоснование в замечания не идёт,
+  // спор в строку не идёт.
+  for (const att of p.attacks) {
+    for (const r of att.rows ?? []) {
+      const mark = d.attackSevs[disputeKey(att.path, r)], mv = sevMove(r);
+      if (!mark || !norm(mark.why) || !mv || mv.to !== mark.to || sevIngested(r, mark)) continue;
+      lines.push(`- тяжесть: ${att.path} · ${r.section} · «${r.claim}» → ${mark.to} — «${norm(mark.why)}»`);
+    }
+  }
+  // Отметки «прочитано» (warning-read-flag): один текст на раздел, только у строк предупреждение текущей сборки;
+  // внесённые в notes[] не повторяются.
+  const readTexts: string[] = [];
+  for (const att of p.attacks) {
+    for (const r of att.rows ?? []) {
+      if (!isWarning(r) || !d.attackReads[readKey(att, r)]) continue;
+      const t = readText(r);
+      if (!readTexts.includes(t) && !readByNotes(p.notes, r)) readTexts.push(t);
+    }
+  }
   const own = d.notes.trim();
   const ingested = own !== "" && p.notes.some((n) => norm(n.text).includes(norm(own)));
-  const notes = [own && !ingested ? own : "", ...otherDisputes, ...conflicts.map((id) => `конфликт ответов к ${id} — оставьте один`)].filter(Boolean);
+  const notes = [own && !ingested ? own : "", ...otherDisputes, ...readTexts, ...conflicts.map((id) => `конфликт ответов к ${id} — оставьте один`)].filter(Boolean);
   if (notes.length) lines.push(`Замечания к схеме: ${notes.join(" · ")}`);
   const empty = lines.length === 1;
   if (empty) lines.push(EMPTY_LINE);

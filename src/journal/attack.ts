@@ -13,6 +13,7 @@ const LENSES = {
     { slug: "scenario-run", label: "прогон сценария" },
     { slug: "claim-extraction", label: "существование имён" },
     { slug: "trace-link", label: "связи изменения" },
+    { slug: "rule-compliance", label: "правила составления" },
   ],
 };
 
@@ -49,6 +50,70 @@ export function severityLevel(severity: string): "signal" | "accent" | "muted" |
 export function demotion(row: AttackRow): { reason: string } | null {
   const noSupport = /^нет(?![а-яёa-z0-9])/i.test(row.support.trim());
   return !noSupport || sevBase(row.severity) === "блокер" ? null : { reason: sevReason(row.severity) };
+}
+
+const normText = (s: unknown): string => String(s ?? "").replace(/\s+/g, " ").trim();
+
+/** Строка покрытия (F-19.A): тяжесть у неё не меняется; те же признаки, что у `_is_coverage` в attack_table.py ядра. */
+export function isCoverageGap(row: AttackRow): boolean {
+  return row.claim === "не пройдено" || row.support === "нет: не пройдено" || row.support === "нет: файла нет";
+}
+
+/** Ход тяжести: кнопка там, где `set_severity` ядра примет ход — первое слово ячейки, как его пишет атака. */
+export function sevMove(row: AttackRow): { label: string; to: string } | null {
+  if (isCoverageGap(row)) return null;
+  const w = (row.severity ?? "").split(/\s+/).filter(Boolean)[0] || "";
+  return w === "блокер" ? { label: "понизить", to: "предупреждение" } : w === "предупреждение" ? { label: "повысить", to: "блокер" } : null;
+}
+
+export interface SevMark { to: string; why: string }
+
+/** Отметка уже внесена: ячейка несёт ту же тяжесть и то же обоснование (после `apply`: `<тяжесть> (<обоснование>)`). */
+export function sevIngested(row: AttackRow, mark: SevMark): boolean {
+  return sevBase(row.severity) === mark.to && normText(sevReason(row.severity)) === normText(mark.why);
+}
+
+/** Отметка тяжести у строки: пустая причина убирает ключ, как у спора. */
+export function setAttackSev(d: Draft, key: string, mark: SevMark | null): Draft {
+  const next = { ...d.attackSevs };
+  if (mark) next[key] = mark;
+  else delete next[key];
+  return { ...d, attackSevs: next };
+}
+
+// --- флаг «прочитано» у строки предупреждение (warning-read-flag, B-43) ---
+
+export const READ_PREFIX = "предупреждение прочитано: ";
+export const READ_SEP = " · ";
+
+export function isWarning(row: AttackRow): boolean {
+  return sevBase(row.severity) === "предупреждение";
+}
+
+/** Текст отметки в «Замечания к схеме:»: раздел дословно из столбца «Раздел», пробелы схлопнуты. */
+export const readText = (row: AttackRow): string => READ_PREFIX + normText(row.section);
+
+/** Ключ отметки — файл атаки и раздел: две строки одного раздела делят одну отметку (F-21). */
+export const readKey = (att: AttackFile, row: AttackRow): string => `${att.path}|${normText(row.section)}`;
+
+/** Текст флага — отдельный сегмент заметки через « · », не подстрока (F-12). */
+export function noteHasRead(noteText: string, text: string): boolean {
+  const n = normText(noteText);
+  return n === text || n.startsWith(text + READ_SEP) || n.endsWith(READ_SEP + text) || n.includes(READ_SEP + text + READ_SEP);
+}
+
+/** Флаг по заметкам журнала: только у строк предупреждение. */
+export function readByNotes(notes: { text: string }[], row: AttackRow): boolean {
+  if (!isWarning(row)) return false;
+  const t = readText(row);
+  return notes.some((n) => noteHasRead(n.text, t));
+}
+
+export function setAttackRead(d: Draft, key: string, on: boolean): Draft {
+  const next = { ...d.attackReads };
+  if (on) next[key] = true;
+  else delete next[key];
+  return { ...d, attackReads: next };
 }
 
 /** Раздел `F-NN, поле` с записью в журнале — переход к карточке; записи нет — ссылки нет. */

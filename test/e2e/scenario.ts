@@ -502,14 +502,14 @@ export async function run(): Promise<void> {
     await drive("sevWhy", { claim: "Мелочь без причины понижения", text: "числа сходятся сами" });
     const withWhy = await snap();
     assert.match(withWhy.prompt, /- тяжесть: openspec\/changes\/с-атакой\/attack\/decisions\.md · F-03, question · «Мелочь без причины понижения» → блокер — «числа сходятся сами»/);
-    // apply: ячейка несёт тяжесть и обоснование, журнал не тронут, отметка из черновика уходит.
-    const journalBefore = fs.readFileSync(attackedJournal);
+    // apply: ячейка несёт тяжесть и обоснование; журнал меняется только заметкой «прочитано» (она шла тем же промптом), решения прежние.
     await drive("click", { text: "Внести" });
     await until("отчёт", async () => {
       const x = await snap();
       return x.report && !/Вношу/.test(x.report) ? x : null;
     }, 20000);
-    assert.ok(fs.readFileSync(attackedJournal).equals(journalBefore), "журнал не должен меняться");
+    const afterJournal = JSON.parse(fs.readFileSync(attackedJournal, "utf8"));
+    assert.equal(afterJournal.records[1].decision.word, "хранить в проекте");
     assert.ok(fs.readFileSync(file, "utf8").includes("блокер (числа сходятся сами)"));
     await until("очистка", async () => {
       const x = await snap();
@@ -790,6 +790,8 @@ export async function run(): Promise<void> {
     const row = await drive("firstCardTop");
     assert.ok(row !== null && row < 10, `первая строка не у верха: ${row}`);
     await drive("lens", { name: "все" });
+    // Режим остаётся «решения»: следующие разделы сценария открывают журналы в нём (режим помнится между журналами).
+    await drive("mode", { name: "решения" });
   });
 
   // --- вкладка схемы ----------------------------------------------------------------------------------------------
@@ -1787,13 +1789,14 @@ export async function run(): Promise<void> {
     fs.copyFileSync(path.join(root, "openspec", "changes", "изменение-один", "decisions.json"), path.join(linked, "openspec", "changes", "изменение-в-дереве", "decisions.json"));
     vscode.workspace.updateWorkspaceFolders(0, null, { uri: vscode.Uri.file(linked) });
     try {
-      const item = await until("пункт дерева в панели", async () => {
+      // Подпись дерева считается асинхронно: ждём именно её, а не только пункт в списке.
+      const item = await until("подпись дерева в панели", async () => {
         const all = (api.changes as unknown as { getChildren(): any[] }).getChildren();
         const s = all.find((x) => x.ref.name === "изменение-в-дереве");
-        return s ? api.changes.getTreeItem(s) : null;
+        const it = s ? api.changes.getTreeItem(s) : null;
+        return it && /репо-панели · ветка-панели/.test(String(it.description)) ? it : null;
       });
-      assert.ok(item, "пункт дерева в панели не появился");
-      assert.match(String(item.description), /репо-панели · ветка-панели/);
+      assert.ok(item, "подпись дерева в панели не появилась");
       // Основное дерево подписи не несёт: у пунктов прежней папки её нет.
       const first = (api.changes as unknown as { getChildren(): any[] }).getChildren().find((x) => x.ref.name === "изменение-один");
       assert.ok(!/репо-панели ·/.test(String(api.changes.getTreeItem(first).description)));

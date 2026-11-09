@@ -27,6 +27,7 @@ export const TOOLS_FILES = [
   "openspec-run/openspec_run.py",
   "trace/trace_graph.py",
   "anchors/anchor_refs.py",
+  "anchors/sync_check.py",
 ];
 
 /** Общие файлы скиллов, которые установка кладёт в `.symphysis/docs/`: `SHARED_FILES` того же файла ядра. */

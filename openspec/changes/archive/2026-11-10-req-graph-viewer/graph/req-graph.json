@@ -102,101 +102,6 @@
    "repo": "symphysis-vscode",
    "path": "src/activation/README.md",
    "sha256": "1c1bba0353ba0201b5433089771b9b400d23b9ecd0318b90f7f8e32a3e525437"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "README.md",
-   "sha256": "59fefb9960b56f98c0003f350d4cbc70ad059998c77e4d9e257347d40f02d05f"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "viewer/README.md",
-   "sha256": "90616b21f50c1a32f1c208eda957666d1aac83ee6fb2d52ed468430ad08f104e"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "trace/README.md",
-   "sha256": "ef119e8fa7bfda05cd9ba568df458d01e7d5f6af8222c043e7f569eaf90d9e57"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "step-help/README.md",
-   "sha256": "87c099049c6514564de5293d80500ab3c83bc60cd6929fd6fe8b7cd4ec887dcd"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "skill-shared/README.md",
-   "sha256": "730a973c7ed7fb459145dfe110f72f76496a0dc11797d0efed8c26d6f7b80dd5"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "settings/README.md",
-   "sha256": "fe9e69e438fa5f1e3d2280f4f4700d2afdffd3b7752940679157b1005cb98824"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "runtime/README.md",
-   "sha256": "1fff41134fd43ae0832321d68ba798b6185b42b916e5633dbba90f376cf3ac56"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "roots/README.md",
-   "sha256": "559ee387233169a5db3f2cc5942aa09cf7c49fa2c7a7f6c3491a6987984f603a"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "research/README.md",
-   "sha256": "c1a43ad8afab67b4e2ae34dc71928beb954c67a274738441b38800dfe0ee8d59"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "probes/README.md",
-   "sha256": "2e7d1f495dd6fecca9c2c361e9a16d47deca06849accbb258a2517690c96dbc5"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "openspec-run/README.md",
-   "sha256": "1e520a016b28114eb529342e5a50afd63972bc3b67de30b5d7c86a5ee049c30b"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "openspec/schemas/symphysis/README.md",
-   "sha256": "597917bf019f497e87a40732975b53556f6dbb158be920a28c38fdda6e9e00ef"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "installer/README.md",
-   "sha256": "bf6c8455205de68dd49c075dd758a1cb53c33968d5568dc2f2dfa45f3a65f1a3"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "decisions/README.md",
-   "sha256": "643d0d2353df882ee7eac9b7a45a988962edac871a9e79b530e9072f2aea4762"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "consequences/README.md",
-   "sha256": "3e891037e0a9fce860402bd56f652d2dd691107850c3213b37b22e422cd13983"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "cli/README.md",
-   "sha256": "ca816fbc3dc84648c3fb04425ab95e6a82f047720a77020b3676e1840ec7f1f4"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "attack/README.md",
-   "sha256": "a368e05e66a9f4a90e4bec7a791aef2b19f6b4a6f62b9f180e7b7c12b659d65c"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": "anchors/README.md",
-   "sha256": "b019d1329832cee1810d55283b48b6fe0ea5d1cafd2d0dd35178889aac74e349"
-  },
-  {
-   "repo": "symphysis-core",
-   "path": ".pytest_cache/README.md",
-   "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
   }
  ],
  "nodes": [
@@ -1776,161 +1681,8 @@
    "name": "symphysis-core",
    "at": ".openspec.yaml:1",
    "survey": "found",
-   "actual": "found",
-   "availability": "available"
-  },
-  {
-   "id": "module:symphysis-core/anchors",
-   "kind": "module",
-   "name": "anchors",
-   "at": "symphysis-core/anchors/README.md:2",
-   "repo": "symphysis-core",
-   "path": "anchors",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/attack",
-   "kind": "module",
-   "name": "attack",
-   "at": "symphysis-core/attack/README.md:2",
-   "repo": "symphysis-core",
-   "path": "attack",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/cli",
-   "kind": "module",
-   "name": "cli",
-   "at": "symphysis-core/cli/README.md:2",
-   "repo": "symphysis-core",
-   "path": "cli",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/consequences",
-   "kind": "module",
-   "name": "consequences",
-   "at": "symphysis-core/consequences/README.md:2",
-   "repo": "symphysis-core",
-   "path": "consequences",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/decisions",
-   "kind": "module",
-   "name": "decisions",
-   "at": "symphysis-core/decisions/README.md:2",
-   "repo": "symphysis-core",
-   "path": "decisions",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/installer",
-   "kind": "module",
-   "name": "installer",
-   "at": "symphysis-core/installer/README.md:2",
-   "repo": "symphysis-core",
-   "path": "installer",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/openspec-run",
-   "kind": "module",
-   "name": "openspec-run",
-   "at": "symphysis-core/openspec-run/README.md:2",
-   "repo": "symphysis-core",
-   "path": "openspec-run",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/schema",
-   "kind": "module",
-   "name": "schema",
-   "at": "symphysis-core/openspec/schemas/symphysis/README.md:2",
-   "repo": "symphysis-core",
-   "path": "openspec/schemas/symphysis",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/probes",
-   "kind": "module",
-   "name": "probes",
-   "at": "symphysis-core/probes/README.md:2",
-   "repo": "symphysis-core",
-   "path": "probes",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/research",
-   "kind": "module",
-   "name": "research",
-   "at": "symphysis-core/research/README.md:2",
-   "repo": "symphysis-core",
-   "path": "research",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/roots",
-   "kind": "module",
-   "name": "roots",
-   "at": "symphysis-core/roots/README.md:2",
-   "repo": "symphysis-core",
-   "path": "roots",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/runtime",
-   "kind": "module",
-   "name": "runtime",
-   "at": "symphysis-core/runtime/README.md:2",
-   "repo": "symphysis-core",
-   "path": "runtime",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/settings",
-   "kind": "module",
-   "name": "settings",
-   "at": "symphysis-core/settings/README.md:2",
-   "repo": "symphysis-core",
-   "path": "settings",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/skill-shared",
-   "kind": "module",
-   "name": "skill-shared",
-   "at": "symphysis-core/skill-shared/README.md:2",
-   "repo": "symphysis-core",
-   "path": "skill-shared",
-   "module_kind": "технический"
-  },
-  {
-   "id": "module:symphysis-core/step-help",
-   "kind": "module",
-   "name": "step-help",
-   "at": "symphysis-core/step-help/README.md:2",
-   "repo": "symphysis-core",
-   "path": "step-help",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/trace",
-   "kind": "module",
-   "name": "trace",
-   "at": "symphysis-core/trace/README.md:2",
-   "repo": "symphysis-core",
-   "path": "trace",
-   "module_kind": "доменный"
-  },
-  {
-   "id": "module:symphysis-core/viewer",
-   "kind": "module",
-   "name": "viewer",
-   "at": "symphysis-core/viewer/README.md:2",
-   "repo": "symphysis-core",
-   "path": "viewer",
-   "module_kind": "доменный"
+   "actual": "unavailable",
+   "availability": "unavailable"
   },
   {
    "id": "module:symphysis-vscode/activation",
@@ -2050,142 +1802,6 @@
    "module_kind": "доменный"
   },
   {
-   "id": "file:symphysis-core/anchors%2FREADME.md",
-   "kind": "file",
-   "name": "anchors/README.md",
-   "at": "symphysis-core/anchors/README.md:2",
-   "repo": "symphysis-core",
-   "path": "anchors/README.md"
-  },
-  {
-   "id": "file:symphysis-core/attack%2FREADME.md",
-   "kind": "file",
-   "name": "attack/README.md",
-   "at": "symphysis-core/attack/README.md:2",
-   "repo": "symphysis-core",
-   "path": "attack/README.md"
-  },
-  {
-   "id": "file:symphysis-core/cli%2FREADME.md",
-   "kind": "file",
-   "name": "cli/README.md",
-   "at": "symphysis-core/cli/README.md:2",
-   "repo": "symphysis-core",
-   "path": "cli/README.md"
-  },
-  {
-   "id": "file:symphysis-core/consequences%2FREADME.md",
-   "kind": "file",
-   "name": "consequences/README.md",
-   "at": "symphysis-core/consequences/README.md:2",
-   "repo": "symphysis-core",
-   "path": "consequences/README.md"
-  },
-  {
-   "id": "file:symphysis-core/decisions%2FREADME.md",
-   "kind": "file",
-   "name": "decisions/README.md",
-   "at": "symphysis-core/decisions/README.md:2",
-   "repo": "symphysis-core",
-   "path": "decisions/README.md"
-  },
-  {
-   "id": "file:symphysis-core/installer%2FREADME.md",
-   "kind": "file",
-   "name": "installer/README.md",
-   "at": "symphysis-core/installer/README.md:2",
-   "repo": "symphysis-core",
-   "path": "installer/README.md"
-  },
-  {
-   "id": "file:symphysis-core/openspec-run%2FREADME.md",
-   "kind": "file",
-   "name": "openspec-run/README.md",
-   "at": "symphysis-core/openspec-run/README.md:2",
-   "repo": "symphysis-core",
-   "path": "openspec-run/README.md"
-  },
-  {
-   "id": "file:symphysis-core/openspec%2Fschemas%2Fsymphysis%2FREADME.md",
-   "kind": "file",
-   "name": "openspec/schemas/symphysis/README.md",
-   "at": "symphysis-core/openspec/schemas/symphysis/README.md:2",
-   "repo": "symphysis-core",
-   "path": "openspec/schemas/symphysis/README.md"
-  },
-  {
-   "id": "file:symphysis-core/probes%2FREADME.md",
-   "kind": "file",
-   "name": "probes/README.md",
-   "at": "symphysis-core/probes/README.md:2",
-   "repo": "symphysis-core",
-   "path": "probes/README.md"
-  },
-  {
-   "id": "file:symphysis-core/research%2FREADME.md",
-   "kind": "file",
-   "name": "research/README.md",
-   "at": "symphysis-core/research/README.md:2",
-   "repo": "symphysis-core",
-   "path": "research/README.md"
-  },
-  {
-   "id": "file:symphysis-core/roots%2FREADME.md",
-   "kind": "file",
-   "name": "roots/README.md",
-   "at": "symphysis-core/roots/README.md:2",
-   "repo": "symphysis-core",
-   "path": "roots/README.md"
-  },
-  {
-   "id": "file:symphysis-core/runtime%2FREADME.md",
-   "kind": "file",
-   "name": "runtime/README.md",
-   "at": "symphysis-core/runtime/README.md:2",
-   "repo": "symphysis-core",
-   "path": "runtime/README.md"
-  },
-  {
-   "id": "file:symphysis-core/settings%2FREADME.md",
-   "kind": "file",
-   "name": "settings/README.md",
-   "at": "symphysis-core/settings/README.md:2",
-   "repo": "symphysis-core",
-   "path": "settings/README.md"
-  },
-  {
-   "id": "file:symphysis-core/skill-shared%2FREADME.md",
-   "kind": "file",
-   "name": "skill-shared/README.md",
-   "at": "symphysis-core/skill-shared/README.md:2",
-   "repo": "symphysis-core",
-   "path": "skill-shared/README.md"
-  },
-  {
-   "id": "file:symphysis-core/step-help%2FREADME.md",
-   "kind": "file",
-   "name": "step-help/README.md",
-   "at": "symphysis-core/step-help/README.md:2",
-   "repo": "symphysis-core",
-   "path": "step-help/README.md"
-  },
-  {
-   "id": "file:symphysis-core/trace%2FREADME.md",
-   "kind": "file",
-   "name": "trace/README.md",
-   "at": "symphysis-core/trace/README.md:2",
-   "repo": "symphysis-core",
-   "path": "trace/README.md"
-  },
-  {
-   "id": "file:symphysis-core/viewer%2FREADME.md",
-   "kind": "file",
-   "name": "viewer/README.md",
-   "at": "symphysis-core/viewer/README.md:2",
-   "repo": "symphysis-core",
-   "path": "viewer/README.md"
-  },
-  {
    "id": "file:symphysis-vscode/src%2Factivation%2FREADME.md",
    "kind": "file",
    "name": "src/activation/README.md",
@@ -2288,14 +1904,6 @@
    "at": "symphysis-vscode/src/viewer/README.md:2",
    "repo": "symphysis-vscode",
    "path": "src/viewer/README.md"
-  },
-  {
-   "id": "file:symphysis-core/trace%2Ftrace_graph.py",
-   "kind": "file",
-   "name": "trace/trace_graph.py",
-   "at": "specs/trace-graph-view/spec.md:10",
-   "repo": "symphysis-core",
-   "path": "trace/trace_graph.py"
   }
  ],
  "edges": [
@@ -4262,108 +3870,6 @@
    "at": ".openspec.yaml:1"
   },
   {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/anchors",
-   "type": "contains",
-   "at": "symphysis-core/anchors/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/attack",
-   "type": "contains",
-   "at": "symphysis-core/attack/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/cli",
-   "type": "contains",
-   "at": "symphysis-core/cli/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/consequences",
-   "type": "contains",
-   "at": "symphysis-core/consequences/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/decisions",
-   "type": "contains",
-   "at": "symphysis-core/decisions/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/installer",
-   "type": "contains",
-   "at": "symphysis-core/installer/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/openspec-run",
-   "type": "contains",
-   "at": "symphysis-core/openspec-run/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/schema",
-   "type": "contains",
-   "at": "symphysis-core/openspec/schemas/symphysis/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/probes",
-   "type": "contains",
-   "at": "symphysis-core/probes/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/research",
-   "type": "contains",
-   "at": "symphysis-core/research/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/roots",
-   "type": "contains",
-   "at": "symphysis-core/roots/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/runtime",
-   "type": "contains",
-   "at": "symphysis-core/runtime/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/settings",
-   "type": "contains",
-   "at": "symphysis-core/settings/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/skill-shared",
-   "type": "contains",
-   "at": "symphysis-core/skill-shared/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/step-help",
-   "type": "contains",
-   "at": "symphysis-core/step-help/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/trace",
-   "type": "contains",
-   "at": "symphysis-core/trace/README.md:2"
-  },
-  {
-   "from": "repo:symphysis-core",
-   "to": "module:symphysis-core/viewer",
-   "type": "contains",
-   "at": "symphysis-core/viewer/README.md:2"
-  },
-  {
    "from": "repo:symphysis-vscode",
    "to": "module:symphysis-vscode/activation",
    "type": "contains",
@@ -4440,132 +3946,6 @@
    "to": "module:symphysis-vscode/viewer",
    "type": "contains",
    "at": "symphysis-vscode/src/viewer/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/anchors",
-   "to": "file:symphysis-core/anchors%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/anchors/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/attack",
-   "to": "file:symphysis-core/attack%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/attack/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/cli",
-   "to": "file:symphysis-core/cli%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/cli/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/consequences",
-   "to": "file:symphysis-core/consequences%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/consequences/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/decisions",
-   "to": "file:symphysis-core/decisions%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/decisions/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/installer",
-   "to": "file:symphysis-core/installer%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/installer/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/openspec-run",
-   "to": "file:symphysis-core/openspec-run%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/openspec-run/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/schema",
-   "to": "file:symphysis-core/openspec%2Fschemas%2Fsymphysis%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/openspec/schemas/symphysis/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/probes",
-   "to": "file:symphysis-core/probes%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/probes/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/research",
-   "to": "file:symphysis-core/research%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/research/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/roots",
-   "to": "file:symphysis-core/roots%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/roots/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/runtime",
-   "to": "file:symphysis-core/runtime%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/runtime/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/settings",
-   "to": "file:symphysis-core/settings%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/settings/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/skill-shared",
-   "to": "file:symphysis-core/skill-shared%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/skill-shared/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/step-help",
-   "to": "file:symphysis-core/step-help%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/step-help/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "file:symphysis-core/trace%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/trace/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "module:symphysis-core/roots",
-   "type": "depends",
-   "at": "symphysis-core/trace/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "module:symphysis-core/decisions",
-   "type": "depends",
-   "at": "symphysis-core/trace/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "module:symphysis-core/openspec-run",
-   "type": "depends",
-   "at": "symphysis-core/trace/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "module:symphysis-core/runtime",
-   "type": "depends",
-   "at": "symphysis-core/trace/README.md:2"
-  },
-  {
-   "from": "module:symphysis-core/viewer",
-   "to": "file:symphysis-core/viewer%2FREADME.md",
-   "type": "contains",
-   "at": "symphysis-core/viewer/README.md:2"
   },
   {
    "from": "module:symphysis-vscode/activation",
@@ -4659,12 +4039,6 @@
   },
   {
    "from": "module:symphysis-vscode/req-graph",
-   "to": "req:plugin-trace-graph-view/Просмотр доступен после формирования specs",
-   "type": "implements",
-   "at": "specs/plugin-trace-graph-view/spec.md:40"
-  },
-  {
-   "from": "module:symphysis-core/trace",
    "to": "req:plugin-trace-graph-view/Просмотр доступен после формирования specs",
    "type": "implements",
    "at": "specs/plugin-trace-graph-view/spec.md:40"
@@ -4764,90 +4138,6 @@
    "to": "req:plugin-trace-navigation/Переход не требует изменения исходных форматов",
    "type": "implements",
    "at": "specs/plugin-trace-navigation/spec.md:57"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:plugin-trace-navigation/Переход не требует изменения исходных форматов",
-   "type": "implements",
-   "at": "specs/plugin-trace-navigation/spec.md:57"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "file:symphysis-core/trace%2Ftrace_graph.py",
-   "type": "contains",
-   "at": "specs/trace-graph-view/spec.md:10"
-  },
-  {
-   "from": "file:symphysis-core/trace%2Ftrace_graph.py",
-   "to": "req:trace-graph-view/Вид графа готовится из выбранного источника",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:10"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Вид графа готовится из выбранного источника",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:10"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Часть выбирается по capability или требованию",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:33"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Модуль выбирает реализуемые требования",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:56"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Выбор модуля сужается до capability",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:79"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Совместная реализация сохраняется как контекст",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:97"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Ответ связывает рисунок с исходными узлами",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:108"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Список ненайденных связей имеет область",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:119"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Отсутствие структуры в снимке обозначается явно",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:137"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Просмотр не выполняет скрытую заморозку",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:155"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Диагностика сборки доступна в ответе просмотра",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:168"
-  },
-  {
-   "from": "module:symphysis-core/trace",
-   "to": "req:trace-graph-view/Фильтр связей исключает только изолированные узлы",
-   "type": "implements",
-   "at": "specs/trace-graph-view/spec.md:181"
   }
  ],
  "candidates": [
@@ -5874,11 +5164,81 @@
      ".claude",
      ".agents"
     ],
-    "actual": "found",
-    "availability": "available"
+    "actual": "unavailable",
+    "availability": "unavailable"
    }
   ],
-  "signals": [],
+  "signals": [
+   {
+    "source": "symphysis-core/.",
+    "reason": "псевдоним корня отсутствует"
+   },
+   {
+    "kind": "link",
+    "source": "specs/plugin-trace-graph-view/spec.md:40",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/plugin-trace-navigation/spec.md:57",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:10",
+    "reason": "файл реализации не разрешён внутри repo"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:33",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:56",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:79",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:97",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:108",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:119",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:137",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:155",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:168",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   },
+   {
+    "kind": "link",
+    "source": "specs/trace-graph-view/spec.md:181",
+    "reason": "реализация не разрешена: symphysis-core/trace"
+   }
+  ],
   "sources": [
    {
     "path": ".openspec.yaml",
@@ -5953,274 +5313,9 @@
     "repo": "symphysis-vscode",
     "path": "src/activation/README.md",
     "sha256": "1c1bba0353ba0201b5433089771b9b400d23b9ecd0318b90f7f8e32a3e525437"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "README.md",
-    "sha256": "59fefb9960b56f98c0003f350d4cbc70ad059998c77e4d9e257347d40f02d05f"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "viewer/README.md",
-    "sha256": "90616b21f50c1a32f1c208eda957666d1aac83ee6fb2d52ed468430ad08f104e"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "trace/README.md",
-    "sha256": "ef119e8fa7bfda05cd9ba568df458d01e7d5f6af8222c043e7f569eaf90d9e57"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "step-help/README.md",
-    "sha256": "87c099049c6514564de5293d80500ab3c83bc60cd6929fd6fe8b7cd4ec887dcd"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "skill-shared/README.md",
-    "sha256": "730a973c7ed7fb459145dfe110f72f76496a0dc11797d0efed8c26d6f7b80dd5"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "settings/README.md",
-    "sha256": "fe9e69e438fa5f1e3d2280f4f4700d2afdffd3b7752940679157b1005cb98824"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "runtime/README.md",
-    "sha256": "1fff41134fd43ae0832321d68ba798b6185b42b916e5633dbba90f376cf3ac56"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "roots/README.md",
-    "sha256": "559ee387233169a5db3f2cc5942aa09cf7c49fa2c7a7f6c3491a6987984f603a"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "research/README.md",
-    "sha256": "c1a43ad8afab67b4e2ae34dc71928beb954c67a274738441b38800dfe0ee8d59"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "probes/README.md",
-    "sha256": "2e7d1f495dd6fecca9c2c361e9a16d47deca06849accbb258a2517690c96dbc5"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "openspec-run/README.md",
-    "sha256": "1e520a016b28114eb529342e5a50afd63972bc3b67de30b5d7c86a5ee049c30b"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "openspec/schemas/symphysis/README.md",
-    "sha256": "597917bf019f497e87a40732975b53556f6dbb158be920a28c38fdda6e9e00ef"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "installer/README.md",
-    "sha256": "bf6c8455205de68dd49c075dd758a1cb53c33968d5568dc2f2dfa45f3a65f1a3"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "decisions/README.md",
-    "sha256": "643d0d2353df882ee7eac9b7a45a988962edac871a9e79b530e9072f2aea4762"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "consequences/README.md",
-    "sha256": "3e891037e0a9fce860402bd56f652d2dd691107850c3213b37b22e422cd13983"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "cli/README.md",
-    "sha256": "ca816fbc3dc84648c3fb04425ab95e6a82f047720a77020b3676e1840ec7f1f4"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "attack/README.md",
-    "sha256": "a368e05e66a9f4a90e4bec7a791aef2b19f6b4a6f62b9f180e7b7c12b659d65c"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "anchors/README.md",
-    "sha256": "b019d1329832cee1810d55283b48b6fe0ea5d1cafd2d0dd35178889aac74e349"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": ".pytest_cache/README.md",
-    "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
    }
   ],
   "modules": [
-   {
-    "name": "anchors",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "anchors",
-    "source": "anchors/README.md",
-    "line": 2
-   },
-   {
-    "name": "attack",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "attack",
-    "source": "attack/README.md",
-    "line": 2
-   },
-   {
-    "name": "cli",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "cli",
-    "source": "cli/README.md",
-    "line": 2
-   },
-   {
-    "name": "consequences",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "consequences",
-    "source": "consequences/README.md",
-    "line": 2
-   },
-   {
-    "name": "decisions",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "decisions",
-    "source": "decisions/README.md",
-    "line": 2
-   },
-   {
-    "name": "installer",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "installer",
-    "source": "installer/README.md",
-    "line": 2
-   },
-   {
-    "name": "openspec-run",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "openspec-run",
-    "source": "openspec-run/README.md",
-    "line": 2
-   },
-   {
-    "name": "schema",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "openspec/schemas/symphysis",
-    "source": "openspec/schemas/symphysis/README.md",
-    "line": 2
-   },
-   {
-    "name": "probes",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "probes",
-    "source": "probes/README.md",
-    "line": 2
-   },
-   {
-    "name": "research",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "research",
-    "source": "research/README.md",
-    "line": 2
-   },
-   {
-    "name": "roots",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "roots",
-    "source": "roots/README.md",
-    "line": 2
-   },
-   {
-    "name": "runtime",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "runtime",
-    "source": "runtime/README.md",
-    "line": 2
-   },
-   {
-    "name": "settings",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "settings",
-    "source": "settings/README.md",
-    "line": 2
-   },
-   {
-    "name": "skill-shared",
-    "kind": "технический",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "skill-shared",
-    "source": "skill-shared/README.md",
-    "line": 2
-   },
-   {
-    "name": "step-help",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "step-help",
-    "source": "step-help/README.md",
-    "line": 2
-   },
-   {
-    "name": "trace",
-    "kind": "доменный",
-    "dependencies": [
-     {
-      "repo": "symphysis-core",
-      "module": "roots"
-     },
-     {
-      "repo": "symphysis-core",
-      "module": "decisions"
-     },
-     {
-      "repo": "symphysis-core",
-      "module": "openspec-run"
-     },
-     {
-      "repo": "symphysis-core",
-      "module": "runtime"
-     }
-    ],
-    "repo": "symphysis-core",
-    "path": "trace",
-    "source": "trace/README.md",
-    "line": 2
-   },
-   {
-    "name": "viewer",
-    "kind": "доменный",
-    "dependencies": [],
-    "repo": "symphysis-core",
-    "path": "viewer",
-    "source": "viewer/README.md",
-    "line": 2
-   },
    {
     "name": "activation",
     "kind": "технический",
@@ -6341,101 +5436,6 @@
   ],
   "inventory": [
    {
-    "repo": "symphysis-core",
-    "path": ".pytest_cache/README.md",
-    "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "README.md",
-    "sha256": "59fefb9960b56f98c0003f350d4cbc70ad059998c77e4d9e257347d40f02d05f"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "anchors/README.md",
-    "sha256": "b019d1329832cee1810d55283b48b6fe0ea5d1cafd2d0dd35178889aac74e349"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "attack/README.md",
-    "sha256": "a368e05e66a9f4a90e4bec7a791aef2b19f6b4a6f62b9f180e7b7c12b659d65c"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "cli/README.md",
-    "sha256": "ca816fbc3dc84648c3fb04425ab95e6a82f047720a77020b3676e1840ec7f1f4"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "consequences/README.md",
-    "sha256": "3e891037e0a9fce860402bd56f652d2dd691107850c3213b37b22e422cd13983"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "decisions/README.md",
-    "sha256": "643d0d2353df882ee7eac9b7a45a988962edac871a9e79b530e9072f2aea4762"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "installer/README.md",
-    "sha256": "bf6c8455205de68dd49c075dd758a1cb53c33968d5568dc2f2dfa45f3a65f1a3"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "openspec-run/README.md",
-    "sha256": "1e520a016b28114eb529342e5a50afd63972bc3b67de30b5d7c86a5ee049c30b"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "openspec/schemas/symphysis/README.md",
-    "sha256": "597917bf019f497e87a40732975b53556f6dbb158be920a28c38fdda6e9e00ef"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "probes/README.md",
-    "sha256": "2e7d1f495dd6fecca9c2c361e9a16d47deca06849accbb258a2517690c96dbc5"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "research/README.md",
-    "sha256": "c1a43ad8afab67b4e2ae34dc71928beb954c67a274738441b38800dfe0ee8d59"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "roots/README.md",
-    "sha256": "559ee387233169a5db3f2cc5942aa09cf7c49fa2c7a7f6c3491a6987984f603a"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "runtime/README.md",
-    "sha256": "1fff41134fd43ae0832321d68ba798b6185b42b916e5633dbba90f376cf3ac56"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "settings/README.md",
-    "sha256": "fe9e69e438fa5f1e3d2280f4f4700d2afdffd3b7752940679157b1005cb98824"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "skill-shared/README.md",
-    "sha256": "730a973c7ed7fb459145dfe110f72f76496a0dc11797d0efed8c26d6f7b80dd5"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "step-help/README.md",
-    "sha256": "87c099049c6514564de5293d80500ab3c83bc60cd6929fd6fe8b7cd4ec887dcd"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "trace/README.md",
-    "sha256": "ef119e8fa7bfda05cd9ba568df458d01e7d5f6af8222c043e7f569eaf90d9e57"
-   },
-   {
-    "repo": "symphysis-core",
-    "path": "viewer/README.md",
-    "sha256": "90616b21f50c1a32f1c208eda957666d1aac83ee6fb2d52ed468430ad08f104e"
-   },
-   {
     "repo": "symphysis-vscode",
     "path": "README.md",
     "sha256": "6405f231b8377e7888fb04f80d71d3d3f86f44507bc90e1e01faeebc37c0a120"
@@ -6510,11 +5510,7 @@
  "roots": [
   {
    "prefix": "",
-   "commit": "b6c5a38e376e2d8ffd06dd0b53f3078cf84617fb"
-  },
-  {
-   "prefix": "core/",
-   "commit": "ff126cb92358ba1c1ba3e0ae3281233b03295e37"
+   "commit": "2bf4e71fcbafbdb71176fc9aabaf962ea39a70c8"
   }
  ],
  "base": {}

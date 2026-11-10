@@ -237,15 +237,15 @@ const JOURNAL = {
  "title": "Журнал решений: req-graph-viewer",
  "source": "decisions.json",
  "generated": "2026-11-10",
- "sha256": "972fed1be1315c6e644427fc8d543e6ae859b69068995180742a8684f5274a9b",
+ "sha256": "d2319b1fb8feccb56a25aca33ee681108352131d12ba37e6b39cc127d4aecbe7",
  "stats": {
-  "records": 39,
-  "forks": 19,
+  "records": 45,
+  "forks": 25,
   "facts": 20,
-  "decided": 19,
+  "decided": 25,
   "parked": 0,
-  "evidence_total": 59,
-  "evidence_found": 59
+  "evidence_total": 69,
+  "evidence_found": 69
  },
  "records": [
   {
@@ -1776,7 +1776,7 @@ const JOURNAL = {
     {
      "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
      "quote": "### Requirement: Просмотр доступен после формирования specs",
-     "line": 26,
+     "line": 38,
      "verdict": "сверено",
      "found": true
     }
@@ -1848,7 +1848,7 @@ const JOURNAL = {
     {
      "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
      "quote": "### Requirement: Живой граф можно обновить",
-     "line": 94,
+     "line": 125,
      "verdict": "сверено",
      "found": true
     }
@@ -1920,7 +1920,7 @@ const JOURNAL = {
     {
      "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
      "quote": "### Requirement: Объекты без найденных связей видны рядом с диаграммой",
-     "line": 111,
+     "line": 142,
      "verdict": "сверено",
      "found": true
     }
@@ -1993,7 +1993,7 @@ const JOURNAL = {
     {
      "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-navigation/spec.md",
      "quote": "### Requirement: Узел артефакта ведёт к исходному месту",
-     "line": 19,
+     "line": 26,
      "verdict": "сверено",
      "found": true
     }
@@ -2141,7 +2141,7 @@ const JOURNAL = {
     {
      "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
      "quote": "### Requirement: Источник и предварительное состояние видны человеку",
-     "line": 49,
+     "line": 61,
      "verdict": "сверено",
      "found": true
     }
@@ -2251,7 +2251,467 @@ const JOURNAL = {
     {
      "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-navigation/spec.md",
      "quote": "### Requirement: Узел артефакта ведёт к исходному месту",
-     "line": 19,
+     "line": 26,
+     "verdict": "сверено",
+     "found": true
+    }
+   ],
+   "comments": [],
+   "finding": ""
+  },
+  {
+   "id": "F-40",
+   "question": "[ветка] runPython: при ошибке процесса, тайм-ауте или переполнении буфера stdout может быть неполным — что показывает вкладка графа?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN получение вида завершилось ошибкой процесса, тайм-аутом или переполнением WHEN вкладка обрабатывает ответ THEN показан явный отказ, неполный вывод не принят как успешный граф или пустой список пропусков; цена: сценарий, тест и сопровождение этого исхода.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не закреплять отдельный исход для сбоев процесса; обычной ошибки Python или разбора ответа достаточно, согласованное поведение списка пропусков здесь не задаётся",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: подать stdout с валидным префиксом данных вместе с кодом ошибки, timedOut или overflow и проверить, что такой результат не принят как успех; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым поведение панели на непригодный ответ до проектирования протокола ошибок; tasks считает этот случай допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Если смотреть только на stdout, сбой может тихо превратиться в пустой граф или отсутствие пропусков. Цена Specify — сценарий, тест признаков отказа и сопровождение состояния ошибки; против Dismiss он фиксирует отсутствие ложного успеха."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Сбой процесса не становится успешным пустым графом",
+   "evidence": [
+    {
+     "path": "src/core/python.ts",
+     "quote": "code: e ? (typeof e.code === \"number\" ? e.code : null) : 0,",
+     "line": 69,
+     "verdict": "сверено",
+     "found": true
+    },
+    {
+     "path": "src/core/python.ts",
+     "quote": "timedOut: !!e?.killed && e.code !== \"ERR_CHILD_PROCESS_STDIO_MAXBUFFER\",",
+     "line": 71,
+     "verdict": "сверено",
+     "found": true
+    }
+   ],
+   "comments": [],
+   "finding": ""
+  },
+  {
+   "id": "F-41",
+   "question": "[ветка] draw: при ошибке Mermaid сохраняется прежний SVG — может ли он остаться под новым выбором с новой картой переходов?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN выбран B после показанного A и Mermaid не смог отрисовать B WHEN показана ошибка THEN рисунок и карта A очищены, а B не выдаётся за успешно показанный; цели старого рисунка не получают карту B; цена: сценарий, тест и сопровождение этого исхода.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не задавать отдельного поведения актуальной ошибки Mermaid; допускается сохранить прежний рисунок под сообщением об ошибке, как на вкладке scheme",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: смоделировать успешный A и ошибку рендера B и проверить, что к SVG A не применяются цели B; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым сохранение последнего рисунка до решения об интерфейсе ошибок рендера; tasks считает этот случай допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Прежний рисунок под фильтром B может выглядеть достоверным и вести по чужой карте. Цена Specify — сценарий и тест отказа Mermaid после смены выбора; очистка проще отдельного режима исторического рисунка."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Ошибка нового рисунка очищает прежний",
+   "evidence": [
+    {
+     "path": "src/scheme/page.ts",
+     "quote": "if (shownText !== null) {",
+     "line": 132,
+     "verdict": "сверено",
+     "found": true
+    }
+   ],
+   "comments": [],
+   "finding": ""
+  },
+  {
+   "id": "F-42",
+   "question": "[ветка] _shape_problems: архивный req-graph формата 1 отвергается текущей проверкой форматов 2 и 3 — требуется ли поддержка формата 1 именно для просмотра?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN снимок формата 1 имеет пригодные nodes, edges и candidates WHEN он открыт для просмотра THEN он показан без использования старой base как базы живой сборки и без перезаписи снимка; отсутствие структуры обозначено; цена: сценарий, тест и сопровождение этого исхода.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — ограничить новый просмотр поддерживаемыми ядром форматами 2 и 3; формат 1 может явно отвергаться с указанием поддерживаемых версий, без автоматической миграции и подмены данных",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: подать снимок формата 1 и проверить, что при отказе названа версия и файл не перезаписан; поддержку его рисунка этим тестом не обещать; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым чтение формата 1 до отдельного решения о совместимости исторических снимков; tasks считает этот случай допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "B",
+    "why": "Явный отказ для старого формата виден сразу и не подменяет историю. Dismiss сохраняет существующую границу читателя; против Specify не добавляет ещё один формат и сопровождение его преобразования только ради старых архивов."
+   },
+   "decision": {
+    "option": "B",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Dismiss",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "Явный отказ для старого формата виден сразу и не подменяет историю. Dismiss сохраняет существующую границу читателя; против Specify не добавляет ещё один формат и сопровождение его преобразования только ради старых архивов.",
+   "evidence": [
+    {
+     "path": "core/trace/trace_graph.py",
+     "quote": "if not problems and data[\"format\"] not in SUPPORTED_FORMATS:",
+     "line": 1123,
+     "verdict": "сверено",
+     "found": true
+    }
+   ],
+   "comments": [],
+   "finding": ""
+  },
+  {
+   "id": "F-43",
+   "question": "[ветка] reveal: до ready или загрузки нужной записи переход теряется; в другом открытом журнале тот же F-NN может обозначать другую запись — как доставлять переход из графа?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-22",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN просмотрщик закрыт, ещё загружается или показывает другой журнал WHEN нажата доступная запись графа THEN открывается журнал источника и переход выполняется после готовности его данных; одноимённая запись другого журнала не выбирается; цена: сценарий, тест и сопровождение этого исхода.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — поддерживать переход лишь в уже готовом просмотрщике нужного журнала; запуск закрытого просмотрщика и ожидание загрузки не входят в обязательную поддержку кликов",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: проверить два журнала с F-01 и убедиться, что сообщение не переключает на чужую запись; полный сценарий ожидания ready не закреплять; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым отложенную доставку перехода до решения об очереди событий просмотрщика; tasks считает этот случай допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Повторяющийся F-NN в другом журнале делает ошибочный переход правдоподобным. Цена Specify — сценарий и тест готовности/идентичности журнала; это надёжнее молчаливого пропуска и не требует изменения графа."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Переход дожидается данных журнала источника",
+   "evidence": [
+    {
+     "path": "src/viewer/viewerPanel.ts",
+     "quote": "if (this.panel && this.ready) {",
+     "line": 106,
+     "verdict": "сверено",
+     "found": true
+    },
+    {
+     "path": "src/viewer/App.tsx",
+     "quote": "if (!el) return;",
+     "line": 191,
+     "verdict": "сверено",
+     "found": true
+    }
+   ],
+   "comments": [],
+   "finding": ""
+  },
+  {
+   "id": "F-44",
+   "question": "[pre-mortem] Снимок показывает исторический граф, а vscode.open откроет нынешний файл на сохранённой строке: человек примет изменившееся содержимое за историческое",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-18",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN из сохранённого снимка выполняется переход к доступному файлу WHEN редактор открывает рабочий файл THEN человеку явно обозначено, что открыто текущее содержимое, а историческая версия содержимого этим переходом не обещается; цена: сценарий, тест и сопровождение этого исхода.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не вводить отдельного обозначения версии содержимого: переход открывает доступный рабочий файл по пути и строке, а историчность относится только к самому графу",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: изменить файл после снимка и проверить корректность выбранного пути и строки, не закрепляя обязательную надпись о версии; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым политику навигации к историческим исходникам до решения об использовании git-версий; tasks считает этот случай допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Совпавший путь и номер строки могут тихо показать другой текст при верном историческом графе. Цена Specify — сценарий, обозначение текущей версии и тест; это сохраняет недорогой переход без извлечения исторического кода."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Переход из снимка обозначает текущее содержимое файла",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-navigation/spec.md",
+     "quote": "### Requirement: Узел артефакта ведёт к исходному месту",
+     "line": 26,
+     "verdict": "сверено",
+     "found": true
+    },
+    {
+     "path": "src/file-links/openFile.ts",
+     "quote": "await vscode.commands.executeCommand(\"vscode.open\", vscode.Uri.file(file), { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true, selection });",
+     "line": 7,
+     "verdict": "сверено",
+     "found": true
+    }
+   ],
+   "comments": [],
+   "finding": ""
+  },
+  {
+   "id": "F-45",
+   "question": "[ветка] build_graph отбрасывает дубли и неразрешённые ссылки, а discover сохраняет доступную часть при ошибках repo — должен ли просмотр передавать эту диагностику?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-23",
+    "F-24"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN сборка обнаружила дубли id, неразрешённые ссылки или частично недоступные repo WHEN вид графа показан THEN соответствующая диагностика доступна человеку, неполная сборка не представляется подтверждённо полной; цена: сценарий, тест и сопровождение этого исхода.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — передавать только собранные узлы и связи; диагностика остаётся в отдельных report/check, и их нужно запускать вне просмотра",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: подать дубли и частичный repo и проверить сохранение диагностики в ответе, без обязательного сценария её показа; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым диагностику неполного графа до согласования общего канала сигналов; tasks считает этот случай допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "E",
+     "text": "Видимо нам нужен вариант А + переключатель \"Только со связями\". Причина: человек может недоверять работе symphysis, и не знает: отсутствие связей или неразрешенных ссылок это баг или так задумано? и переключатель даст представление, что это не баг symphysis, а проблема того, как модель построила артефакты. (добавлен человеком)",
+     "added": true,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Отброшенные узлы и недоступные repo делают внешне цельную диаграмму неполной без заметного отказа. Цена Specify — сценарий и тест доставки имеющейся диагностики; против Dismiss не заставляет отдельно восстанавливать причину отсутствия связей."
+   },
+   "decision": {
+    "option": "E",
+    "word": "Только изолированные узлы, у которых вообще нет рёбер",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": "Только изолированные узлы, у которых вообще нет рёбер"
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Частичная сборка сопровождается диагностикой, Структурного ребра достаточно для сохранения узла, Все выбранные узлы изолированы, Выключенный фильтр сохраняет изолированные узлы, Переключатель показывает различие связных и изолированных узлов, Изолированные узлы снова доступны после выключения, Поздний ответ не возвращает прежнее состояние переключателя",
+   "evidence": [
+    {
+     "path": "core/trace/trace_graph.py",
+     "quote": "return build_graph_with_signals(root, change, saved, roots_file=roots_file, structure=structure)[0]",
+     "line": 745,
+     "verdict": "сверено",
+     "found": true
+    },
+    {
+     "path": "core/trace/trace_modules.py",
+     "quote": "repo['availability'] = 'partial' if errors else 'available'",
+     "line": 278,
      "verdict": "сверено",
      "found": true
     }
@@ -2308,6 +2768,22 @@ const JOURNAL = {
   {
    "date": "2026-11-10",
    "text": "проба запретов: требований 22, оставлено 2, канон → ИБ 3, Specify 2, Dismiss 0, Defer 0; повтор новых требований выполнен, новых кандидатов 0"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "consequences: разобраны 4 предложенных файла и 9 добавленных, исключено 0; опись 48 веток с цитатами и файл типов без веток; кандидаты F-40–F-45 открыты. Pre-mortem: F-41, F-44, F-45. Новые варианты сверены с выбранными решениями: антиподов не найдено; F-42 задаёт границу поддержки старого формата, не меняя без слова человека исторические данные."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "последствия: решения F-40–F-45 внесены, Specify 5, Dismiss 1. Вариант F-45.E добавлен человеком, объединяет диагностику из A и переключатель только изолированных узлов. Уточнение владельца внесено через apply. consequences.md сохранён без правки."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "проба краёв: кандидатов 10, Specify 9, Dismiss 1, Backstop 0, Defer 0; повтор после F-40–F-45, требований 24, строк 192, новых кандидатов 0; не выбран 30: plugin-trace-graph-view/Источник и предварительное состояние видны человеку, plugin-trace-graph-view/Объект из списка доступен для осмотра, plugin-trace-graph-view/Объекты без найденных связей видны рядом с диаграммой, plugin-trace-graph-view/Просмотр доступен после формирования specs, plugin-trace-graph-view/Рисунком можно управлять в области просмотра, plugin-trace-graph-view/Снимок не означает окончательность графа, plugin-trace-graph-view/Фильтры выбирают часть графа, plugin-trace-navigation/Переход не требует изменения исходных форматов, plugin-trace-navigation/Переход сохраняет выбранный источник и фильтры, plugin-trace-navigation/Узел записи ведёт к соответствующей записи журнала, trace-graph-view/Вид графа готовится из выбранного источника, trace-graph-view/Диагностика сборки доступна в ответе просмотра, trace-graph-view/Модуль выбирает реализуемые требования, trace-graph-view/Ответ связывает рисунок с исходными узлами, trace-graph-view/Просмотр не выполняет скрытую заморозку, trace-graph-view/Совместная реализация сохраняется как контекст, trace-graph-view/Фильтр связей исключает только изолированные узлы, trace-graph-view/Часть выбирается по capability или требованию"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "проба запретов: требований 24, оставлено 2, канон → ИБ 3, Specify 2, Dismiss 0, Defer 0. Повтор после F-40–F-45, новых кандидатов и парковок нет."
   }
  ]
 };
@@ -2321,7 +2797,7 @@ const SCHEME = {
 };
 const HELP = {
  "contract": 6,
- "taken_at": "2026-11-10T20:25:54+03:00",
+ "taken_at": "2026-11-10T21:18:39+03:00",
  "versions": {
   "openspec": "1.16.1+symphysis.6",
   "symphysis": "0.1.0+e1cbf261"
@@ -2329,10 +2805,10 @@ const HELP = {
  "change": "req-graph-viewer",
  "changes": null,
  "error": null,
- "current_step": "consequences",
- "current_text": "Следующий шаг по файлам — `consequences`, ход модели.",
+ "current_step": "design",
+ "current_text": "Следующий шаг по файлам — `design`, ход модели.",
  "turn": "model",
- "next_by_status": "consequences",
+ "next_by_status": "design",
  "forks": {
   "open": 0,
   "parked": 0
@@ -2607,7 +3083,7 @@ const HELP = {
   },
   {
    "id": "consequences",
-   "state": "ready",
+   "state": "done",
    "turn": "model",
    "optional": false,
    "blocks": [
@@ -2618,10 +3094,10 @@ const HELP = {
    "files": [
     {
      "path": "openspec/changes/req-graph-viewer/consequences.md",
-     "exists": false
+     "exists": true
     }
    ],
-   "file_note": null,
+   "file_note": "файл есть, содержание не проверялось",
    "texts": {
     "title": "Опись последствий",
     "why": "Что делает код, на который опирается изменение, когда что-то идёт не так, и есть ли на это сценарий в спецификациях. Здесь ветки отказа и допущения конструкции доходят до человека раньше, чем появится дизайн.",
@@ -2644,7 +3120,7 @@ const HELP = {
   },
   {
    "id": "design",
-   "state": "blocked",
+   "state": "ready",
    "turn": "model",
    "optional": false,
    "blocks": [
@@ -2652,9 +3128,7 @@ const HELP = {
     "attack-artifacts"
    ],
    "stops_apply": false,
-   "waits_for": [
-    "consequences"
-   ],
+   "waits_for": [],
    "files": [
     {
      "path": "openspec/changes/req-graph-viewer/design.md",
@@ -2863,10 +3337,12 @@ const HELP = {
   ".agents/skills/symphysis-prohibition-probe/SKILL.md": ".agents/skills/symphysis-prohibition-probe/SKILL.md",
   ".agents/skills/symphysis-research/SKILL.md": ".agents/skills/symphysis-research/SKILL.md",
   ".agents/skills/symphysis-viewer/SKILL.md": ".agents/skills/symphysis-viewer/SKILL.md",
+  "consequences.md": "openspec/changes/req-graph-viewer/consequences.md",
   "decisions.json": "openspec/changes/req-graph-viewer/decisions.json",
   "decisions.md": "openspec/changes/req-graph-viewer/decisions.md",
   "edge-probe.md": "openspec/changes/req-graph-viewer/edge-probe.md",
   "intent.md": "openspec/changes/req-graph-viewer/intent.md",
+  "openspec/changes/req-graph-viewer/consequences.md": "openspec/changes/req-graph-viewer/consequences.md",
   "openspec/changes/req-graph-viewer/decisions.json": "openspec/changes/req-graph-viewer/decisions.json",
   "openspec/changes/req-graph-viewer/intent.md": "openspec/changes/req-graph-viewer/intent.md",
   "openspec/changes/req-graph-viewer/proposal.md": "openspec/changes/req-graph-viewer/proposal.md",
@@ -2892,12 +3368,14 @@ const LINKS = {
   ".agents/skills/symphysis-prohibition-probe/SKILL.md": "../../../.agents/skills/symphysis-prohibition-probe/SKILL.md",
   ".agents/skills/symphysis-research/SKILL.md": "../../../.agents/skills/symphysis-research/SKILL.md",
   ".agents/skills/symphysis-viewer/SKILL.md": "../../../.agents/skills/symphysis-viewer/SKILL.md",
+  "consequences.md": "consequences.md",
   "decisions.json": "decisions.json",
   "decisions.md": "decisions.md",
   "edge-probe.md": "edge-probe.md",
   "intent.md": "intent.md",
   "openspec/changes/req-graph-viewer/answers/2026-11-10-availability-word.md": "answers/2026-11-10-availability-word.md",
   "openspec/changes/req-graph-viewer/answers/2026-11-10-purpose-word.md": "answers/2026-11-10-purpose-word.md",
+  "openspec/changes/req-graph-viewer/consequences.md": "consequences.md",
   "openspec/changes/req-graph-viewer/decisions.json": "decisions.json",
   "openspec/changes/req-graph-viewer/intent.md": "intent.md",
   "openspec/changes/req-graph-viewer/proposal.md": "proposal.md",
@@ -2909,9 +3387,11 @@ const LINKS = {
   "research/none.md": "research/none.md",
   "scheme.md": "scheme.md",
   "src/core/project.ts": "../../../src/core/project.ts",
+  "src/core/python.ts": "../../../src/core/python.ts",
   "src/file-links/openFile.ts": "../../../src/file-links/openFile.ts",
   "src/protocol/protocol.ts": "../../../src/protocol/protocol.ts",
   "src/scheme/page.ts": "../../../src/scheme/page.ts",
+  "src/viewer/App.tsx": "../../../src/viewer/App.tsx",
   "src/viewer/viewerPanel.ts": "../../../src/viewer/viewerPanel.ts",
   "symphysis.html": "symphysis.html",
   "symphysis.yaml": "../../../symphysis.yaml"

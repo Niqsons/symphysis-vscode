@@ -7,6 +7,7 @@
 ## ADDED Requirements
 
 ### Requirement: Узел записи ведёт к соответствующей записи журнала
+<!-- symphysis:implements {"modules":[{"repo":"symphysis-vscode","module":"req-graph"},{"repo":"symphysis-vscode","module":"viewer"},{"repo":"symphysis-vscode","module":"changes"},{"repo":"symphysis-vscode","module":"activation"}]} -->
 Для поддержанных переходов выбор узла записи SHALL открывать соответствующую запись в просмотрщике журнала. Цель SHALL определяться по соответствию исходному узлу из ответа ядра (F-18.A, F-19, F-23.A).
 
 #### Scenario: Переход к развилке
@@ -24,6 +25,7 @@
 <!-- проба запретов: исходы: нет -->
 
 ### Requirement: Узел артефакта ведёт к исходному месту
+<!-- symphysis:implements {"modules":[{"repo":"symphysis-vscode","module":"req-graph"},{"repo":"symphysis-vscode","module":"file-links"},{"repo":"symphysis-vscode","module":"activation"}]} -->
 Для поддержанных переходов выбор узла артефакта SHALL открывать соответствующий исходный файл в редакторе на месте, указанном узлом графа. Цель SHALL браться из соответствия ответа ядра (F-18.A, F-19, F-23.A).
 
 #### Scenario: Переход к требованию
@@ -41,6 +43,7 @@
 <!-- проба запретов: исходы: нет; канон — F-39 → security.md -->
 
 ### Requirement: Переход сохраняет выбранный источник и фильтры
+<!-- symphysis:implements {"modules":[{"repo":"symphysis-vscode","module":"req-graph"}]} -->
 Переход к записи журнала или исходному артефакту SHALL сохранять источник и фильтры вкладки графа (F-22.A, F-23.A).
 
 #### Scenario: Осмотр решения из выбранной части
@@ -51,6 +54,7 @@
 <!-- проба запретов: исходы: нет -->
 
 ### Requirement: Переход не требует изменения исходных форматов
+<!-- symphysis:implements {"modules":[{"repo":"symphysis-vscode","module":"req-graph"},{"repo":"symphysis-core","module":"trace"}]} -->
 Связывание клика с целью SHALL использовать соответствие элементов исходным узлам. Поддержка переходов SHALL NOT требовать изменения форматов исходных артефактов и сохранённых графов ради кликов или восстановления адреса по очищенной подписи (F-18.A, F-20, F-23.A).
 
 #### Scenario: Обрезанная подпись

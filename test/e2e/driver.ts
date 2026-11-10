@@ -40,6 +40,25 @@ function attackRow(claim: string): HTMLElement {
   return row;
 }
 
+function graphSnapshot() {
+  return {
+    status: document.getElementById("graph-status")?.textContent ?? "",
+    error: document.getElementById("graph-error")?.textContent ?? "",
+    empty: document.getElementById("graph-empty")?.textContent?.includes("Пустая") ?? false,
+    nodes: [...document.querySelectorAll("#graph-canvas g.node")].map((node) => node.id),
+    requirements: [...document.querySelectorAll<HTMLOptionElement>('select[data-field="requirement"] option')].filter((option) => option.value).map((option) => option.value),
+    modules: [...document.querySelectorAll<HTMLOptionElement>('select[data-field="module"] option')].filter((option) => option.value).map((option) => option.value),
+    unlinked: [...document.querySelectorAll<HTMLButtonElement>("#graph-unlinked button")].map((button) => button.textContent),
+    object: document.getElementById("graph-object")?.textContent ?? "",
+    requirement: document.querySelector<HTMLSelectElement>('select[data-field="requirement"]')?.value,
+    linked: document.querySelector<HTMLInputElement>("#graph-linked")?.checked,
+    transform: document.getElementById("graph-canvas")?.style.transform,
+    unsafe: document.querySelectorAll('#graph-canvas [onclick], #graph-canvas [onerror], #graph-canvas img, #graph-canvas image').length
+      + [...document.querySelectorAll("#graph-canvas a")].filter((link) => /^(javascript|command):/i.test(link.getAttribute("href") ?? link.getAttribute("xlink:href") ?? "")).length,
+    violations: [...violations],
+  };
+}
+
 function snapshot() {
   const prompt = document.querySelector<HTMLTextAreaElement>(".prompt-text");
   return {
@@ -164,6 +183,46 @@ async function drive(m: any): Promise<unknown> {
       // Страница может прислать что угодно: хост не должен этому верить.
       api.postMessage(m.message);
       return null;
+    case "graphSnapshot":
+      return graphSnapshot();
+    case "graphChoose": {
+      const select = document.querySelector<HTMLSelectElement>(`select[data-field="${m.field}"]`)!;
+      select.value = m.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return null;
+    }
+    case "graphToggle":
+      document.querySelector<HTMLInputElement>("#graph-linked")!.click();
+      return null;
+    case "graphBurst":
+      for (const value of m.values) api.postMessage({ type: "graphChoose", field: "requirement", value });
+      return null;
+    case "graphNode": {
+      const node = [...document.querySelectorAll("#graph-canvas g.node")].find((item) => item.id.includes(m.prefix));
+      if (!node) throw new Error(`нет узла графа ${m.prefix}`);
+      press(node, 0, 0);
+      node.firstElementChild!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      return null;
+    }
+    case "graphZoom":
+      document.querySelector<HTMLButtonElement>(`button[data-zoom="${m.zoom}"]`)!.click();
+      return graphSnapshot();
+    case "graphDrag":
+      press(document.getElementById("graph-stage")!, m.dx, m.dy);
+      return graphSnapshot();
+    case "graphProbeResource": {
+      const img = document.createElement("img");
+      img.src = "https://example.org/graph-test.png";
+      document.body.append(img);
+      img.remove();
+      return null;
+    }
+    case "graphInspect": {
+      const button = [...document.querySelectorAll<HTMLButtonElement>("#graph-unlinked button")].find((item) => item.textContent?.includes(m.id));
+      if (!button) throw new Error(`нет объекта ${m.id}`);
+      button.click();
+      return graphSnapshot();
+    }
     case "helpClick": {
       // Кнопка справки по тексту: шаг в списке, «предыдущий», «следующий», «Как готовить intent.md?».
       const b = [...document.querySelectorAll<HTMLButtonElement>(".help-body button, .scheme-bar button")].find((x) => x.textContent === m.text);

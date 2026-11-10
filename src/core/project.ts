@@ -89,7 +89,11 @@ export function saveAnswers(dir: string, date: string, text: string): string {
 
 export const sha256File = (file: string): string => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 
-const draftFile = (root: string, name: string) => path.join(root, VIEWER, `${name}.json`);
+const draftFile = (root: string, name: string) => {
+  const scopedName = name.replaceAll("\\", "/");
+  const fileName = scopedName.includes("/") ? encodeURIComponent(scopedName) : scopedName;
+  return path.join(root, VIEWER, `${fileName}.json`);
+};
 
 /** Битый файл — работа человека: он откладывается рядом и называется, а не затирается. */
 export function readDraft(root: string, name: string): { draft: Draft; damaged: string | null } {

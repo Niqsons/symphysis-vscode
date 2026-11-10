@@ -5,7 +5,7 @@ import { viewJson, type CoreEnv, type ViewResult } from "../core/core";
 import { resolveGit } from "../hook/hookGit";
 import { HookRunner } from "../hook/hookRunner";
 import { tasksFor } from "../step-help/helpTasks";
-import { findTools, installDirOf, listChanges, type ChangeRef } from "../core/project";
+import { changeRef, findTools, hookAcceptsChange, installDirOf, listChanges, type ChangeRef } from "../core/project";
 import { resolvePython, type PythonResolution } from "../core/python";
 import { SearchView } from "../search/searchView";
 import { AttackTocProvider, ChangesProvider, TocProvider } from "../changes/sidebar";
@@ -14,6 +14,9 @@ import { computeHelp, StepHelpRunner, type HelpTarget } from "../step-help/stepH
 import { JournalStore, keyOf } from "../changes/store";
 import { VIEWER_TYPE, ViewerPanel } from "../viewer/viewerPanel";
 import type { Colors, CoreFailure, HelpOutcome } from "../protocol/protocol";
+import { GraphPanels } from "../req-graph/graphPanel";
+import { requestGraph, resolveGraphTarget } from "../req-graph/graphCore";
+import { openBeside } from "../file-links/openFile";
 
 const REFRESH_DELAY_MS = 150;
 const CONCURRENT_RUNS = 2;
@@ -22,6 +25,10 @@ const CHANGES = path.join("openspec", "changes");
 const workspaceDirs = () => (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === "file").map((f) => f.uri.fsPath);
 
 export function activate(context: vscode.ExtensionContext) {
+  if (!vscode.workspace.isTrusted) {
+    context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(() => activate(context)));
+    return undefined;
+  }
   let python: PythonResolution | null = null;
   const pythonNow = (): PythonResolution => {
     if (!python?.ok) python = resolvePython(process.env, workspaceDirs(), vscode.workspace.getConfiguration("symphysis").get<string>("python") || undefined);
@@ -134,6 +141,32 @@ export function activate(context: vscode.ExtensionContext) {
     },
   });
 
+  const graph = new GraphPanels({
+    context,
+    request: async (source, selection) => {
+      const env = coreEnv(source.root);
+      if ("kind" in env) throw new Error("Для просмотра графа нужны доступные Python и инструменты symphysis");
+      return requestGraph(env, source, selection);
+    },
+    navigate: async (node, source) => {
+      if (!node.target) return;
+      const file = resolveGraphTarget(node.target);
+      if (!file) return;
+      if (node.target.journal) {
+        if (path.basename(file) !== "decisions.json" || !node.id.startsWith("rec:")) return;
+        const dir = vscode.Uri.file(path.dirname(file)).fsPath;
+        const journalRoot = vscode.Uri.file(node.target.root).fsPath;
+        const name = path.relative(path.join(journalRoot, "openspec/changes"), dir);
+        if (name.startsWith("..") || path.isAbsolute(name)) return;
+        if (!store.get(dir)) store.include(changeRef(journalRoot, name));
+        viewer.revealRecord(dir, node.id.slice(4));
+        return;
+      }
+      if (source.snapshot) void vscode.window.showInformationMessage("Открыто текущее содержимое рабочего файла по месту из снимка графа");
+      await openBeside(file, node.target.line);
+    },
+  });
+
   // Сохранения склеиваются: автосохранение пишет каждые несколько секунд, агент — сериями.
   const timers = new Map<string, NodeJS.Timeout>();
   const refreshSoon = (key: string) => {
@@ -198,6 +231,7 @@ export function activate(context: vscode.ExtensionContext) {
   changes.refresh();
 
   context.subscriptions.push(
+    graph,
     vscode.window.registerTreeDataProvider("symphysis.changes", changes),
     tocView,
     attackView,
@@ -212,6 +246,24 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("symphysis.openScheme", (key?: string) => {
       const target = key ?? viewer.currentKey ?? store.list()[0]?.ref.dir;
       if (target) scheme.open(target, "scheme");
+    }),
+    vscode.commands.registerCommand("symphysis.openGraph", (key?: string) => {
+      store.sync();
+      const target = key ?? viewer.currentKey ?? store.list()[0]?.ref.dir;
+      const ref = store.get(target ?? "")?.ref;
+      if (!ref) return;
+      if (path.relative(path.join(ref.root, "openspec/changes"), ref.dir).split(path.sep)[0] === "archive") {
+        graph.open({ root: ref.root, change: path.basename(ref.dir), snapshot: path.join(ref.dir, "graph/req-graph.json") });
+      } else graph.open({ root: ref.root, change: ref.name });
+    }),
+    vscode.commands.registerCommand("symphysis.openGraphSnapshot", async (file?: vscode.Uri) => {
+      const chosen = file ?? (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { "Снимок графа": ["json"] } }))?.[0];
+      if (!chosen || chosen.scheme !== "file") return;
+      const root = vscode.workspace.getWorkspaceFolder(chosen)?.uri.fsPath ?? workspaceDirs()[0];
+      if (!root) return;
+      const base = path.basename(path.dirname(chosen.fsPath)) === "graph" ? path.dirname(path.dirname(chosen.fsPath)) : path.dirname(chosen.fsPath);
+      const name = path.basename(base);
+      graph.open({ root, change: hookAcceptsChange(name) ? name : "snapshot", snapshot: chosen.fsPath });
     }),
     // Без журнала и без изменений тоже: вкладка открывается всегда, какое изменение показать, решает она сама (F-40, F-41).
     vscode.commands.registerCommand("symphysis.openHelp", () => scheme.open(viewer.currentKey, "help")),
@@ -235,7 +287,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   hookAll();
 
-  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, changes, toc, attackToc, search, keyOf, hookIdle: () => hook.whenIdle(), viewRuns: () => viewRuns, helpAnswer: () => lastHelp };
+  if (context.extensionMode === vscode.ExtensionMode.Test) return { store, viewer, scheme, graph, changes, toc, attackToc, search, keyOf, hookIdle: () => hook.whenIdle(), viewRuns: () => viewRuns, helpAnswer: () => lastHelp };
   return undefined;
 }
 

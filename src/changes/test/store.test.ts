@@ -23,6 +23,16 @@ function harness(refs: ChangeRef[]) {
 }
 const tick = () => new Promise((r) => setImmediate(r));
 
+test("адресный журнал архива доступен просмотрщику и сохраняет список активных", () => {
+  const { store } = harness([ref("active")]);
+  store.sync();
+  const archive = ref("archive/2026-demo");
+  store.include(archive);
+  store.sync();
+  assert.equal(store.get(archive.dir)?.ref, archive);
+  assert.deepEqual(store.list().map((state) => state.ref.name), ["active"]);
+});
+
 test("за одно изменение идёт один запуск; просьбы на его время склеиваются в один следующий", async () => {
   const { store, runs } = harness([ref("a")]);
   store.refresh("R/a");

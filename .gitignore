@@ -55,6 +55,7 @@ dist/
 media/viewer.js
 media/search.js
 media/scheme.js
+media/req-graph.js
 media/help.js
 media/mermaid.min.js
 media/mermaid.LICENSE

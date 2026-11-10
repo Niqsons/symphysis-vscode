@@ -85,6 +85,7 @@ export type HostMessage =
 
 export type PageMessage =
   | { type: "ready" }
+  | { type: "journalPainted"; key: string }
   | { type: "draft"; key: string; draft: Draft }
   | { type: "ui"; ui: UiState }
   | { type: "copy"; text: string }

@@ -1,0 +1,31 @@
+schema: symphysis
+created: 2026-11-10
+x-symphysis-components:
+  symphysis-plugin:
+    - repo: symphysis-vscode
+      root: ""
+      survey: found
+      exclude:
+        - test
+        - docs
+        - openspec
+        - out
+        - media
+        - .agents
+        - .codex
+        - .claude
+  symphysis-core:
+    - repo: symphysis-core
+      root: core/
+      survey: found
+      exclude:
+        - tests
+        - docs
+        - upstream
+        - installer/payload
+        - openspec/changes
+        - openspec/specs
+        - .superpowers
+        - .context
+        - .claude
+        - .agents

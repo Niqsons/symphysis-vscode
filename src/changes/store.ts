@@ -30,20 +30,30 @@ export class JournalStore {
   private readonly slots = new Map<string, Slot>();
   private readonly queue: string[] = [];
   private active = 0;
+  private readonly included = new Map<string, ChangeRef>();
+  private listed = new Set<string>();
 
   constructor(private readonly deps: StoreDeps) {}
 
   list(): ChangeState[] {
-    return [...this.slots.values()];
+    return [...this.slots.values()].filter((state) => this.listed.has(keyOf(state.ref)));
   }
 
   get(key: string): ChangeState | undefined {
     return this.slots.get(key);
   }
 
+  /** Адресный переход из снимка может открыть журнал архивного изменения. */
+  include(ref: ChangeRef): void {
+    this.included.set(keyOf(ref), ref);
+    this.sync();
+  }
+
   /** Перечитывает перечень изменений: пропавшие уходят, новые появляются; атаки и наличие журнала — свежие. */
   sync(): void {
-    const refs = this.deps.list();
+    const active = this.deps.list();
+    this.listed = new Set(active.map(keyOf));
+    const refs = [...this.included.values(), ...active];
     const keys = new Set(refs.map(keyOf));
     for (const key of this.slots.keys()) if (!keys.has(key)) this.slots.delete(key);
     for (const ref of refs) {

@@ -18,6 +18,8 @@
       { "command": "symphysis.refresh", "title": "Обновить", "category": "Symphysis", "icon": "$(refresh)" },
       { "command": "symphysis.openChange", "title": "Открыть журнал", "category": "Symphysis" },
       { "command": "symphysis.openScheme", "title": "Показать схему решения", "category": "Symphysis" },
+      { "command": "symphysis.openGraph", "title": "Показать граф требований", "category": "Symphysis" },
+      { "command": "symphysis.openGraphSnapshot", "title": "Открыть снимок графа требований", "category": "Symphysis" },
       { "command": "symphysis.openHelp", "title": "Справка о шаге конвейера", "category": "Symphysis", "icon": "$(question)" },
       { "command": "symphysis.revealRecord", "title": "Показать запись", "category": "Symphysis" },
       { "command": "symphysis.revealAttack", "title": "Показать в атаке", "category": "Symphysis" }
@@ -95,6 +97,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node build.mjs --unit && node --test \"out/test/*.test.js\"",
     "e2e": "node build.mjs --tests && node test/e2e/run.mjs",
+    "e2e:graph": "node build.mjs --tests && node test/e2e/req-graph.mjs",
     "package": "node package.mjs",
     "e2e:vsix": "node build.mjs --tests && node test/e2e/vsix.mjs",
     "e2e:reload": "node build.mjs --tests && node test/e2e/reload.mjs",

@@ -202,3 +202,22 @@ a.filelink code { color: inherit; }
 .help-text { white-space: pre-wrap; }
 .help-files ul, .help-skills ul { margin: 2px 0 8px; padding-left: 20px; }
 .help-versions { margin-top: 18px; font-size: .85em; }
+.graph-page { height: 100vh; display: flex; flex-direction: column; padding: 10px; box-sizing: border-box; gap: 8px; }
+.graph-bar, .graph-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.graph-filters label { display: flex; align-items: center; gap: 4px; }
+.graph-filters select { max-width: 270px; }
+.graph-body { display: flex; flex: 1; min-height: 0; gap: 12px; }
+.graph-drawing { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+#graph-stage { flex: 1; min-height: 100px; overflow: hidden; position: relative; touch-action: none; }
+#graph-canvas { position: absolute; transform-origin: 0 0; }
+.graph-body aside { width: 280px; overflow: auto; }
+#graph-unlinked { list-style: none; padding: 0; }
+#graph-unlinked button { text-align: left; white-space: normal; margin-bottom: 5px; }
+#graph-object { white-space: pre-wrap; overflow-wrap: anywhere; }
+#graph-error { color: var(--vscode-errorForeground); }
+#graph-diagnostics { max-height: 150px; overflow: auto; }
+#graph-canvas g.node[role="button"] { cursor: pointer; }
+@media (max-width: 600px) {
+  .graph-body { flex-direction: column; }
+  .graph-body aside { width: auto; max-height: 35%; }
+}

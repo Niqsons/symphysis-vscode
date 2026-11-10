@@ -25,13 +25,15 @@ export const TOOLS_FILES = [
   "settings/symphysis_config.py",
   "step-help/step_help.py",
   "openspec-run/openspec_run.py",
+  "runtime/runtime_context.py",
   "trace/trace_graph.py",
+  "trace/trace_modules.py",
   "anchors/anchor_refs.py",
   "anchors/sync_check.py",
 ];
 
 /** Общие файлы скиллов, которые установка кладёт в `.symphysis/docs/`: `SHARED_FILES` того же файла ядра. */
-export const DOCS_FILES = ["skill-shared/terms.md", "skill-shared/driver.md", "decisions/candidate.md", "cli/journal-cli.md", "settings/config.md", "attack/attack-table.md"];
+export const DOCS_FILES = ["skill-shared/terms.md", "skill-shared/driver.md", "decisions/candidate.md", "cli/journal-cli.md", "settings/config.md", "attack/attack-table.md", "trace/module-declarations.md"];
 
 /** Пустая переменная считается незаданной. */
 export const coreRoot = (env, sibling) => env.SYMPHYSIS_ROOT || sibling;

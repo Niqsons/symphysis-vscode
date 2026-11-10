@@ -13,6 +13,15 @@ import { emptyDraft } from "../../journal/logic";
 
 const tmp = () => tempDir("symphysis-проект-");
 
+test("черновик архивного журнала сохраняется в каталоге просмотрщика", () => {
+  const root = tmp();
+  const draft = emptyDraft();
+  draft.notes = "слово по архивному журналу";
+  writeDraft(root, "archive/2026-demo", draft);
+  assert.deepEqual(readDraft(root, "archive/2026-demo").draft, draft);
+  assert.ok(fs.readdirSync(path.join(root, ".symphysis/viewer")).some((file) => file.endsWith(".json")));
+});
+
 function change(root: string, name: string, files: Record<string, string> = {}): string {
   const dir = path.join(root, "openspec", "changes", name);
   fs.mkdirSync(dir, { recursive: true });

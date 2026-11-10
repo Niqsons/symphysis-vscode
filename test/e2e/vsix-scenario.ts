@@ -12,7 +12,7 @@ const ID = "symphysis.symphysis-vscode";
 const REPO = path.resolve(__dirname, "..", "..");
 /** Белый список .vscodeignore: забытый файл молча даёт пустую панель, лишний — утечку исходников. */
 /** vsce кладёт README пакета (`--readme-path`) в установленное расширение под именем readme.md. */
-const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/help.js", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json", "readme.md"];
+const PACKAGE = [".vsixmanifest", "hook/hook.py", "media/help.js", "media/icon.svg", "media/mermaid.LICENSE", "media/mermaid.min.js", "media/req-graph.js", "media/scheme.js", "media/search.js", "media/viewer.css", "media/viewer.js", "out/extension.js", "package.json", "readme.md"];
 
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;

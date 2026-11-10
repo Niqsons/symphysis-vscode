@@ -12,6 +12,7 @@ const PAGES = [
   ["src/viewer/page.tsx", "media/viewer.js"],
   ["src/search/page.tsx", "media/search.js"],
   ["src/scheme/page.ts", "media/scheme.js"],
+  ["src/req-graph/page.ts", "media/req-graph.js"],
   ["src/step-help/page.tsx", "media/help.js"],
 ];
 

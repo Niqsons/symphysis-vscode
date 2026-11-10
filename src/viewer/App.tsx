@@ -82,6 +82,9 @@ function NewForks({ draft, update }: { draft: Draft; update(fn: (d: Draft) => Dr
 
 export function App() {
   const [view, setView] = useState<JournalView | null>(null);
+  useLayoutEffect(() => {
+    if (view?.payload) post({ type: "journalPainted", key: view.key });
+  }, [view?.key, view?.payload]);
   const [draft, setDraftState] = useState<Draft>(emptyDraft);
   const [ui, setUi] = useState<UiState>(DEFAULT_UI);
   const [damaged, setDamaged] = useState<string | null>(null);

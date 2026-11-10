@@ -45,6 +45,7 @@ export class ViewerPanel {
   private key: string | null = null;
   private applying = false;
   private pendingNode: string | null = null;
+  private pendingRecord: { key: string; id: string } | null = null;
   /** Числа задач в последних данных, ушедших странице. */
   private sentTasks: JournalView["tasks"] = null;
 
@@ -107,6 +108,12 @@ export class ViewerPanel {
       this.panel.reveal(undefined, true);
       void this.post({ type: "reveal", id, mode });
     }
+  }
+
+  /** Граф называет журнал источника, переход ждёт подтверждения от его DOM. */
+  revealRecord(key: string, id: string): void {
+    this.pendingRecord = { key, id };
+    this.open(key, vscode.ViewColumn.Beside);
   }
 
   /** Клик по узлу на вкладке схемы: просмотрщик закрыт или показывает другое — сначала открывается этот журнал (F-63). */
@@ -188,6 +195,15 @@ export class ViewerPanel {
         this.ready = true;
         this.show();
         return;
+      case "journalPainted": {
+        const pending = this.pendingRecord;
+        if (!pending || pending.key !== m.key || this.key !== m.key) return;
+        const state = this.deps.store.get(m.key);
+        if (!state?.payload?.records.some((record) => record.id === pending.id)) return;
+        this.pendingRecord = null;
+        void this.post({ type: "reveal", id: pending.id, mode: "decisions" });
+        return;
+      }
       case "draft": {
         const state = this.deps.store.get(m.key);
         if (!state) return;

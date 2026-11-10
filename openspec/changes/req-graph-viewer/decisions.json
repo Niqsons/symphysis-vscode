@@ -27,6 +27,30 @@
   {
    "date": "2026-11-10",
    "text": "брейншторм закончен по решению человека"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "проба краёв: кандидатов 10, Specify 0, Dismiss 0, Backstop 0, Defer 0; открыты F-25–F-34; не выбран 9: plugin-trace-graph-view/Источник и предварительное состояние видны человеку, plugin-trace-graph-view/Объект из списка доступен для осмотра, plugin-trace-graph-view/Рисунком можно управлять в области просмотра, plugin-trace-navigation/Переход не требует изменения исходных форматов, plugin-trace-navigation/Переход сохраняет выбранный источник и фильтры, plugin-trace-navigation/Узел записи ведёт к соответствующей записи журнала, trace-graph-view/Модуль выбирает реализуемые требования, trace-graph-view/Ответ связывает рисунок с исходными узлами, trace-graph-view/Совместная реализация сохраняется как контекст"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "проба запретов: требований 20, оставлено 2, канон → ИБ 3, Specify 0, Dismiss 0, Defer 0; открыты F-35, F-36"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "Кандидаты проб сверены между собой и с выбранными решениями: новых антиподов нет. F-31 уточняет определение сформированных specs, не меняя без решения человека F-14.A; правила пустого выбора и неполной структуры не меняют источник и фильтры. До слова человека новые сценарии и запреты в specs не добавлены."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "После apply ответов 2026-11-10-2.md: F-25–F-33 Specify, F-34 Dismiss, F-35 и F-36 Specify/test. Причина выбора F-30.A сохранена дословно; рекомендация B не переписана. Выбранные решения сверены с прежними: новых противоречий и антиподов нет."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "проба краёв: кандидатов 10, Specify 9, Dismiss 1, Backstop 0, Defer 0; повтор по 22 требованиям, новых кандидатов 0; не выбран 11: plugin-trace-graph-view/Источник и предварительное состояние видны человеку, plugin-trace-graph-view/Объект из списка доступен для осмотра, plugin-trace-graph-view/Рисунком можно управлять в области просмотра, plugin-trace-navigation/Переход не требует изменения исходных форматов, plugin-trace-navigation/Переход сохраняет выбранный источник и фильтры, plugin-trace-navigation/Узел записи ведёт к соответствующей записи журнала, trace-graph-view/Модуль выбирает реализуемые требования, trace-graph-view/Ответ связывает рисунок с исходными узлами, trace-graph-view/Совместная реализация сохраняется как контекст, trace-graph-view/Просмотр не выполняет скрытую заморозку, plugin-trace-graph-view/Снимок не означает окончательность графа"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "проба запретов: требований 22, оставлено 2, канон → ИБ 3, Specify 2, Dismiss 0, Defer 0; повтор новых требований выполнен, новых кандидатов 0"
   }
  ],
  "records": [
@@ -904,6 +928,925 @@
    "dispute": "",
    "consequences": "",
    "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-25",
+   "question": "[empty · text, io] trace-graph-view/Вид графа готовится из выбранного источника: выбранный req-graph.json имеет ноль байт или оборван посередине JSON",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-02",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN выбран пустой или оборванный снимок WHEN запрошен просмотр THEN возвращён явный отказ без данных успешно построенного вида и без подмены живым графом; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — повреждённый снимок не имеет заданного исхода; обычная ошибка чтения допустима, но поведение альтернативных источников этим краем не фиксируется",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: подать пустой и оборванный снимок и проверить, что валидная диаграмма не получена из другого источника; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым обработку повреждённых снимков до проектирования ошибок публичного вывода; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Подмена повреждённого снимка живыми данными дала бы правдоподобную чужую историю. Цена Specify — сценарий, тест отказа и сопровождение диагностики вместо такой подмены."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Повреждённый снимок не подменяется живым графом",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "### Requirement: Вид графа готовится из выбранного источника"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-26",
+   "question": "[empty · collection] trace-graph-view/Часть выбирается по capability или требованию: выбранное требование удалено из specs между получением списка и запросом диаграммы",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-03",
+    "F-05",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN выбранного требования больше нет WHEN запрошен вид с прежним выбором THEN выбор явно назван недоступным, другая capability или требование не выбираются молча; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — поведение исчезнувшего выбора остаётся обычной обработкой ошибки; автоматическое переключение на первую доступную часть здесь не ограничивается",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: удалить выбранное требование между двумя запросами и проверить, что результат не выдан как результат прежнего выбора; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым исчезнувший выбор до решения о восстановлении фильтров; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Тихий переход на соседнее требование меняет предмет проверки связей. Цена Specify — сценарий удаления выбранного узла и тест отсутствия молчаливого переключения."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Выбранное требование исчезло",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "### Requirement: Часть выбирается по capability или требованию"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-27",
+   "question": "[empty · collection] trace-graph-view/Модуль выбирает реализуемые требования: repo-a/trace существует, но явных implements нет; либо совместный фильтр модуля и capability даёт ноль требований",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-04",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN известный модуль не дал требований при текущем фильтре WHEN построен вид THEN показана явная пустая выборка, без подстановки всего графа и без объявления модуля неизвестным; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — пустая выборка модуля остаётся без отдельного контракта; при этом нельзя считать её доказательством наличия связанных требований",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: проверить модуль без implements и непересекающиеся module/capability: нет подстановки чужих требований; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым политику пустой модульной выборки до проектирования начального состояния вкладки; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Подстановка требований другого модуля или всего графа скрывает отсутствие реализации. Цена Specify — один сценарий пустой выборки и два входа теста для модуля и пересечения фильтров."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Известный модуль не реализует требований; Пересечение модуля и capability пусто",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "### Requirement: Модуль выбирает реализуемые требования"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-28",
+   "question": "[empty · collection] trace-graph-view/Список ненайденных связей имеет область: у требования есть contains от capability и verifies от сценария, но нет traces к записи журнала",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-17",
+    "F-24"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN требование связано с capability и сценарием, но не с записью WHEN рассчитан список пропусков THEN требование названо не имеющим найденной связи с решением; contains и verifies не заменяют эту связь; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — проверять только полное отсутствие любых рёбер; требование с одним contains в список не попадает, а поиск именно связи с решением остаётся человеку",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: подать граф с contains и verifies без traces и проверить, что отсутствие связи с решением не закрывается структурными рёбрами; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым точное определение пропуска связи до согласования списка с сигналами ядра; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Непустая степень вершины здесь создаёт ложное впечатление связи с решением. Цена Specify — сценарий и тест семантических типов рёбер списка; против Dismiss это проверяет названную владельцем связь."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Структурные связи не заменяют связь с решением",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "### Requirement: Список ненайденных связей имеет область"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-29",
+   "question": "[empty · collection] trace-graph-view/Отсутствие структуры в снимке обозначается явно: structure есть, modules пуст, но repo имеет survey: unexamined или availability: unavailable",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-08",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN пустой список модулей получен при необследованном или недоступном repo WHEN снимок показан THEN сообщена неполнота структурных данных, а подтверждённое отсутствие модулей не заявлено; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — различать только отсутствие раздела structure; при существующем пустом разделе состояния обследования этим требованием не раскрываются",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: подать оба состояния repo с modules: [] и проверить отсутствие утверждения о подтверждённом отсутствии модулей; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым неполную структуру формата снимка до согласования статусов интерфейса; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Пустой массив при недоступном repo тихо становится ложным фактом об устройстве системы. Цена Specify — сценарий и тест двух статусов вместо такого вывода."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Пустые модули при неполном обследовании",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "### Requirement: Отсутствие структуры в снимке обозначается явно"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-30",
+   "question": "[idempotency · stateful] plugin-trace-graph-view/Граф показывается отдельной вкладкой: человек дважды подряд открывает один и тот же снимок",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-01",
+    "F-22"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN вкладка этого снимка уже открыта WHEN снимок открыт повторно THEN существующая вкладка получает фокус и сохраняет свои фильтры; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не фиксировать число вкладок для повторного открытия: повтор может создать ещё одну вкладку того же снимка; это видно сразу и данные не меняет",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: дважды открыть снимок и проверить, что обе показанные вкладки, если их две, относятся к тому же источнику без подмены; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым правило повторного открытия до решения о нескольких одновременно сравниваемых снимках; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "B",
+    "why": "Лишняя вкладка заметна сразу и не портит данные; Dismiss оставляет эту деталь интерфейса реализации. Против Specify нет необходимости сейчас закреплять единственность вкладки и сопровождать отдельный сценарий."
+   },
+   "decision": {
+    "option": "A",
+    "word": "Боюсь, что всё таки А. Варианты, когда вкладки размножаются портят UX, так как аналогичного поведения, при создании новых вкладок по нажатию на кнопку нет.",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": "Боюсь, что всё таки А. Варианты, когда вкладки размножаются портят UX, так как аналогичного поведения, при создании новых вкладок по нажатию на кнопку нет."
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Повторное открытие того же снимка",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
+     "quote": "### Requirement: Граф показывается отдельной вкладкой"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-31",
+   "question": "[empty · collection] plugin-trace-graph-view/Просмотр доступен после формирования specs: proposal называет три capability, но записан только один spec.md либо spec.md пока не содержит требований",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-14"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN хотя бы одна capability proposal ещё без непустого spec.md WHEN открыт живой просмотр THEN specs не объявляются сформированными и готовая диаграмма требований не показывается; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — считать наличие любого spec.md достаточным; показывать частичный граф без дополнительного условия полноты набора specs",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: проверить, что при неполном наборе файлов стадия полного формирования specs не заявляется, не закрепляя поведение самой диаграммы; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым критерий сформированных specs до согласования границы с OpenSpec status; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Один преждевременно записанный файл может выдать неполный граф за готовый для проверки требований. Цена Specify — сценарий частичного набора и тест пустого spec.md; это уточняет условие начала просмотра."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Часть capability ещё без specs; Файл specs пока без требований",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
+     "quote": "### Requirement: Просмотр доступен после формирования specs"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-32",
+   "question": "[concurrency · stateful, io] plugin-trace-graph-view/Живой граф можно обновить: запрос для модуля A идёт медленно; после выбора B ответ B пришёл раньше ответа A",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-07",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN после запроса A выбран B и его ответ показан WHEN приходит старый ответ A THEN рисунок, карта переходов и список пропусков остаются относящимися к B; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не закреплять порядок принятия ответов; допускается показ последнего завершившегося запроса независимо от текущего выбора",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: искусственно поменять порядок двух ответов и проверить согласованность рисунка, фильтра, карты и списка с выбранным B; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым правило запоздавших ответов до выбора модели обновления панели; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Ответ A под фильтром B тихо подменяет предмет проверки и адреса переходов. Цена Specify — сценарий перестановки ответов и тест единого принятия всех частей ответа."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Ответ прежнего выбора приходит позднее",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
+     "quote": "### Requirement: Живой граф можно обновить"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-33",
+   "question": "[adjacency · collection] plugin-trace-graph-view/Объекты без найденных связей видны рядом с диаграммой: в списке есть два требования с одинаковым именем из разных capability",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-08",
+    "F-24"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN два требования имеют одно имя в разных capability WHEN они показаны в списке пропусков THEN это различимые отдельные пункты, выбор каждого относится к его собственному id; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не задавать различимость одинаковых подписей списка; идентичность определяется только после выбора объекта",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: выбрать каждый из двух одинаково названных объектов и проверить, что показан его id, даже если подписи совпали; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым форму различения одинаковых имён списка до согласования подписей; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Одинаковые подписи позволяют незаметно проверять другое требование. Цена Specify — сценарий двух capability и тест выбора отдельных объектов; это сохраняет идентичность без переименования требований."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "в spec.md: Два одинаковых имени в разных capability",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
+     "quote": "### Requirement: Объекты без найденных связей видны рядом с диаграммой"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-34",
+   "question": "[concurrency · io] plugin-trace-navigation/Узел артефакта ведёт к исходному месту: файл артефакта удалён после построения диаграммы, но до клика",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-18",
+    "F-19",
+    "F-23"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify — GIVEN целевой файл уже удалён WHEN человек нажимает на узел THEN сообщено о недоступной цели, посторонний файл не открывается вместо неё; цена: сценарий этого края, тест и сопровождение указанного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Dismiss — не задавать специальное сообщение для исчезнувшего файла; обычный отказ редактора допустим, гарантируется только корректность перехода к доступной цели",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Backstop — тест-страховка: удалить файл перед кликом и проверить, что другой существующий файл не выбран как замена; строки в spec.md нет.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым специальный интерфейс недоступной цели до решения о просмотре архивных исходников; tasks считает этот край допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "B",
+    "why": "Недоступность файла видна пользователю сразу через редактор и сама данные не портит. Dismiss сохраняет условие доступной цели; против Specify нет необходимости расширять интерфейс ошибок в этом изменении."
+   },
+   "decision": {
+    "option": "B",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Dismiss",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "Недоступность файла видна пользователю сразу через редактор и сама данные не портит. Dismiss сохраняет условие доступной цели; против Specify нет необходимости расширять интерфейс ошибок в этом изменении.",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-navigation/spec.md",
+     "quote": "### Requirement: Узел артефакта ведёт к исходному месту"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-35",
+   "question": "[запрет] trace-graph-view/Вид графа готовится из выбранного источника: не должен незаметно превращать просмотр живого графа в заморозку или замену исторического снимка",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-02",
+    "F-23",
+    "F-14",
+    "F-15"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify/test — Вызов просмотра MUST NOT создавать или заменять снимок и тем самым переводить чтение в шаг freeze; тест сравнивает наличие и байты graph/ до и после просмотра до первой заморозки и поверх имеющегося снимка; цена: сценарий, указанный тест и сопровождение запрета.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Specify/judgment — Просмотр MUST NOT скрыто продвигать изменение к следующему этапу; судит человек, сверяя действия и состояние изменения после просмотра; цена: сценарий и отдельное суждение при каждой проверке.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Dismiss — не добавлять специального запрета на скрытую заморозку; неявное создание снимка остаётся без отдельного ограничения в этой capability",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым границу просмотра и freeze до решения о действиях панели со снимком; tasks считает запрет допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Скрытая заморозка меняет историческую опору и этап работы, хотя человек только смотрел граф. Цена Specify/test — сценарий и тест неизменности graph/; механическая проверка здесь точнее постоянного суждения человека."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "проверка: test — сравнить наличие и байты graph/ до и после просмотра для обоих исходных состояний; в spec.md: Просмотр не выполняет скрытую заморозку",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "Ядро SHALL готовить один ответ для просмотра выбранного живого графа или сохранённого снимка, включая архивный. Mermaid-текст и соответствие элементов исходным узлам SHALL относиться к одной выбранной части этого источника. Историческая структура SHALL браться из снимка (F-02, F-23.A)."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-36",
+   "question": "[запрет] plugin-trace-graph-view/Источник и предварительное состояние видны человеку: не должен выдавать наличие снимка до реализации за окончательность графа или завершённость изменения",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-02",
+    "F-15",
+    "F-23",
+    "F-16"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Specify/test — Плагин MUST NOT автоматически обозначать граф конечным или изменение завершённым только из-за наличия req-graph.json; тест открывает снимок, созданный перед первой задачей, и проверяет отсутствие такого статуса; цена: сценарий, указанный тест и сопровождение запрета.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "B",
+     "text": "Specify/judgment — Показ MUST NOT внушать завершённость из-за одного файла снимка; судит человек на ревью формулировок и видов статуса; цена: сценарий и отдельное суждение при каждой проверке.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "C",
+     "text": "Dismiss — не вводить отдельного запрета после заморозки; для живого графа действует предварительное обозначение, а надписи снимка здесь не ограничиваются",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    },
+    {
+     "letter": "D",
+     "text": "Defer — оставить открытым правило окончательности снимка до решения об общих статусах изменения; tasks считает запрет допущением.",
+     "added": false,
+     "unlikely": null,
+     "evidence": []
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Первый снимок появляется до реализации, поэтому автоматическая финальность вводила бы в заблуждение. Цена Specify/test — сценарий и тест статуса; против judgment машинно проверяется именно отсутствие автоматического вывода."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": null,
+   "outcome": {
+    "kind": "проба",
+    "value": "Specify",
+    "reason": ""
+   },
+   "parking": [],
+   "dispute": "",
+   "consequences": "проверка: test — открыть снимок до первой задачи и проверить отсутствие автоматического статуса окончательности; в spec.md: Снимок не означает окончательность графа",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
+     "quote": "### Requirement: Источник и предварительное состояние видны человеку"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-37",
+   "question": "[канон] trace-graph-view/Вид графа готовится из выбранного источника: канон ИБ",
+   "kind": "факт",
+   "status": "припаркован",
+   "addressee": "ИБ",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [
+    {
+     "addressee": "ИБ",
+     "text": "Проверка границ чтения выбранного снимка, внешних repo и разрешения относительных путей — канон, покрывается чек-листом security.md; запрет не чеканится"
+    },
+    {
+     "addressee": "ИБ",
+     "text": "Обработка входного JSON как данных без исполнения инструкций — канон, покрывается чек-листом security.md; запрет не чеканится"
+    }
+   ],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/trace-graph-view/spec.md",
+     "quote": "### Requirement: Вид графа готовится из выбранного источника"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-38",
+   "question": "[канон] plugin-trace-graph-view/Граф показывается отдельной вкладкой: канон ИБ",
+   "kind": "факт",
+   "status": "припаркован",
+   "addressee": "ИБ",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [
+    {
+     "addressee": "ИБ",
+     "text": "Обработка подписей Mermaid и текста графа как недоверенных данных; инъекции и CSP — канон, покрывается чек-листом security.md; запрет не чеканится"
+    }
+   ],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-graph-view/spec.md",
+     "quote": "### Requirement: Граф показывается отдельной вкладкой"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-39",
+   "question": "[канон] plugin-trace-navigation/Узел артефакта ведёт к исходному месту: канон ИБ",
+   "kind": "факт",
+   "status": "припаркован",
+   "addressee": "ИБ",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [
+    {
+     "addressee": "ИБ",
+     "text": "Разрешение целей только из карты показанного ответа; проверка границ путей, ссылок и разрешённых repo — канон, покрывается чек-листом security.md; запрет не чеканится"
+    },
+    {
+     "addressee": "ИБ",
+     "text": "Сообщение webview не должно становиться произвольным путём или командой — канон, покрывается чек-листом security.md; запрет не чеканится"
+    }
+   ],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/specs/plugin-trace-navigation/spec.md",
+     "quote": "### Requirement: Узел артефакта ведёт к исходному месту"
+    }
+   ],
    "comments": []
   }
  ]

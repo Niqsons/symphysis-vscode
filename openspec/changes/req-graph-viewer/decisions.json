@@ -1,0 +1,910 @@
+{
+ "title": "Журнал решений: req-graph-viewer",
+ "source": "decisions.json",
+ "intro": "Первый круг symphysis-brainstorm, 2026-11-10. Постановка — intent.md по обсуждению с владельцем. Пути без префикса считаются от корня worktree symphysis-vscode; core/ — исходный репозиторий symphysis-core. Обследование: symphysis-vscode — 12 объявленных модулей, symphysis-core — 17; оба repo доступны, survey: found. Локальная карта корней не входит в переносимые артефакты. Материалы: intent.md, просмотрщик scheme, список изменений, генератор trace_graph.py и спецификация trace-diagram.",
+ "generated": "2026-11-10",
+ "notes": [
+  {
+   "date": "2026-11-10",
+   "text": "Круг 1 начат: факты постановки сохранены; интервью и развилки ещё не завершены."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "Первый круг продолжается: цель просмотра и условие добавления переходов внесены через apply. Исследователь — факты F-09–F-13, F-16, F-19–F-21; упрощатель и границы — F-18, F-22–F-23; отказы и остаток — F-24. При сверке новых вариантов между собой и с выбранными решениями антиподов не найдено. Развилки F-22–F-24 переданы человеку; круг не закрыт."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "После внесения F-22.A, F-23.A и F-24.A выбранные решения сверены между собой и с F-14.A, F-15.A, F-17.A, F-18.A. Противоречий и новых антиподов нет: отдельная панель, общий вывод ядра и список без найденных связей совместимы с предварительным показом после specs и условием не менять форматы артефактов ради кликов."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "круг 1 закончен: решений 7, фактов 17, открытых развилок 0, парковок агенту 0, антиподов 0"
+  },
+  {
+   "date": "2026-11-10",
+   "text": "Слово владельца: «Если новых развилок или вопросов ко мне нет, то можно переходить к следующему шагу.» (answers/2026-11-10-next-step.md). Условие проверено: открытых развилок, вопросов человеку и парковок агенту нет; новый круг не начинается."
+  },
+  {
+   "date": "2026-11-10",
+   "text": "брейншторм закончен по решению человека"
+  }
+ ],
+ "records": [
+  {
+   "id": "F-01",
+   "question": "Критерий готовности: В плагине VS Code можно просмотреть req-graph активного изменения как Mermaid requirementDiagram.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "В плагине VS Code можно просмотреть req-graph активного изменения как Mermaid requirementDiagram."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-02",
+   "question": "Критерий готовности: Можно открыть сохранённый req-graph.json, в том числе из архива; показ исторической структуры опирается на снимок.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Можно открыть сохранённый req-graph.json, в том числе из архива; показ исторической структуры опирается на снимок."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-03",
+   "question": "Критерий готовности: Основной сценарий — выбор части графа по capability или требованию; весь граф не показывается автоматически по умолчанию.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Основной сценарий — выбор части графа по capability или требованию; весь граф не показывается автоматически по умолчанию."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-04",
+   "question": "Критерий готовности: Можно выбрать модуль по паре repo/module и увидеть требования, которые он реализует по явным связям implements, включая связи, полученные через файлы реализации.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Можно выбрать модуль по паре repo/module и увидеть требования, которые он реализует по явным связям implements, включая связи, полученные через файлы реализации."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-05",
+   "question": "Критерий готовности: Требования, отобранные по модулю, показываются со связанными сценариями, задачами и решениями; другие модули их совместной реализации сохраняются как контекст.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Требования, отобранные по модулю, показываются со связанными сценариями, задачами и решениями; другие модули их совместной реализации сохраняются как контекст."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-06",
+   "question": "Критерий готовности: Выбор модуля можно сузить до capability.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Выбор модуля можно сузить до capability."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-07",
+   "question": "Критерий готовности: Диаграмму можно масштабировать, перемещать и вписывать в область просмотра; просмотр активного изменения поддерживает обновление.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Диаграмму можно масштабировать, перемещать и вписывать в область просмотра; просмотр активного изменения поддерживает обновление."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-08",
+   "question": "Критерий готовности: Отсутствие структурных данных в старом снимке явно обозначается; оно не выдаётся за подтверждённое отсутствие модулей.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "постановка",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "openspec/changes/req-graph-viewer/intent.md",
+     "quote": "Отсутствие структурных данных в старом снимке явно обозначается; оно не выдаётся за подтверждённое отсутствие модулей."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-09",
+   "question": "Селектор диаграммы ядра принимает capability и requirement.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "core/trace/trace_graph.py",
+     "quote": "def select_diagram(graph: dict, capability: str | None = None, requirement: str | None = None) -> tuple[list[dict], list[dict]]:"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-10",
+   "question": "Просмотрщик схемы уже передаёт Mermaid-текст локальному рендереру.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "src/scheme/page.ts",
+     "quote": "const { svg } = await mermaid.render(SVG_ID, view.text);"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-11",
+   "question": "Обработчик клика по узлу существующей схемы пропускает только flowchart.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "src/scheme/page.ts",
+     "quote": "if (moved || !flowchart) return;"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-12",
+   "question": "Текущий список изменений плагина исключает каталог archive.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "src/core/project.ts",
+     "quote": "return entries.filter((e) => e.isDirectory() && e.name !== \"archive\").map((e) => e.name).sort().map((name) => changeRef(root, name));"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-13",
+   "question": "Связанная структура требования уже входит в Mermaid-экспорт; транзитивные зависимости не включаются целиком.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "core/openspec/specs/trace-diagram/spec.md",
+     "quote": "Связанная структурная ось SHALL включаться с необходимыми предками; все транзитивные зависимости не втягиваются автоматически."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-14",
+   "question": "С какого этапа человек должен иметь возможность просматривать граф изменения?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-01"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Просмотр доступен начиная с шага specs, когда спецификации сформированы; наличие замороженного req-graph.json для этого не требуется.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-availability-word.md",
+       "quote": "при этом я хотел бы иметь возможность просматривать граф начиная с шага specs, когда они сформированы. иначе, до момента формирования specs -- будет виден только набор несвязанных решений по развилкам, без привязки к другим артефактам и тем более требованию с идентификатором"
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Владелец прямо задал это поведение в ответе интервью; альтернативный выбор в этом ответе не запрашивается."
+   },
+   "decision": {
+    "option": "A",
+    "word": "при этом я хотел бы иметь возможность просматривать граф начиная с шага specs, когда они сформированы. иначе, до момента формирования specs -- будет виден только набор несвязанных решений по развилкам, без привязки к другим артефактам и тем более требованию с идентификатором",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Это условие доступности и обозначение состояния в просмотрщике; изменение не требует миграции сохранённых графов."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-15",
+   "question": "Как считать граф, который показан до заморозки?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-14"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Граф, отрендеренный до заморозки, считается предварительным и не должен подаваться как конечный.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-availability-word.md",
+       "quote": "так как граф замораживается в виде файла только на определенном этапе -- то граф, который мы можем рендерить до заморозки -- не должен считаться конечным."
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Владелец прямо задал это поведение в ответе интервью; альтернативный выбор в этом ответе не запрашивается."
+   },
+   "decision": {
+    "option": "A",
+    "word": "так как граф замораживается в виде файла только на определенном этапе -- то граф, который мы можем рендерить до заморозки -- не должен считаться конечным.",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Это условие доступности и обозначение состояния в просмотрщике; изменение не требует миграции сохранённых графов."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-16",
+   "question": "Заморозка графа предусмотрена уже перед первой задачей реализации: наличие снимка само по себе не означает завершённости изменения.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "core/docs/GUIDE.md",
+     "quote": "Перед первой задачей `/opsx:apply`: снимок и отчёт появляются до реализации."
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-17",
+   "question": "Для какой основной проверки человек использует диаграмму на шаге specs?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-14"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Визуально проверять связи решений по развилкам с требованиями и сценариями, включая отсутствие связей; не заставлять человека вычитывать артефакты для восстановления этой картины.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-purpose-word.md",
+       "quote": "хочу проверить связи решений по развилкам с требованиями и сценариями. то есть рендер графа может быть удобным инструментом, для того, чтобы видеть что с чем связано и связано ли вообще, вместо того, чтобы вычитывать текст для поиска таких связей."
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Владелец прямо назвал назначение и ограничение объёма; альтернативный выбор в этом ответе не запрошен."
+   },
+   "decision": {
+    "option": "A",
+    "word": "хочу проверить связи решений по развилкам с требованиями и сценариями. то есть рендер графа может быть удобным инструментом, для того, чтобы видеть что с чем связано и связано ли вообще, вместо того, чтобы вычитывать текст для поиска таких связей.",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Назначение просмотра и условие добавления переходов уточняют поведение плагина; исторические графы и исходные артефакты не мигрируются этим решением."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-18",
+   "question": "При каком условии в объём входит переход по клику на узел?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-17"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Поддержать переход к развилке в просмотрщике или к артефакту в редакторе, если это возможно без сложных модификаций графа или артефактов. Это желательное удобство с ограничением стоимости, а не безусловное требование менять формат источников.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-purpose-word.md",
+       "quote": "если можем поддержать кликабельность, и переход к развилке в просмотрщике или к артефакту в редакторе -- то хорошо, но если для этого не нужно делать сложных модификаций графа или артефактов."
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Владелец прямо назвал назначение и ограничение объёма; альтернативный выбор в этом ответе не запрошен."
+   },
+   "decision": {
+    "option": "A",
+    "word": "если можем поддержать кликабельность, и переход к развилке в просмотрщике или к артефакту в редакторе -- то хорошо, но если для этого не нужно делать сложных модификаций графа или артефактов.",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Назначение просмотра и условие добавления переходов уточняют поведение плагина; исторические графы и исходные артефакты не мигрируются этим решением."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-19",
+   "question": "В плагине уже есть адресный переход к записи журнала по id и открытие файла на строке.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "src/viewer/viewerPanel.ts",
+     "quote": "reveal(id: string, mode?: ViewMode): void {"
+    },
+    {
+     "path": "src/file-links/openFile.ts",
+     "quote": "export async function openBeside(file: string, line: number | null): Promise<void> {"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-20",
+   "question": "Исходные id и место at хранятся в узлах графа; подпись Mermaid очищается и обрезается до предела имени отдельно.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "core/trace/trace_graph.py",
+     "quote": "return {\"id\": node_id, \"kind\": kind, \"name\": name, \"at\": f\"{file}:{line}\", **extra}"
+    },
+    {
+     "path": "core/trace/trace_graph.py",
+     "quote": "return clean_text(f\"{ident} {label}\")[:DIAGRAM[\"имя\"]].rstrip()"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-21",
+   "question": "Селектор включает дополнительные узлы записи через связи с центральными узлами выбранной части.",
+   "kind": "факт",
+   "status": "решён",
+   "addressee": "агент",
+   "depends_on": [],
+   "delivery": "",
+   "options": [],
+   "antipodes": [],
+   "recommendation": null,
+   "decision": null,
+   "reversibility": null,
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [
+    {
+     "path": "core/trace/trace_graph.py",
+     "quote": "if near in core and nodes[far][\"kind\"] in attach:"
+    }
+   ],
+   "comments": []
+  },
+  {
+   "id": "F-22",
+   "question": "Где разместить просмотр req-graph относительно журнала, схемы и справки?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-01",
+    "F-07",
+    "F-17"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Отдельная вкладка графа рядом с журналом; переиспользовать рендер и управление масштабом. Граф сохраняет свой источник и фильтры, схема и справка сохраняют своё назначение. Цена — отдельный контроллер панели и восстановление состояния; расположение легко поменять позднее.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "src/protocol/protocol.ts",
+       "quote": "export type PanelView = \"scheme\" | \"help\";"
+      },
+      {
+       "path": "src/viewer/viewerPanel.ts",
+       "quote": "reveal(id: string, mode?: ViewMode): void {"
+      }
+     ]
+    },
+    {
+     "letter": "B",
+     "text": "Добавить режим «граф» к существующей вкладке «схема / справка». Меньше отдельных вкладок, но источник графа и фильтры нужно согласовать со следованием схемы за текущим журналом; одновременный показ схемы и графа потребует дополнительного поведения.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "src/protocol/protocol.ts",
+       "quote": "export type PanelView = \"scheme\" | \"help\";"
+      }
+     ]
+    },
+    {
+     "letter": "C",
+     "text": "Встроить граф в страницу журнала. Карточки и диаграмма живут вместе, но Mermaid, масштабирование и отдельный источник архивного снимка усложнят страницу журнала. Позднее выделение графа потребует переноса состояния.",
+     "added": false,
+     "unlikely": "Просмотр архивного снимка должен работать и без открытого журнала; встраивание сильнее связывает эти независимые состояния.",
+     "evidence": [
+      {
+       "path": "src/protocol/protocol.ts",
+       "quote": "export type PanelView = \"scheme\" | \"help\";"
+      },
+      {
+       "path": "src/viewer/viewerPanel.ts",
+       "quote": "reveal(id: string, mode?: ViewMode): void {"
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Отдельный источник и фильтры нужны и живому графу, и снимку; отдельная вкладка позволяет переходить к карточкам и файлам, сохраняя выбранную часть графа, и меньше затрагивает существующие режимы схемы и справки."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Размещение меняется переносом контроллера и состояния панели; граф и исходные артефакты не мигрируются."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-23",
+   "question": "Где выполнять выбор подграфа и сохранять соответствие рисунка исходным узлам для переходов?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-02",
+    "F-04",
+    "F-06",
+    "F-18",
+    "F-20"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Расширить публичный вывод ядра для просмотра: один ответ содержит Mermaid-текст выбранной части и соответствие её элементов исходным id/местам. Ядро принимает живой источник или снимок и выбор модуля; плагин рисует и обрабатывает переходы через существующие механизмы. Форматы исходных артефактов и сохранённых графов ради кликов не меняются. Цена — небольшой новый протокол и его проверка; возможность точного связывания с SVG закреплённой Mermaid нужно проверить интеграционно.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "def diagram_text(graph: dict, capability: str | None = None, requirement: str | None = None) -> str:"
+      },
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "return {\"id\": node_id, \"kind\": kind, \"name\": name, \"at\": f\"{file}:{line}\", **extra}"
+      },
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "return clean_text(f\"{ident} {label}\")[:DIAGRAM[\"имя\"]].rstrip()"
+      },
+      {
+       "path": "src/viewer/viewerPanel.ts",
+       "quote": "reveal(id: string, mode?: ViewMode): void {"
+      },
+      {
+       "path": "src/file-links/openFile.ts",
+       "quote": "export async function openBeside(file: string, line: number | null): Promise<void> {"
+      }
+     ]
+    },
+    {
+     "letter": "B",
+     "text": "Получать JSON графа, а отбор, Mermaid-текст и соответствие узлов рассчитывать в TypeScript плагина. Снимок можно читать напрямую, но правила ядра о кандидатах, структуре, стилях и ограничениях придётся повторять и проверять на совпадение. Отказ от дублирования позднее потребует перенести логику обратно.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "def diagram_text(graph: dict, capability: str | None = None, requirement: str | None = None) -> str:"
+      },
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "if near in core and nodes[far][\"kind\"] in attach:"
+      },
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "return clean_text(f\"{ident} {label}\")[:DIAGRAM[\"имя\"]].rstrip()"
+      }
+     ]
+    },
+    {
+     "letter": "C",
+     "text": "Дополнить нынешний Mermaid-экспорт выбором модуля и снимка, а для кликов восстанавливать исходные узлы в плагине по сгенерированным именам и порядку нумерации. Ответ ядра короче, но плагин зависит от очистки и обрезки подписей; любое изменение генератора потребует синхронной правки.",
+     "added": false,
+     "unlikely": "Восстановление связи по производной подписи добавляет хрупкую зависимость именно в необязательное удобство кликов.",
+     "evidence": [
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "def diagram_text(graph: dict, capability: str | None = None, requirement: str | None = None) -> str:"
+      },
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "return clean_text(f\"{ident} {label}\")[:DIAGRAM[\"имя\"]].rstrip()"
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Правила выбора уже находятся в ядре, а граф уже несёт id и at. Отдельная карта в ответе позволяет не дублировать генератор, не извлекать адрес из обрезанной подписи и не менять артефакты ради переходов."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Форматы исходных артефактов и снимков сохраняются. Отмена потребует согласованной правки публичного ответа ядра и его вызова в плагине."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  },
+  {
+   "id": "F-24",
+   "question": "Как показать отсутствие связей, когда выбранная часть графа скрывает остальные записи?",
+   "kind": "развилка",
+   "status": "решён",
+   "addressee": "человек",
+   "depends_on": [
+    "F-03",
+    "F-17",
+    "F-21"
+   ],
+   "delivery": "",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Показывать выбранную диаграмму, а рядом — явный список записей и требований без найденных связей по данным сборки. Отдельно обозначать, относится ли список ко всему изменению или выбранной части. Из списка можно выбрать объект для осмотра; отсутствующие связи не дорисовываются. Цена — дополнительный список и понятная область его расчёта; это не автоматическая оценка смысла решений.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "if near in core and nodes[far][\"kind\"] in attach:"
+      },
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-purpose-word.md",
+       "quote": "хочу проверить связи решений по развилкам с требованиями и сценариями. то есть рендер графа может быть удобным инструментом, для того, чтобы видеть что с чем связано и связано ли вообще, вместо того, чтобы вычитывать текст для поиска таких связей."
+      }
+     ]
+    },
+    {
+     "letter": "B",
+     "text": "Показывать только выбранную диаграмму и явно указывать её границы. Требование без связанной записи видно изолированным, но запись, которая вообще не привязана к выбранной части, останется за пределами рисунка. Цена ниже, однако для проверки таких записей придётся обращаться к журналу или отчёту.",
+     "added": false,
+     "unlikely": null,
+     "evidence": [
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "if near in core and nodes[far][\"kind\"] in attach:"
+      },
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-purpose-word.md",
+       "quote": "хочу проверить связи решений по развилкам с требованиями и сценариями. то есть рендер графа может быть удобным инструментом, для того, чтобы видеть что с чем связано и связано ли вообще, вместо того, чтобы вычитывать текст для поиска таких связей."
+      }
+     ]
+    },
+    {
+     "letter": "C",
+     "text": "Добавлять в каждую выбранную диаграмму все записи и требования изменения без найденных связей. Пропуски видны непосредственно на рисунке, но даже узкий выбор может стать большой диаграммой с объектами вне выбранного модуля/capability.",
+     "added": false,
+     "unlikely": "Большой набор несвязанных записей расширяет каждую диаграмму и мешает основному сценарию выбора части графа.",
+     "evidence": [
+      {
+       "path": "core/trace/trace_graph.py",
+       "quote": "if near in core and nodes[far][\"kind\"] in attach:"
+      },
+      {
+       "path": "openspec/changes/req-graph-viewer/answers/2026-11-10-purpose-word.md",
+       "quote": "хочу проверить связи решений по развилкам с требованиями и сценариями. то есть рендер графа может быть удобным инструментом, для того, чтобы видеть что с чем связано и связано ли вообще, вместо того, чтобы вычитывать текст для поиска таких связей."
+      }
+     ]
+    }
+   ],
+   "antipodes": [],
+   "recommendation": {
+    "option": "A",
+    "why": "Назначение просмотра — замечать отсутствие связей. Отдельный список делает невидимые из-за отбора объекты доступными для осмотра, сохраняя читаемость выбранной диаграммы и явную область проверки."
+   },
+   "decision": {
+    "option": "A",
+    "word": "",
+    "date": "2026-11-10"
+   },
+   "reversibility": {
+    "level": "обратимо",
+    "why": "Список рассчитывается для показа; изменение его размещения или области расчёта не меняет сохранённые данные графа."
+   },
+   "outcome": null,
+   "parking": [],
+   "dispute": "",
+   "consequences": "",
+   "evidence": [],
+   "comments": []
+  }
+ ]
+}

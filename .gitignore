@@ -62,3 +62,16 @@ media/viewer.css
 media/test-driver.js
 # Скрипт хука: исходник — src/hook/hook.py, сборка кладёт копию по пути пакета
 /hook/
+symphysis.yaml
+.symphysis/tools/journal-roots.json
+tools/journal-roots.json
+.symphysis/install-manifest.json
+.symphysis/.install-*
+.symphysis/.leases/
+.symphysis/store-init.json
+.symphysis/.store-init-*
+.symphysis/migration.json
+.symphysis/.migration-*
+.symphysis-install-*
+.symphysis-init-*
+.symphysis-migrate-*

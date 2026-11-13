@@ -4,14 +4,27 @@ import path from "node:path";
 
 const BIG = "calibration-fixes";
 
-const withJournal = (base) => (fs.existsSync(base) ? fs.readdirSync(base) : [])
+const inRoot = (root, entry) => {
+  const relative = path.relative(root, fs.realpathSync(entry));
+  if (path.isAbsolute(relative) || relative.split(path.sep)[0] === "..")
+    throw new Error(`Журнал вне выбранного дерева ядра: ${entry}`);
+  return entry;
+};
+
+const withJournal = (root, base) => (fs.existsSync(base) ? fs.readdirSync(inRoot(root, base)) : [])
   .map((name) => ({ name, dir: path.join(base, name) }))
-  .filter((j) => fs.existsSync(path.join(j.dir, "decisions.json")));
+  .filter((j) => fs.existsSync(path.join(j.dir, "decisions.json")))
+  .map((j) => {
+    const file = inRoot(root, path.join(j.dir, "decisions.json"));
+    if (!fs.statSync(file).isFile()) throw new Error(`Недоступен файл журнала ядра: ${file}`);
+    return j;
+  });
 
 /** Активные изменения и архив: после архивации журнал остаётся настоящим, каталог лишь получает дату в начале имени. */
 export function coreJournals(root) {
-  const changes = path.join(root, "openspec", "changes");
-  return [...withJournal(changes), ...withJournal(path.join(changes, "archive"))];
+  const canonical = fs.realpathSync(root);
+  const changes = path.join(canonical, "openspec", "changes");
+  return [...withJournal(canonical, changes), ...withJournal(canonical, path.join(changes, "archive"))];
 }
 
 /** Большой журнал со строками атаки. Нет его — ошибка, а не пропуск: пропуск выглядел бы зелёным прогоном без этого шага. */

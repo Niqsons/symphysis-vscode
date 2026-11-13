@@ -6,6 +6,9 @@ import path from "node:path";
 import { FORK_APPLY, forkScenario, forkStatus, forkStatusAll, installForkShim } from "../fork-shim.mjs";
 import { tempDir } from "../temp-dir.mjs";
 import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
+import { checkE2ePaths } from "./paths.mjs";
+
+checkE2ePaths(repo, "e2e:activation");
 
 const work = tempDir("symphysis-activation-");
 

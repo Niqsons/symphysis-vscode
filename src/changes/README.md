@@ -1,6 +1,13 @@
 ---
 name: changes
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: core
+  - repo: symphysis-vscode
+    module: journal
+  - repo: symphysis-vscode
+    module: protocol
 ---
 
 # changes

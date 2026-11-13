@@ -1,6 +1,13 @@
 ---
 name: req-graph
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: core
+  - repo: symphysis-vscode
+    module: scheme
+  - repo: symphysis-vscode
+    module: ui
 ---
 
 # req-graph

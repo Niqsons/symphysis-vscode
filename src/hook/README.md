@@ -1,6 +1,9 @@
 ---
 name: hook
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: core
 ---
 
 # hook

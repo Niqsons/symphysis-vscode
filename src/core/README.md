@@ -1,6 +1,11 @@
 ---
 name: core
 kind: технический
+dependencies:
+  - repo: symphysis-vscode
+    module: journal
+  - repo: symphysis-vscode
+    module: protocol
 ---
 
 # core

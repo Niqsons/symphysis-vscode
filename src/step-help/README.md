@@ -1,6 +1,15 @@
 ---
 name: step-help
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: core
+  - repo: symphysis-vscode
+    module: file-links
+  - repo: symphysis-vscode
+    module: protocol
+  - repo: symphysis-vscode
+    module: ui
 ---
 
 # step-help

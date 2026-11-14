@@ -5,4 +5,6 @@ export function coreRoot(env: NodeJS.ProcessEnv, sibling: string): string;
 export function coreMissing(root: string): string | null;
 export function resolveCore(env: NodeJS.ProcessEnv, sibling: string): { root: string; missing: string | null };
 export function coreSource(root: string, name: string): string;
+export function checkCoreFiles(root: string): Map<string, string>;
+export function checkCoreFixtures(root: string, name: string): void;
 export function installCore(root: string, project: string): string;

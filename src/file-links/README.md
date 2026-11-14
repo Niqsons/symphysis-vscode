@@ -1,6 +1,9 @@
 ---
 name: file-links
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: protocol
 ---
 
 # file-links

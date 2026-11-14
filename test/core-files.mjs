@@ -3,6 +3,7 @@
 // этот файл; его читают модульные тесты (`test/unit/fixture-project.ts`, тест справки) и сквозные (`test/e2e/harness.mjs`, `demo.mjs`).
 import fs from "node:fs";
 import path from "node:path";
+import { bigJournal } from "./core-journals.mjs";
 
 /** Точка входа ядра в клоне: по ней тесты узнают ядро модульной раскладки. */
 export const CORE_ENTRY = "cli/journal.py";
@@ -40,9 +41,61 @@ export const coreRoot = (env, sibling) => env.SYMPHYSIS_ROOT || sibling;
 
 const at = (root, rel) => path.join(root, ...rel.split("/"));
 
+/** Проверяет физический путь входа до чтения из выбранного дерева. */
+function checkedSource(root, rel) {
+  const canonical = fs.realpathSync(root);
+  const candidate = at(canonical, rel);
+  if (!fs.existsSync(candidate)) throw new Error(`Недоступен вход ядра: ${rel}`);
+  const source = fs.realpathSync(candidate);
+  const relative = path.relative(canonical, source);
+  if (path.isAbsolute(relative) || relative.split(path.sep)[0] === ".." || !fs.statSync(source).isFile())
+    throw new Error(`Вход ядра вне выбранного дерева или недоступен: ${rel}`);
+  return source;
+}
+
+/** Разрешает весь комплект до создания установленной копии. */
+export function checkCoreFiles(root) {
+  return new Map([...TOOLS_FILES, ...DOCS_FILES].map((rel) => [rel, checkedSource(root, rel)]));
+}
+
+/** Дополнительные файлы ядра, которые отдельные проверки читают из клона. */
+export function checkCoreFixtures(root, name) {
+  const fixtures = {
+    "test/unit/core-files.test.ts": ["installer/scripts/sync-payload.js"],
+    "test/unit/contract.test.ts": ["tests/fixtures/viewer-smoke.js"],
+    "src/scheme/test/scheme.test.ts": ["tests/fixtures/scheme/cases.json", "installer/package.json"],
+    "src/step-help/test/help-view.test.tsx": ["openspec/schemas/symphysis/steps.md"],
+    "src/step-help/test/step-help.test.ts": forkFixtures(),
+    e2e: ["tests/fixtures/scheme/wide.md", ...forkFixtures()],
+    "e2e:activation": forkFixtures(),
+    "e2e:reload": forkFixtures(),
+  };
+  for (const rel of fixtures[name] ?? []) checkedSource(root, rel);
+  if (name === "e2e" || name === "test/unit/contract.test.ts") {
+    const journal = bigJournal(root);
+    const canonical = fs.realpathSync(root);
+    const attack = path.join(journal.dir, "attack");
+    if (name === "e2e" && fs.existsSync(attack)) {
+      const check = (file) => checkedSource(canonical, path.relative(canonical, file).split(path.sep).join("/"));
+      const relative = path.relative(canonical, fs.realpathSync(attack));
+      if (path.isAbsolute(relative) || relative.split(path.sep)[0] === "..")
+        throw new Error(`Каталог атаки вне выбранного дерева ядра: ${attack}`);
+      for (const name of fs.readdirSync(attack)) check(path.join(attack, name));
+    }
+  }
+}
+
+function forkFixtures() {
+  return ["tests/fixtures/fork-shim/fork_shim.py",
+    `tests/fixtures/fork-shim/${process.platform === "win32" ? "openspec.cmd" : "openspec"}`];
+}
+
 /** Почему в каталоге нет ядра модульной раскладки; `null` — ядро есть. */
 export function coreMissing(root) {
-  if (fs.existsSync(at(root, CORE_ENTRY))) return null;
+  if (fs.existsSync(at(root, CORE_ENTRY))) {
+    try { checkedSource(root, CORE_ENTRY); } catch (error) { return error.message; }
+    return null;
+  }
   if (fs.existsSync(path.join(root, "tools", "journal.py"))) return `в ${root} ядро прежней раскладки (tools/journal.py), тестам нужна модульная: ${CORE_ENTRY}`;
   return `в ${root} нет ${CORE_ENTRY}`;
 }
@@ -62,7 +115,7 @@ export function resolveCore(env, sibling) {
 export function coreSource(root, name) {
   const rel = TOOLS_FILES.find((f) => path.posix.basename(f) === name);
   if (!rel) throw new Error(`${name}: файла нет в списке установки TOOLS_FILES`);
-  return at(root, rel);
+  return checkedSource(root, rel);
 }
 
 /**
@@ -70,11 +123,12 @@ export function coreSource(root, name) {
  * Файла корней улик здесь нет: его пишет вызывающий. Файла в клоне нет — отказ с путём, а не неполная установка.
  */
 export function installCore(root, project) {
+  const sources = checkCoreFiles(root);
   const tools = path.join(project, ".symphysis", "tools");
   const docs = path.join(project, ".symphysis", "docs");
   fs.mkdirSync(tools, { recursive: true });
   fs.mkdirSync(docs, { recursive: true });
-  for (const rel of TOOLS_FILES) fs.copyFileSync(at(root, rel), path.join(tools, path.posix.basename(rel)));
-  for (const rel of DOCS_FILES) fs.copyFileSync(at(root, rel), path.join(docs, path.posix.basename(rel)));
+  for (const rel of TOOLS_FILES) fs.copyFileSync(sources.get(rel), path.join(tools, path.posix.basename(rel)));
+  for (const rel of DOCS_FILES) fs.copyFileSync(sources.get(rel), path.join(docs, path.posix.basename(rel)));
   return tools;
 }

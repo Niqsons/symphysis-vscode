@@ -1,6 +1,15 @@
 ---
 name: search
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: changes
+  - repo: symphysis-vscode
+    module: journal
+  - repo: symphysis-vscode
+    module: protocol
+  - repo: symphysis-vscode
+    module: ui
 ---
 
 # search

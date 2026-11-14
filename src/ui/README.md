@@ -1,6 +1,11 @@
 ---
 name: ui
 kind: технический
+dependencies:
+  - repo: symphysis-vscode
+    module: file-links
+  - repo: symphysis-vscode
+    module: protocol
 ---
 
 # ui

@@ -1,6 +1,17 @@
 ---
 name: scheme
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: core
+  - repo: symphysis-vscode
+    module: file-links
+  - repo: symphysis-vscode
+    module: protocol
+  - repo: symphysis-vscode
+    module: step-help
+  - repo: symphysis-vscode
+    module: ui
 ---
 
 # scheme

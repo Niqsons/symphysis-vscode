@@ -6,7 +6,9 @@ import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { tempDir } from "../temp-dir.mjs";
 import { cleanEnv, CODE, finish, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
+import { checkE2ePaths } from "./paths.mjs";
 
+checkE2ePaths(repo, "e2e:graph");
 await build({ bundle: true, platform: "node", format: "cjs", target: "node20", external: ["vscode"],
   entryPoints: [path.join(repo, "test/e2e/req-graph-scenario.ts")], outfile: path.join(repo, "out/e2e/req-graph-scenario.js") });
 const work = tempDir("symphysis-req-graph-");

@@ -6,7 +6,9 @@ import path from "node:path";
 import { tempDir } from "../temp-dir.mjs";
 import { addChange, cleanEnv, CODE, finish, fixtures, projectWithTools, repo, report, SYMPHYSIS } from "./harness.mjs";
 import { pack } from "../../package.mjs";
+import { checkE2ePaths } from "./paths.mjs";
 
+checkE2ePaths(repo, "e2e:vsix");
 cleanEnv();
 const manifest = path.join(repo, "package.json");
 const manifestBefore = fs.readFileSync(manifest);
@@ -17,7 +19,7 @@ const fail = (what, r) => {
   process.exit(1);
 };
 
-const packed = spawnSync("npm run package", { cwd: repo, shell: true, encoding: "utf8" });
+const packed = spawnSync(process.execPath, [path.join(repo, "package.mjs")], { cwd: repo, encoding: "utf8" });
 if (packed.status !== 0) fail("упаковка", packed);
 if (!quiet) console.log(packed.stdout.split("\n").filter((l) => /WARNING|DONE|ERROR/i.test(l)).join("\n"));
 const vsix = /^PACKED=(.+)$/m.exec(packed.stdout)?.[1]?.trim();

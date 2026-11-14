@@ -1,6 +1,9 @@
 ---
 name: journal
 kind: доменный
+dependencies:
+  - repo: symphysis-vscode
+    module: protocol
 ---
 
 # journal
